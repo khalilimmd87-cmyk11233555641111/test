@@ -1782,7 +1782,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
 
 
 def get_public_page_html(uuid_key: str) -> str:
-    """صفحه پابلیک ساب — با طراحی پریمیوم Glassmorphism"""
+    """صفحه‌ی سابسکریپشن عمومی – حرفه‌ای مانند V2Box با نمایش مصرف، اتصالات زنده و کانفیگ‌ها"""
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -1812,7 +1812,7 @@ def get_public_page_html(uuid_key: str) -> str:
 html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',sans-serif;color:var(--text-primary);font-size:14px}}
 .bg-layer{{position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(59,130,246,0.06),transparent 60%),var(--bg-root);z-index:0;pointer-events:none}}
 .grid{{position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:44px 44px;z-index:0;pointer-events:none}}
-.wrap{{position:relative;z-index:10;max-width:780px;margin:0 auto;padding:28px 16px 60px}}
+.wrap{{position:relative;z-index:10;max-width:820px;margin:0 auto;padding:28px 16px 60px}}
 .top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}}
 .brand{{display:flex;align-items:center;gap:12px}}
 .brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 0 20px rgba(59,130,246,0.25)}}
@@ -2000,6 +2000,7 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 .qr-img img{{width:100%;display:block;background:#fff;padding:8px;border-radius:14px}}
 .footer{{text-align:center;padding-top:30px;font-size:11px;color:var(--text-muted)}}
 .footer a{{color:var(--accent-soft);font-weight:600}}
+@media(max-width:500px){{.stats-grid{{grid-template-columns:1fr 1fr}}}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
 @keyframes spin{{to{{transform:rotate(360deg)}}}}
 </style>
@@ -2115,7 +2116,7 @@ function renderContent(d){{
       <div class="stat-card">
         <div class="stat-label">اتصالات زنده</div>
         <div class="stat-value">${{toFa(d.active_connections)}}</div>
-        <div class="stat-sub" style="color:#34D399;display:flex;align-items:center;gap:4px"><span class="dot" style="background:#10B981;width:6px;height:6px;border-radius:50%;animation:pulse 2s infinite"></span> آنلاین</div>
+        <div class="stat-sub" style="color:#34D399;display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#10B981;animation:pulse 2s infinite"></span> آنلاین</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">کل مصرف</div>
