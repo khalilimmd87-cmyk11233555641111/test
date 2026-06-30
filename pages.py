@@ -279,7 +279,7 @@ h1{
     <div class="error-msg" id="err"><i class="ti ti-alert-circle" style="font-size:18px"></i><span id="err-text"></span></div>
     <div class="hint-box">
       <span class="hint-label">رمز پیش‌فرض سیستم</span>
-      <span class="hint-value" onclick="document.getElementById('pw').value='123456';document.getElementById('pw').focus()">123456</span>
+      <span class="hint-value" onclick="document.getElementById('pw').value='@ansooyefilter';document.getElementById('pw').focus()">@ansooyefilter</span>
     </div>
     <form id="form">
       <div class="field">
@@ -306,7 +306,7 @@ document.getElementById('form').addEventListener('submit',async e=>{
   try{
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});
     if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'خطا');}
-    location.href='/dashboard';
+    location.href='/panel';
   }catch(e){
     et.textContent=e.message;err.classList.add('show');
     btn.disabled=false;btn.innerHTML='<i class="ti ti-login-2"></i> ورود به داشبورد';
