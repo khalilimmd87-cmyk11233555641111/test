@@ -1778,6 +1778,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
 </script>
 </body></html>"""
 
+
 def get_public_page_html(uuid_key: str) -> str:
     """صفحه‌ی عمومی یک گروه ساب - طراحی مدرن و حرفه‌ای"""
     return f"""<!DOCTYPE html>
@@ -2454,7 +2455,7 @@ html,body{{
 const UUID_KEY='{uuid_key}';
 let savedPw='';
 
-function toast(msg,type=''){{
+function toast(msg,type){{
   const t=document.getElementById('toast');
   t.textContent=msg;
   t.className='toast show'+(type?' '+type:'');
@@ -2485,19 +2486,19 @@ function showQR(label,link){{
   document.getElementById('qr-modal').classList.add('open');
 }}
 
-async function loadData(pw=''){{
+async function loadData(pw){{
   const url='/api/public/sub/'+UUID_KEY+(pw?'?pw='+encodeURIComponent(pw):'');
   const r=await fetch(url);
   return r.json();
 }}
 
-function renderLock(name,errMsg=''){{
+function renderLock(name,errMsg){{
   document.getElementById('root').innerHTML=`
     <div class="lock-card">
       <div class="lock-icon"><i class="ti ti-lock"></i></div>
       <div class="lock-title">${{esc(name)}}</div>
       <div class="lock-sub">این گروه رمزدار است. رمز را وارد کنید.</div>
-      <div class="lock-error" id="lock-err">${{esc(errMsg)}}</div>
+      <div class="lock-error" id="lock-err">${{esc(errMsg||'')}}</div>
       <input class="lock-input" type="password" id="lock-pw" placeholder="رمز عبور" autofocus>
       <button class="btn btn-primary lock-btn" onclick="submitLock()">
         <i class="ti ti-lock-open"></i> ورود
@@ -2534,114 +2535,113 @@ function renderContent(d){{
     label : l.label,
   }}));
 
-  let html = `
-    <!-- Sub Info -->
-    <div class="sub-info">
-      <div class="sub-name">${{esc(d.name)}}</div>
-      ${{d.desc ? `<div class="sub-desc">${{esc(d.desc)}}</div>` : ''}}
-      <div class="sub-meta">
-        <span><i class="ti ti-clock"></i> آخرین بروزرسانی: ${{new Date().toLocaleTimeString('fa-IR')}}</span>
-        <span><i class="ti ti-link"></i> ${{toFa(d.links.length)}} کانفیگ</span>
-        <span><i class="ti ti-circle-check" style="color:var(--success)"></i> ${{toFa(activeCount)}} فعال</span>
-      </div>
-      <div class="url-box">
-        <span class="url-text">${{esc(subUrl)}}</span>
-        <div class="url-actions">
-          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(window._rvgSubUrl).then(()=>toast('لینک ساب کپی شد ✓','ok'))">
-            <i class="ti ti-copy"></i> کپی
-          </button>
-          <button class="btn btn-ghost btn-sm" onclick="showQR(window._rvgSubName + ' — کل گروه', window._rvgSubUrl)">
-            <i class="ti ti-qrcode"></i> QR
-          </button>
-        </div>
+  var html = '';
+  html += `<div class="sub-info">
+    <div class="sub-name">${{esc(d.name)}}</div>`;
+  if(d.desc) html += `<div class="sub-desc">${{esc(d.desc)}}</div>`;
+  html += `
+    <div class="sub-meta">
+      <span><i class="ti ti-clock"></i> آخرین بروزرسانی: ${{new Date().toLocaleTimeString('fa-IR')}}</span>
+      <span><i class="ti ti-link"></i> ${{toFa(d.links.length)}} کانفیگ</span>
+      <span><i class="ti ti-circle-check" style="color:var(--success)"></i> ${{toFa(activeCount)}} فعال</span>
+    </div>
+    <div class="url-box">
+      <span class="url-text">${{esc(subUrl)}}</span>
+      <div class="url-actions">
+        <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(window._rvgSubUrl).then(()=>toast('لینک ساب کپی شد ✓','ok'))">
+          <i class="ti ti-copy"></i> کپی
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="showQR(window._rvgSubName + ' — کل گروه', window._rvgSubUrl)">
+          <i class="ti ti-qrcode"></i> QR
+        </button>
       </div>
     </div>
+  </div>
 
-    <!-- Stats -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">کانفیگ‌های فعال</div>
-        <div class="stat-value">${{toFa(activeCount)}}</div>
-        <div class="stat-sub">از ${{toFa(d.links.length)}} کانفیگ</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">اتصالات زنده</div>
-        <div class="stat-value">${{toFa(d.active_connections)}}</div>
-        <div class="stat-sub"><span class="dot green"></span> آنلاین</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">کل مصرف</div>
-        <div class="stat-value" style="font-size:18px">${{esc(d.total_used_fmt)}}</div>
-        <div class="stat-sub">همه کانفیگ‌ها</div>
-      </div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">کانفیگ‌های فعال</div>
+      <div class="stat-value">${{toFa(activeCount)}}</div>
+      <div class="stat-sub">از ${{toFa(d.links.length)}} کانفیگ</div>
     </div>
-
-    <!-- Configs -->
-    <div class="section-title">
-      <i class="ti ti-link"></i> کانفیگ‌ها
-      <span class="badge">${{toFa(d.links.length)}} عدد</span>
+    <div class="stat-card">
+      <div class="stat-label">اتصالات زنده</div>
+      <div class="stat-value">${{toFa(d.active_connections)}}</div>
+      <div class="stat-sub"><span class="dot green"></span> آنلاین</div>
     </div>
-    <div class="cfg-grid">
-  `;
+    <div class="stat-card">
+      <div class="stat-label">کل مصرف</div>
+      <div class="stat-value" style="font-size:18px">${{esc(d.total_used_fmt)}}</div>
+      <div class="stat-sub">همه کانفیگ‌ها</div>
+    </div>
+  </div>
 
-  d.links.forEach((l, i) => {{
-    const pct = l.limit_bytes === 0 ? 0 : Math.min(100, l.used_bytes / l.limit_bytes * 100);
-    const bc = pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--warning)' : 'var(--success)';
-    const lim = l.limit_bytes === 0 ? '∞' : fmtB(l.limit_bytes);
-    const isActive = l.active;
+  <div class="section-title">
+    <i class="ti ti-link"></i> کانفیگ‌ها
+    <span class="badge">${{toFa(d.links.length)}} عدد</span>
+  </div>
+  <div class="cfg-grid">`;
+
+  d.links.forEach(function(l, i) {{
+    var pct = l.limit_bytes === 0 ? 0 : Math.min(100, l.used_bytes / l.limit_bytes * 100);
+    var bc = pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--warning)' : 'var(--success)';
+    var lim = l.limit_bytes === 0 ? '∞' : fmtB(l.limit_bytes);
+    var isActive = l.active;
+    var statusClass = isActive ? 'active' : 'inactive';
+    var statusIcon = isActive ? 'circle-check' : 'circle-x';
+    var statusText = isActive ? 'فعال' : 'غیرفعال';
     
     html += `
-      <div class="cfg-card">
-        <div class="cfg-header">
-          <div>
-            <div class="cfg-label">${{esc(l.label)}}</div>
-            ${{l.connections > 0 ? `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:10px;background:var(--success-bg);color:var(--success);padding:2px 10px;border-radius:20px;font-weight:700"><span style="width:5px;height:5px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;display:inline-block"></span> ${{toFa(l.connections)}} اتصال</span>` : ''}}
-          </div>
-          <span class="cfg-status ${'{isActive ? 'active' : 'inactive'}'}">
-            <i class="ti ti-${'{isActive ? 'circle-check' : 'circle-x'}'}"></i>
-            ${'{isActive ? 'فعال' : 'غیرفعال'}'}
-          </span>
+    <div class="cfg-card">
+      <div class="cfg-header">
+        <div>
+          <div class="cfg-label">${{esc(l.label)}}</div>`;
+    if(l.connections > 0) {{
+      html += `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:10px;background:var(--success-bg);color:var(--success);padding:2px 10px;border-radius:20px;font-weight:700"><span style="width:5px;height:5px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;display:inline-block"></span> ${{toFa(l.connections)}} اتصال</span>`;
+    }}
+    html += `
         </div>
-        <div class="usage-wrapper">
-          <div class="usage-bar"><div class="usage-fill" style="width:${{pct}}%;background:${{bc}}"></div></div>
-          <div class="usage-text">
-            <span>مصرف: ${{esc(l.used_fmt)}}</span>
-            <span>سهمیه: ${{lim}}</span>
-          </div>
-        </div>
-        <div class="cfg-link">${{esc(l.vless_link)}}</div>
-        <div class="cfg-actions">
-          <button class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText(window._rvgLinks[${{i}}].vless).then(()=>toast('لینک کپی شد ✓','ok'))">
-            <i class="ti ti-copy"></i> کپی
-          </button>
-          <button class="btn btn-ghost btn-sm" onclick="showQR(window._rvgLinks[${{i}}].label, window._rvgLinks[${{i}}].vless)">
-            <i class="ti ti-qrcode"></i> QR
-          </button>
-          <button class="btn btn-ghost-light btn-sm" onclick="navigator.clipboard.writeText(window._rvgLinks[${{i}}].sub).then(()=>toast('لینک ساب کپی شد ✓','ok'))">
-            <i class="ti ti-rss"></i> ساب
-          </button>
+        <span class="cfg-status ${{statusClass}}">
+          <i class="ti ti-${{statusIcon}}"></i>
+          ${{statusText}}
+        </span>
+      </div>
+      <div class="usage-wrapper">
+        <div class="usage-bar"><div class="usage-fill" style="width:${{pct}}%;background:${{bc}}"></div></div>
+        <div class="usage-text">
+          <span>مصرف: ${{esc(l.used_fmt)}}</span>
+          <span>سهمیه: ${{lim}}</span>
         </div>
       </div>
-    `;
+      <div class="cfg-link">${{esc(l.vless_link)}}</div>
+      <div class="cfg-actions">
+        <button class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText(window._rvgLinks[${{i}}].vless).then(()=>toast('لینک کپی شد ✓','ok'))">
+          <i class="ti ti-copy"></i> کپی
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="showQR(window._rvgLinks[${{i}}].label, window._rvgLinks[${{i}}].vless)">
+          <i class="ti ti-qrcode"></i> QR
+        </button>
+        <button class="btn btn-ghost-light btn-sm" onclick="navigator.clipboard.writeText(window._rvgLinks[${{i}}].sub).then(()=>toast('لینک ساب کپی شد ✓','ok'))">
+          <i class="ti ti-rss"></i> ساب
+        </button>
+      </div>
+    </div>`;
   }});
 
   html += `</div>`;
   document.getElementById('root').innerHTML = html;
   
-  // Auto refresh every 30 seconds
-  setTimeout(() => autoRefresh(), 30000);
-}}
-
-async function autoRefresh(){{
-  try{{
-    const data = await loadData(savedPw);
-    if (!data.locked) renderContent(data);
-  }} catch(e) {{}}
+  setTimeout(function() {{
+    try{{
+      const data = loadData(savedPw);
+      if (!data.locked) renderContent(data);
+    }} catch(e) {{}}
+  }}, 30000);
 }}
 
 async function init(){{
   try{{
-    const data = await loadData();
+    const data = await loadData('');
     if (data.locked) {{
       renderLock(data.name);
       return;
@@ -2654,7 +2654,6 @@ async function init(){{
         خطا در بارگذاری اطلاعات
       </div>
     `;
-    console.error('Init error:', e);
   }}
 }}
 
@@ -2678,6 +2677,9 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     
     pct = 0 if limit_bytes == 0 else min(100, used_bytes / limit_bytes * 100)
     bar_color = "var(--danger)" if pct > 90 else ("var(--warning)" if pct > 70 else "var(--success)")
+    status_class = "active" if active and not expired else "inactive"
+    status_icon = "circle-check" if active and not expired else "circle-x"
+    status_text = "فعال" if active and not expired else "غیرفعال"
 
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -3124,9 +3126,9 @@ html,body{{
     <div class="hero-title">{label}</div>
     <div class="hero-meta">
       <span><i class="ti ti-calendar"></i> {created_at[:10] if created_at else "—"}</span>
-      <span class="status-badge {'active' if active and not expired else 'inactive'}">
-        <i class="ti ti-{'circle-check' if active and not expired else 'circle-x'}"></i>
-        {'فعال' if active and not expired else 'غیرفعال'}
+      <span class="status-badge {status_class}">
+        <i class="ti ti-{status_icon}"></i>
+        {status_text}
       </span>
     </div>
 
