@@ -1778,172 +1778,446 @@ document.addEventListener('DOMContentLoaded',async()=>{
 </script>
 </body></html>"""
 
-
 def get_public_page_html(uuid_key: str) -> str:
-    """صفحه‌ی عمومی یک گروه ساب (همان نسخه‌ی قبلی، بدون تغییر)"""
+    """صفحه‌ی عمومی یک گروه ساب - طراحی مدرن و حرفه‌ای"""
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RVG Sub · تیم آزادی</title>
+<title>ساب · تیم آزادی</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 :root{{
-  --bg-root:#0B1220;
-  --bg-surface:#111827;
-  --glass-bg:rgba(17,24,39,0.75);
-  --glass-border:rgba(59,130,246,0.12);
-  --accent:#3B82F6;
-  --accent-soft:#60A5FA;
-  --green:#10B981;--green-bg:rgba(16,185,129,0.12);
-  --red:#EF4444;--red-bg:rgba(239,68,68,0.12);
-  --purple:#8B5CF6;--purple-bg:rgba(139,92,246,0.12);
-  --text-primary:#F1F5F9;
-  --text-secondary:#94A3B8;
-  --text-muted:#64748B;
+  --bg-primary:#0A0E14;
+  --bg-secondary:#11181F;
+  --bg-card:#181F28;
+  --bg-card-hover:#1F2833;
+  --text-primary:#E8EDF5;
+  --text-secondary:#8FA3B8;
+  --text-muted:#5A6F84;
+  --accent:#E83C6A;
+  --accent-dark:#C72A56;
+  --accent-glow:rgba(232,60,106,0.15);
+  --border-color:rgba(143,171,202,0.08);
+  --border-hover:rgba(232,60,106,0.3);
+  --success:#10B981;
+  --success-bg:rgba(16,185,129,0.12);
+  --warning:#F59E0B;
+  --warning-bg:rgba(245,158,11,0.12);
+  --danger:#EF4444;
+  --danger-bg:rgba(239,68,68,0.12);
   --radius:16px;
-  --shadow:0 8px 32px rgba(0,0,0,0.3);
+  --shadow:0 8px 32px rgba(0,0,0,0.4);
+  --transition:0.3s cubic-bezier(0.4,0,0.2,1);
 }}
-html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',sans-serif;color:var(--text-primary);font-size:14px}}
-.bg-layer{{position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(59,130,246,0.06),transparent 60%),var(--bg-root);z-index:0;pointer-events:none}}
-.grid{{position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:44px 44px;z-index:0;pointer-events:none}}
-.wrap{{position:relative;z-index:10;max-width:780px;margin:0 auto;padding:28px 16px 60px}}
-.top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}}
-.brand{{display:flex;align-items:center;gap:12px}}
-.brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 0 20px rgba(59,130,246,0.25)}}
-.brand-img img{{width:100%;height:100%;object-fit:cover}}
-.brand-name{{font-size:15px;font-weight:700;color:var(--text-primary)}}
-.brand-sub{{font-size:10px;color:var(--text-muted)}}
-.stats-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}}
-.stat-card{{
-  background:var(--glass-bg);
-  backdrop-filter:blur(16px);
-  border:1px solid var(--glass-border);
+html,body{{
+  min-height:100%;
+  background:var(--bg-primary);
+  font-family:'Vazirmatn',sans-serif;
+  color:var(--text-primary);
+  font-size:14px;
+  line-height:1.6;
+}}
+::-webkit-scrollbar{{width:6px;height:6px}}
+::-webkit-scrollbar-track{{background:transparent}}
+::-webkit-scrollbar-thumb{{background:var(--accent);border-radius:3px}}
+
+.bg-layer{{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(232,60,106,0.06), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 80% 80%, rgba(232,60,106,0.04), transparent 50%),
+    var(--bg-primary);
+  pointer-events:none;
+}}
+.grid-overlay{{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  background-image:
+    linear-gradient(rgba(232,60,106,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,60,106,0.03) 1px, transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+}}
+
+.wrap{{
+  position:relative;
+  z-index:10;
+  max-width:820px;
+  margin:0 auto;
+  padding:24px 20px 60px;
+}}
+
+/* ── Header ── */
+.header{{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:32px;
+  padding:12px 20px;
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
   border-radius:var(--radius);
-  padding:16px;
+  backdrop-filter:blur(12px);
 }}
-.stat-label{{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}}
-.stat-value{{font-size:22px;font-weight:700;color:var(--text-primary)}}
-.stat-sub{{font-size:10px;color:var(--text-muted);margin-top:4px}}
+.brand{{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}}
+.brand-icon{{
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:20px;
+  font-weight:900;
+  color:#fff;
+  box-shadow:0 0 24px var(--accent-glow);
+}}
+.brand-text{{
+  font-size:16px;
+  font-weight:700;
+  color:var(--text-primary);
+}}
+.brand-sub{{
+  font-size:10px;
+  color:var(--text-muted);
+  letter-spacing:0.06em;
+}}
+.header-actions{{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}}
+.channel-link{{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 14px;
+  border-radius:8px;
+  background:rgba(232,60,106,0.1);
+  color:var(--accent);
+  font-size:12px;
+  font-weight:600;
+  text-decoration:none;
+  transition:var(--transition);
+}}
+.channel-link:hover{{
+  background:rgba(232,60,106,0.2);
+  transform:translateY(-1px);
+}}
+
+/* ── Sub Info Card ── */
 .sub-info{{
-  background:var(--glass-bg);
-  backdrop-filter:blur(16px);
-  border:1px solid var(--glass-border);
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
   border-radius:var(--radius);
-  padding:20px 24px;
-  margin-bottom:20px;
+  padding:24px 28px;
+  margin-bottom:24px;
+  transition:var(--transition);
 }}
-.sub-name{{font-size:20px;font-weight:700;margin-bottom:6px}}
-.sub-desc{{font-size:12px;color:var(--text-secondary);line-height:1.8;margin-bottom:14px}}
-.sub-url-box{{
-  background:rgba(139,92,246,0.08);
-  border:1px solid rgba(139,92,246,0.2);
+.sub-info:hover{{
+  border-color:var(--border-hover);
+  box-shadow:var(--shadow);
+}}
+.sub-name{{
+  font-size:22px;
+  font-weight:800;
+  background:linear-gradient(135deg,var(--text-primary),var(--text-secondary));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  margin-bottom:4px;
+}}
+.sub-desc{{
+  font-size:13px;
+  color:var(--text-secondary);
+  margin-bottom:16px;
+}}
+.sub-meta{{
+  display:flex;
+  flex-wrap:wrap;
+  gap:16px;
+  margin-bottom:16px;
+  font-size:12px;
+  color:var(--text-muted);
+}}
+.sub-meta span{{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}}
+.sub-meta i{{color:var(--accent);font-size:14px}}
+
+.url-box{{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 14px;
+  background:rgba(232,60,106,0.06);
+  border:1px solid rgba(232,60,106,0.15);
   border-radius:10px;
-  padding:12px 14px;
-  display:flex;align-items:center;gap:8px;
   flex-wrap:wrap;
 }}
-.sub-url-text{{
+.url-text{{
+  flex:1;
   font-family:ui-monospace,monospace;
   font-size:11px;
   color:#C084FC;
   word-break:break-all;
-  flex:1;
+  min-width:120px;
 }}
-.cfg-title{{
-  font-size:14px;font-weight:700;
-  color:var(--text-secondary);
-  margin-bottom:14px;
-  display:flex;align-items:center;gap:8px;
-  text-transform:uppercase;
-  letter-spacing:0.06em;
+.url-actions{{
+  display:flex;
+  gap:6px;
 }}
-.cfg-title i{{color:var(--accent);font-size:18px}}
-.cfg-grid{{display:grid;gap:14px}}
-.cfg-card{{
-  background:var(--glass-bg);
-  backdrop-filter:blur(16px);
-  border:1px solid var(--glass-border);
+
+/* ── Stats Grid ── */
+.stats-grid{{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:14px;
+  margin-bottom:28px;
+}}
+.stat-card{{
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
   border-radius:var(--radius);
-  padding:18px;
-  transition:all 0.25s;
+  padding:18px 20px;
+  transition:var(--transition);
+}}
+.stat-card:hover{{
+  border-color:var(--border-hover);
+  transform:translateY(-2px);
+  box-shadow:var(--shadow);
+}}
+.stat-label{{
+  font-size:10px;
+  font-weight:700;
+  color:var(--text-muted);
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  margin-bottom:4px;
+}}
+.stat-value{{
+  font-size:26px;
+  font-weight:800;
+  color:var(--text-primary);
+  line-height:1.2;
+}}
+.stat-sub{{
+  font-size:11px;
+  color:var(--text-muted);
+  margin-top:4px;
+}}
+.stat-sub .dot{{
+  display:inline-block;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  animation:pulse 2s infinite;
+}}
+.stat-sub .dot.green{{background:var(--success)}}
+.stat-sub .dot.accent{{background:var(--accent)}}
+
+/* ── Configs Section ── */
+.section-title{{
+  font-size:15px;
+  font-weight:700;
+  color:var(--text-secondary);
+  margin-bottom:16px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}}
+.section-title i{{color:var(--accent);font-size:18px}}
+.section-title .badge{{
+  font-size:10px;
+  padding:2px 10px;
+  border-radius:20px;
+  background:var(--accent-glow);
+  color:var(--accent);
+  font-weight:700;
+}}
+
+.cfg-grid{{
+  display:grid;
+  gap:14px;
+}}
+.cfg-card{{
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
+  border-radius:var(--radius);
+  padding:20px;
+  transition:var(--transition);
 }}
 .cfg-card:hover{{
-  border-color:rgba(59,130,246,0.25);
+  border-color:var(--border-hover);
   box-shadow:var(--shadow);
   transform:translateY(-2px);
 }}
-.cfg-header{{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}}
-.cfg-label{{font-size:15px;font-weight:700}}
-.cfg-status{{
-  font-size:10px;font-weight:700;
-  padding:3px 10px;
-  border-radius:20px;
-  display:flex;align-items:center;gap:4px;
+.cfg-header{{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
 }}
-.cfg-status.ok{{background:var(--green-bg);color:#34D399}}
-.cfg-status.no{{background:var(--red-bg);color:#FCA5A5}}
-.usage-bar{{height:7px;border-radius:4px;background:rgba(59,130,246,0.1);overflow:hidden;margin-bottom:4px}}
-.usage-fill{{height:100%;border-radius:4px;transition:width 0.4s}}
-.usage-text{{font-size:10px;color:var(--text-muted);display:flex;justify-content:space-between}}
-.cfg-vless{{
-  background:rgba(0,0,0,0.2);
-  border:1px solid var(--glass-border);
-  border-radius:10px;
-  padding:10px 12px;
+.cfg-label{{
+  font-size:15px;
+  font-weight:700;
+  color:var(--text-primary);
+}}
+.cfg-status{{
+  font-size:10px;
+  font-weight:700;
+  padding:3px 12px;
+  border-radius:20px;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  white-space:nowrap;
+}}
+.cfg-status.active{{
+  background:var(--success-bg);
+  color:var(--success);
+}}
+.cfg-status.inactive{{
+  background:var(--danger-bg);
+  color:var(--danger);
+}}
+.cfg-status i{{font-size:12px}}
+
+.usage-wrapper{{
+  margin-bottom:14px;
+}}
+.usage-bar{{
+  height:6px;
+  border-radius:3px;
+  background:rgba(255,255,255,0.06);
+  overflow:hidden;
+  margin-bottom:4px;
+}}
+.usage-fill{{
+  height:100%;
+  border-radius:3px;
+  transition:width 0.6s ease;
+}}
+.usage-text{{
   font-size:11px;
+  color:var(--text-muted);
+  display:flex;
+  justify-content:space-between;
+}}
+
+.cfg-link{{
+  background:rgba(0,0,0,0.3);
+  border:1px solid var(--border-color);
+  border-radius:10px;
+  padding:10px 14px;
   font-family:ui-monospace,monospace;
-  color:var(--accent-soft);
+  font-size:11px;
+  color:var(--accent);
   word-break:break-all;
   line-height:1.8;
   margin-bottom:14px;
+  transition:var(--transition);
 }}
-.cfg-actions{{display:flex;gap:8px;flex-wrap:wrap}}
+.cfg-link:hover{{
+  border-color:var(--border-hover);
+}}
+
+.cfg-actions{{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}}
 .btn{{
-  font-family:inherit;font-size:11px;font-weight:600;
+  font-family:inherit;
+  font-size:11px;
+  font-weight:600;
   border-radius:8px;
-  padding:8px 14px;
+  padding:8px 16px;
   cursor:pointer;
-  display:inline-flex;align-items:center;gap:6px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
   border:none;
-  transition:all 0.15s;
+  transition:var(--transition);
+  text-decoration:none;
 }}
-.btn i{{font-size:13px}}
+.btn i{{font-size:14px}}
 .btn-primary{{
-  background:linear-gradient(135deg,#2563EB,#1D4ED8);
+  background:linear-gradient(135deg,var(--accent),var(--accent-dark));
   color:#fff;
-  box-shadow:0 4px 16px rgba(37,99,235,0.3);
+  box-shadow:0 4px 16px var(--accent-glow);
 }}
-.btn-primary:hover{{filter:brightness(1.1)}}
+.btn-primary:hover{{
+  transform:translateY(-1px);
+  box-shadow:0 6px 24px var(--accent-glow);
+  filter:brightness(1.08);
+}}
 .btn-ghost{{
-  background:rgba(59,130,246,0.08);
-  color:var(--accent-soft);
-  border:1px solid rgba(59,130,246,0.15);
+  background:rgba(232,60,106,0.08);
+  color:var(--accent);
+  border:1px solid rgba(232,60,106,0.15);
 }}
-.btn-ghost:hover{{background:rgba(59,130,246,0.15)}}
+.btn-ghost:hover{{
+  background:rgba(232,60,106,0.15);
+  transform:translateY(-1px);
+}}
+.btn-ghost-light{{
+  background:rgba(255,255,255,0.04);
+  color:var(--text-secondary);
+  border:1px solid var(--border-color);
+}}
+.btn-ghost-light:hover{{
+  background:rgba(255,255,255,0.08);
+  color:var(--text-primary);
+}}
+
+/* ── Lock Screen ── */
 .lock-card{{
-  background:var(--glass-bg);
-  backdrop-filter:blur(16px);
-  border:1px solid var(--glass-border);
+  max-width:380px;
+  margin:80px auto;
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
   border-radius:24px;
   padding:40px 36px;
   text-align:center;
-  max-width:380px;
-  margin:80px auto;
   box-shadow:var(--shadow);
 }}
-.lock-icon{{font-size:48px;color:var(--accent);margin-bottom:16px;opacity:0.7}}
-.lock-title{{font-size:18px;font-weight:700;margin-bottom:6px}}
-.lock-sub{{font-size:12px;color:var(--text-muted);margin-bottom:22px}}
+.lock-icon{{
+  font-size:48px;
+  color:var(--accent);
+  margin-bottom:16px;
+  opacity:0.7;
+}}
+.lock-title{{
+  font-size:18px;
+  font-weight:700;
+  margin-bottom:6px;
+}}
+.lock-sub{{
+  font-size:12px;
+  color:var(--text-muted);
+  margin-bottom:22px;
+}}
 .lock-input{{
   width:100%;
   padding:12px 16px;
   border-radius:12px;
-  border:1px solid var(--glass-border);
-  background:rgba(0,0,0,0.2);
+  border:1px solid var(--border-color);
+  background:rgba(0,0,0,0.3);
   color:var(--text-primary);
   font-family:inherit;
   font-size:14px;
@@ -1951,93 +2225,259 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
   margin-bottom:14px;
   text-align:center;
   letter-spacing:0.1em;
+  transition:var(--transition);
 }}
 .lock-input:focus{{
   border-color:var(--accent);
-  box-shadow:0 0 0 3px rgba(59,130,246,0.15);
+  box-shadow:0 0 0 3px var(--accent-glow);
 }}
-.lock-error{{color:#FCA5A5;font-size:12px;margin-bottom:14px;min-height:18px}}
+.lock-error{{
+  color:var(--danger);
+  font-size:12px;
+  margin-bottom:14px;
+  min-height:20px;
+}}
+.lock-btn{{
+  width:100%;
+  justify-content:center;
+  padding:12px;
+  font-size:14px;
+}}
+
+/* ── Toast ── */
 .toast{{
-  position:fixed;bottom:24px;left:50%;
+  position:fixed;
+  bottom:24px;
+  left:50%;
   transform:translateX(-50%) translateY(60px);
-  background:var(--bg-surface);
-  border:1px solid var(--glass-border);
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
   color:var(--text-primary);
   border-radius:12px;
   padding:12px 20px;
   font-size:13px;
   opacity:0;
-  transition:all 0.25s;
+  transition:all 0.3s ease;
   z-index:999;
   pointer-events:none;
-  display:flex;align-items:center;gap:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
   box-shadow:var(--shadow);
 }}
-.toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
-.toast.ok{{border-color:rgba(16,185,129,0.3);background:var(--green-bg);color:#34D399}}
+.toast.show{{
+  opacity:1;
+  transform:translateX(-50%) translateY(0);
+}}
+.toast.ok{{
+  border-color:rgba(16,185,129,0.3);
+  background:var(--success-bg);
+  color:var(--success);
+}}
+.toast.err{{
+  border-color:rgba(239,68,68,0.3);
+  background:var(--danger-bg);
+  color:var(--danger);
+}}
+
+/* ── QR Modal ── */
 .qr-modal{{
   display:none;
-  position:fixed;inset:0;
-  background:rgba(0,0,0,0.7);
-  backdrop-filter:blur(6px);
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.75);
+  backdrop-filter:blur(8px);
   z-index:600;
-  align-items:center;justify-content:center;
+  align-items:center;
+  justify-content:center;
 }}
-.qr-modal.open{{display:flex}}
+.qr-modal.open{{
+  display:flex;
+}}
 .qr-box{{
-  background:var(--bg-surface);
-  border:1px solid var(--glass-border);
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
   border-radius:20px;
   padding:24px;
   text-align:center;
   max-width:340px;
   width:calc(100% - 32px);
+  animation:fadeSlide 0.25s ease;
 }}
-.qr-title{{font-size:15px;font-weight:700;margin-bottom:16px}}
-.qr-img{{border-radius:14px;overflow:hidden;margin-bottom:16px}}
-.qr-img img{{width:100%;display:block;background:#fff;padding:8px;border-radius:14px}}
-.footer{{text-align:center;padding-top:30px;font-size:11px;color:var(--text-muted)}}
-.footer a{{color:var(--accent-soft);font-weight:600}}
-@media(max-width:500px){{.stats-grid{{grid-template-columns:1fr 1fr}}}}
-@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
-@keyframes spin{{to{{transform:rotate(360deg)}}}}
+.qr-title{{
+  font-size:15px;
+  font-weight:700;
+  margin-bottom:16px;
+}}
+.qr-img{{
+  border-radius:14px;
+  overflow:hidden;
+  margin-bottom:16px;
+  background:#fff;
+  padding:12px;
+}}
+.qr-img img{{
+  width:100%;
+  display:block;
+}}
+
+/* ── Footer ── */
+.footer{{
+  text-align:center;
+  padding-top:32px;
+  font-size:11px;
+  color:var(--text-muted);
+  border-top:1px solid var(--border-color);
+  margin-top:24px;
+}}
+.footer a{{
+  color:var(--accent);
+  font-weight:600;
+  text-decoration:none;
+}}
+.footer a:hover{{text-decoration:underline}}
+
+/* ── Animations ── */
+@keyframes pulse{{
+  0%,100%{{opacity:1}}
+  50%{{opacity:0.3}}
+}}
+@keyframes fadeSlide{{
+  from{{opacity:0;transform:translateY(12px)}}
+  to{{opacity:1;transform:none}}
+}}
+@keyframes spin{{
+  to{{transform:rotate(360deg)}}
+}}
+
+/* ── Responsive ── */
+@media(max-width:768px){{
+  .header{{
+    flex-wrap:wrap;
+    gap:10px;
+  }}
+  .stats-grid{{
+    grid-template-columns:1fr 1fr;
+  }}
+  .wrap{{
+    padding:16px 12px 40px;
+  }}
+  .sub-info{{
+    padding:18px 16px;
+  }}
+  .cfg-card{{
+    padding:16px;
+  }}
+  .url-box{{
+    flex-direction:column;
+    align-items:stretch;
+  }}
+  .url-actions{{
+    justify-content:center;
+  }}
+}}
+@media(max-width:480px){{
+  .stats-grid{{
+    grid-template-columns:1fr;
+  }}
+  .header{{
+    flex-direction:column;
+    align-items:stretch;
+    text-align:center;
+  }}
+  .brand{{
+    justify-content:center;
+  }}
+  .header-actions{{
+    justify-content:center;
+  }}
+  .cfg-header{{
+    flex-direction:column;
+    align-items:flex-start;
+  }}
+  .cfg-actions{{
+    justify-content:center;
+  }}
+}}
 </style>
 </head>
 <body>
-<div class="bg-layer"></div><div class="grid"></div>
+<div class="bg-layer"></div>
+<div class="grid-overlay"></div>
+
 <div class="toast" id="toast"></div>
+
 <div class="qr-modal" id="qr-modal" onclick="this.classList.remove('open')">
   <div class="qr-box" onclick="event.stopPropagation()">
     <div class="qr-title" id="qr-label">QR Code</div>
     <div class="qr-img"><img id="qr-img" src="" alt="QR"></div>
-    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('qr-modal').classList.remove('open')"><i class="ti ti-x"></i> بستن</button>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('qr-modal').classList.remove('open')">
+      <i class="ti ti-x"></i> بستن
+    </button>
   </div>
 </div>
+
 <div class="wrap">
-  <div class="top">
+  <!-- Header -->
+  <div class="header">
     <div class="brand">
-      <div class="brand-img"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="تیم آزادی"></div>
-      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">RVG Gateway · v9.0</div></div>
+      <div class="brand-icon">آ</div>
+      <div>
+        <div class="brand-text">تیم آزادی</div>
+        <div class="brand-sub">RVG Gateway · v9.0</div>
+      </div>
     </div>
-    <a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#C084FC;font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>
+    <div class="header-actions">
+      <a class="channel-link" href="https://t.me/TimAzadi" target="_blank">
+        <i class="ti ti-brand-telegram"></i> @TimAzadi
+      </a>
+    </div>
   </div>
+
+  <!-- Main Content -->
   <div id="root">
-    <div style="text-align:center;padding:80px 20px;color:var(--text-muted)"><i class="ti ti-loader-2" style="font-size:38px;display:block;margin-bottom:14px;animation:spin 1s linear infinite"></i>در حال بارگذاری...</div>
+    <div style="text-align:center;padding:80px 20px;color:var(--text-muted)">
+      <i class="ti ti-loader-2" style="font-size:38px;display:block;margin-bottom:14px;animation:spin 1s linear infinite"></i>
+      در حال بارگذاری...
+    </div>
   </div>
-  <div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · RVG Gateway v9.0</div>
+
+  <!-- Footer -->
+  <div class="footer">
+    کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a>
+    ·
+    تیم آزادی · RVG Gateway v9.0
+  </div>
 </div>
+
 <script>
 const UUID_KEY='{uuid_key}';
 let savedPw='';
 
 function toast(msg,type=''){{
   const t=document.getElementById('toast');
-  t.textContent=msg;t.className='toast show'+(type?' '+type:'');
-  setTimeout(()=>t.classList.remove('show'),2400);
+  t.textContent=msg;
+  t.className='toast show'+(type?' '+type:'');
+  setTimeout(()=>t.classList.remove('show'),2600);
 }}
-function esc(s){{return String(s||'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
-function fmtB(b){{if(!b||b===0)return '0 B';if(b<1024)return b+' B';if(b<1024**2)return (b/1024).toFixed(1)+' KB';if(b<1024**3)return (b/1024**2).toFixed(2)+' MB';return (b/1024**3).toFixed(2)+' GB'}}
-function toFa(n){{return String(n).replace(/\\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d])}}
+
+function esc(s){{
+  return String(s||'').replace(/[&<>"']/g,c=>({{
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }}));
+}}
+
+function fmtB(b){{
+  if(!b||b===0)return '0 B';
+  if(b<1024)return b+' B';
+  if(b<1024**2)return (b/1024).toFixed(1)+' KB';
+  if(b<1024**3)return (b/1024**2).toFixed(2)+' MB';
+  return (b/1024**3).toFixed(2)+' GB';
+}}
+
+function toFa(n){{
+  return String(n).replace(/\\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
+}}
 
 function showQR(label,link){{
   document.getElementById('qr-label').textContent=label;
@@ -2059,24 +2499,33 @@ function renderLock(name,errMsg=''){{
       <div class="lock-sub">این گروه رمزدار است. رمز را وارد کنید.</div>
       <div class="lock-error" id="lock-err">${{esc(errMsg)}}</div>
       <input class="lock-input" type="password" id="lock-pw" placeholder="رمز عبور" autofocus>
-      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="submitLock()"><i class="ti ti-lock-open"></i> ورود</button>
+      <button class="btn btn-primary lock-btn" onclick="submitLock()">
+        <i class="ti ti-lock-open"></i> ورود
+      </button>
     </div>
   `;
-  document.getElementById('lock-pw').addEventListener('keydown',e=>{{if(e.key==='Enter')submitLock()}});
+  document.getElementById('lock-pw').addEventListener('keydown',e=>{{
+    if(e.key==='Enter') submitLock();
+  }});
+  document.getElementById('lock-pw').focus();
 }}
 
 async function submitLock(){{
   const pw=document.getElementById('lock-pw').value;
   const data=await loadData(pw);
-  if(data.locked){{renderLock(data.name,'رمز اشتباه است');return}}
+  if(data.locked){{
+    renderLock(data.name,'رمز اشتباه است');
+    return;
+  }}
   savedPw=pw;
   renderContent(data);
 }}
 
 function renderContent(d){{
-  const activeCount=d.links.filter(l=>l.active).length;
+  const activeCount = d.links.filter(l=>l.active).length;
   const baseSubUrl = d.sub_url || (window.location.protocol + '//' + window.location.host + '/sub-group/' + UUID_KEY);
   const subUrl = baseSubUrl + (savedPw ? '?pw=' + encodeURIComponent(savedPw) : '');
+  
   window._rvgSubUrl  = subUrl;
   window._rvgSubName = d.name;
   window._rvgLinks   = d.links.map(l => ({{
@@ -2085,26 +2534,30 @@ function renderContent(d){{
     label : l.label,
   }}));
 
-  document.getElementById('root').innerHTML=`
+  let html = `
+    <!-- Sub Info -->
     <div class="sub-info">
       <div class="sub-name">${{esc(d.name)}}</div>
       ${{d.desc ? `<div class="sub-desc">${{esc(d.desc)}}</div>` : ''}}
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;gap:6px">
-        <i class="ti ti-clock"></i> آخرین بروزرسانی: ${{new Date().toLocaleTimeString('fa-IR')}}
+      <div class="sub-meta">
+        <span><i class="ti ti-clock"></i> آخرین بروزرسانی: ${{new Date().toLocaleTimeString('fa-IR')}}</span>
+        <span><i class="ti ti-link"></i> ${{toFa(d.links.length)}} کانفیگ</span>
+        <span><i class="ti ti-circle-check" style="color:var(--success)"></i> ${{toFa(activeCount)}} فعال</span>
       </div>
-      <div class="sub-url-box">
-        <span class="sub-url-text">${{esc(subUrl)}}</span>
-        <button class="btn btn-ghost" style="padding:6px 10px"
-          onclick="navigator.clipboard.writeText(window._rvgSubUrl).then(()=>toast('لینک ساب کپی شد ✓','ok'))">
-          <i class="ti ti-copy"></i> کپی لینک ساب
-        </button>
-        <button class="btn btn-ghost" style="padding:6px 10px"
-          onclick="showQR(window._rvgSubName + ' — کل گروه', window._rvgSubUrl)">
-          <i class="ti ti-qrcode"></i> QR کل
-        </button>
+      <div class="url-box">
+        <span class="url-text">${{esc(subUrl)}}</span>
+        <div class="url-actions">
+          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(window._rvgSubUrl).then(()=>toast('لینک ساب کپی شد ✓','ok'))">
+            <i class="ti ti-copy"></i> کپی
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="showQR(window._rvgSubName + ' — کل گروه', window._rvgSubUrl)">
+            <i class="ti ti-qrcode"></i> QR
+          </button>
+        </div>
       </div>
     </div>
 
+    <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">کانفیگ‌های فعال</div>
@@ -2114,50 +2567,68 @@ function renderContent(d){{
       <div class="stat-card">
         <div class="stat-label">اتصالات زنده</div>
         <div class="stat-value">${{toFa(d.active_connections)}}</div>
-        <div class="stat-sub" style="color:#34D399;display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#10B981;animation:pulse 2s infinite"></span> آنلاین</div>
+        <div class="stat-sub"><span class="dot green"></span> آنلاین</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">کل مصرف</div>
-        <div class="stat-value" style="font-size:18px;margin-top:4px">${{esc(d.total_used_fmt)}}</div>
+        <div class="stat-value" style="font-size:18px">${{esc(d.total_used_fmt)}}</div>
         <div class="stat-sub">همه کانفیگ‌ها</div>
       </div>
     </div>
 
-    <div class="cfg-title"><i class="ti ti-link"></i> کانفیگ‌ها (${{toFa(d.links.length)}} عدد)</div>
-    <div class="cfg-grid">
-      ${{d.links.map((l, i) => {{
-        const pct = l.limit_bytes === 0 ? 0 : Math.min(100, l.used_bytes / l.limit_bytes * 100);
-        const bc  = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--amber)' : 'var(--green)';
-        const lim = l.limit_bytes === 0 ? '∞' : fmtB(l.limit_bytes);
-        return `
-          <div class="cfg-card">
-            <div class="cfg-header">
-              <div>
-                <div class="cfg-label">${{esc(l.label)}}</div>
-                ${{l.connections > 0 ? `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:5px;font-size:10px;background:var(--green-bg);color:#34D399;padding:2px 8px;border-radius:20px;font-weight:700"><span style="width:5px;height:5px;border-radius:50%;background:#10B981;animation:pulse 2s infinite"></span> ${{toFa(l.connections)}} اتصال</span>` : ''}}
-              </div>
-              <span class="cfg-status ${{l.active ? 'ok' : 'no'}}">${{l.active ? '<i class="ti ti-circle-check"></i> فعال' : '<i class="ti ti-circle-x"></i> غیرفعال'}}</span>
-            </div>
-            <div>
-              <div class="usage-bar"><div class="usage-fill" style="width:${{pct}}%;background:${{bc}}"></div></div>
-              <div class="usage-text"><span>${{esc(l.used_fmt)}} مصرف شده</span><span>سهمیه: ${{lim}}</span></div>
-            </div>
-            <div class="cfg-vless">${{esc(l.vless_link)}}</div>
-            <div class="cfg-actions">
-              <button class="btn btn-primary"
-                onclick="navigator.clipboard.writeText(window._rvgLinks[${{i}}].vless).then(()=>toast('لینک کپی شد ✓','ok'))">
-                <i class="ti ti-copy"></i> کپی لینک
-              </button>
-              <button class="btn btn-ghost"
-                onclick="showQR(window._rvgLinks[${{i}}].label, window._rvgLinks[${{i}}].vless)">
-                <i class="ti ti-qrcode"></i> QR
-              </button>
-            </div>
-          </div>
-        `;
-      }}).join('')}}
+    <!-- Configs -->
+    <div class="section-title">
+      <i class="ti ti-link"></i> کانفیگ‌ها
+      <span class="badge">${{toFa(d.links.length)}} عدد</span>
     </div>
+    <div class="cfg-grid">
   `;
+
+  d.links.forEach((l, i) => {{
+    const pct = l.limit_bytes === 0 ? 0 : Math.min(100, l.used_bytes / l.limit_bytes * 100);
+    const bc = pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--warning)' : 'var(--success)';
+    const lim = l.limit_bytes === 0 ? '∞' : fmtB(l.limit_bytes);
+    const isActive = l.active;
+    
+    html += `
+      <div class="cfg-card">
+        <div class="cfg-header">
+          <div>
+            <div class="cfg-label">${{esc(l.label)}}</div>
+            ${{l.connections > 0 ? `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:10px;background:var(--success-bg);color:var(--success);padding:2px 10px;border-radius:20px;font-weight:700"><span style="width:5px;height:5px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;display:inline-block"></span> ${{toFa(l.connections)}} اتصال</span>` : ''}}
+          </div>
+          <span class="cfg-status ${'{isActive ? 'active' : 'inactive'}'}">
+            <i class="ti ti-${'{isActive ? 'circle-check' : 'circle-x'}'}"></i>
+            ${'{isActive ? 'فعال' : 'غیرفعال'}'}
+          </span>
+        </div>
+        <div class="usage-wrapper">
+          <div class="usage-bar"><div class="usage-fill" style="width:${{pct}}%;background:${{bc}}"></div></div>
+          <div class="usage-text">
+            <span>مصرف: ${{esc(l.used_fmt)}}</span>
+            <span>سهمیه: ${{lim}}</span>
+          </div>
+        </div>
+        <div class="cfg-link">${{esc(l.vless_link)}}</div>
+        <div class="cfg-actions">
+          <button class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText(window._rvgLinks[${{i}}].vless).then(()=>toast('لینک کپی شد ✓','ok'))">
+            <i class="ti ti-copy"></i> کپی
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="showQR(window._rvgLinks[${{i}}].label, window._rvgLinks[${{i}}].vless)">
+            <i class="ti ti-qrcode"></i> QR
+          </button>
+          <button class="btn btn-ghost-light btn-sm" onclick="navigator.clipboard.writeText(window._rvgLinks[${{i}}].sub).then(()=>toast('لینک ساب کپی شد ✓','ok'))">
+            <i class="ti ti-rss"></i> ساب
+          </button>
+        </div>
+      </div>
+    `;
+  }});
+
+  html += `</div>`;
+  document.getElementById('root').innerHTML = html;
+  
+  // Auto refresh every 30 seconds
   setTimeout(() => autoRefresh(), 30000);
 }}
 
@@ -2171,11 +2642,19 @@ async function autoRefresh(){{
 async function init(){{
   try{{
     const data = await loadData();
-    if (data.locked) {{ renderLock(data.name); return; }}
+    if (data.locked) {{
+      renderLock(data.name);
+      return;
+    }}
     renderContent(data);
   }} catch(e) {{
-    document.getElementById('root').innerHTML =
-      '<div style="text-align:center;padding:80px 20px;color:#FCA5A5"><i class="ti ti-alert-circle" style="font-size:38px;display:block;margin-bottom:14px"></i>خطا در بارگذاری</div>';
+    document.getElementById('root').innerHTML = `
+      <div style="text-align:center;padding:80px 20px;color:var(--danger)">
+        <i class="ti ti-alert-circle" style="font-size:38px;display:block;margin-bottom:14px"></i>
+        خطا در بارگذاری اطلاعات
+      </div>
+    `;
+    console.error('Init error:', e);
   }}
 }}
 
@@ -2185,7 +2664,7 @@ init();
 
 
 def get_single_link_page_html(uuid: str, link_data: dict) -> str:
-    """صفحه‌ی عمومی یک کانفیگ تکی – UI حرفه‌ای مانند V2Box"""
+    """صفحه‌ی عمومی یک کانفیگ تکی – UI حرفه‌ای"""
     label = link_data.get("label", "بدون نام")
     vless_link = link_data.get("vless_link", "")
     sub_url = link_data.get("sub_url", "")
@@ -2198,7 +2677,7 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     created_at = link_data.get("created_at", "")
     
     pct = 0 if limit_bytes == 0 else min(100, used_bytes / limit_bytes * 100)
-    bar_color = "var(--red)" if pct > 90 else ("var(--amber)" if pct > 70 else "var(--green)")
+    bar_color = "var(--danger)" if pct > 90 else ("var(--warning)" if pct > 70 else "var(--success)")
 
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -2206,160 +2685,446 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{label} · تیم آزادی</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 :root{{
-  --bg-root:#0B1220;
-  --bg-surface:#111827;
-  --glass-bg:rgba(17,24,39,0.75);
-  --glass-border:rgba(59,130,246,0.12);
-  --accent:#3B82F6;
-  --accent-soft:#60A5FA;
-  --green:#10B981;--green-bg:rgba(16,185,129,0.12);
-  --red:#EF4444;--red-bg:rgba(239,68,68,0.12);
-  --amber:#F59E0B;--amber-bg:rgba(245,158,11,0.12);
-  --text-primary:#F1F5F9;
-  --text-secondary:#94A3B8;
-  --text-muted:#64748B;
+  --bg-primary:#0A0E14;
+  --bg-secondary:#11181F;
+  --bg-card:#181F28;
+  --bg-card-hover:#1F2833;
+  --text-primary:#E8EDF5;
+  --text-secondary:#8FA3B8;
+  --text-muted:#5A6F84;
+  --accent:#E83C6A;
+  --accent-dark:#C72A56;
+  --accent-glow:rgba(232,60,106,0.15);
+  --border-color:rgba(143,171,202,0.08);
+  --border-hover:rgba(232,60,106,0.3);
+  --success:#10B981;
+  --success-bg:rgba(16,185,129,0.12);
+  --warning:#F59E0B;
+  --warning-bg:rgba(245,158,11,0.12);
+  --danger:#EF4444;
+  --danger-bg:rgba(239,68,68,0.12);
   --radius:16px;
-  --shadow:0 8px 32px rgba(0,0,0,0.3);
+  --shadow:0 8px 32px rgba(0,0,0,0.4);
+  --transition:0.3s cubic-bezier(0.4,0,0.2,1);
 }}
-html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',sans-serif;color:var(--text-primary);font-size:14px}}
-.bg-layer{{position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(59,130,246,0.06),transparent 60%),var(--bg-root);z-index:0;pointer-events:none}}
-.grid{{position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:44px 44px;z-index:0;pointer-events:none}}
-.wrap{{position:relative;z-index:10;max-width:660px;margin:0 auto;padding:28px 16px 60px}}
-.top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}}
-.brand{{display:flex;align-items:center;gap:12px}}
-.brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 0 20px rgba(59,130,246,0.25)}}
-.brand-img img{{width:100%;height:100%;object-fit:cover}}
-.brand-name{{font-size:15px;font-weight:700}}
-.brand-sub{{font-size:10px;color:var(--text-muted)}}
-.hero{{
-  background:var(--glass-bg);
-  backdrop-filter:blur(16px);
-  border:1px solid var(--glass-border);
-  border-radius:24px;
+html,body{{
+  min-height:100%;
+  background:var(--bg-primary);
+  font-family:'Vazirmatn',sans-serif;
+  color:var(--text-primary);
+  font-size:14px;
+  line-height:1.6;
+}}
+::-webkit-scrollbar{{width:6px;height:6px}}
+::-webkit-scrollbar-track{{background:transparent}}
+::-webkit-scrollbar-thumb{{background:var(--accent);border-radius:3px}}
+
+.bg-layer{{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(232,60,106,0.06), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 80% 80%, rgba(232,60,106,0.04), transparent 50%),
+    var(--bg-primary);
+  pointer-events:none;
+}}
+.grid-overlay{{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  background-image:
+    linear-gradient(rgba(232,60,106,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,60,106,0.03) 1px, transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+}}
+
+.wrap{{
+  position:relative;
+  z-index:10;
+  max-width:680px;
+  margin:0 auto;
+  padding:24px 20px 60px;
+}}
+
+.header{{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:32px;
+  padding:12px 20px;
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
+  border-radius:var(--radius);
+  backdrop-filter:blur(12px);
+}}
+.brand{{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}}
+.brand-icon{{
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:20px;
+  font-weight:900;
+  color:#fff;
+  box-shadow:0 0 24px var(--accent-glow);
+}}
+.brand-text{{
+  font-size:16px;
+  font-weight:700;
+  color:var(--text-primary);
+}}
+.brand-sub{{
+  font-size:10px;
+  color:var(--text-muted);
+  letter-spacing:0.06em;
+}}
+.header-actions{{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}}
+.channel-link{{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 14px;
+  border-radius:8px;
+  background:rgba(232,60,106,0.1);
+  color:var(--accent);
+  font-size:12px;
+  font-weight:600;
+  text-decoration:none;
+  transition:var(--transition);
+}}
+.channel-link:hover{{
+  background:rgba(232,60,106,0.2);
+  transform:translateY(-1px);
+}}
+
+.hero-card{{
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
+  border-radius:var(--radius);
   padding:28px;
   margin-bottom:20px;
+  transition:var(--transition);
+}}
+.hero-card:hover{{
+  border-color:var(--border-hover);
   box-shadow:var(--shadow);
 }}
-.hero-title{{font-size:20px;font-weight:700;margin-bottom:6px}}
-.hero-meta{{font-size:11px;color:var(--text-muted);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}}
-.status-badge{{
-  font-size:10px;padding:4px 12px;
-  border-radius:20px;font-weight:700;
-  display:inline-flex;align-items:center;gap:6px;
+.hero-title{{
+  font-size:24px;
+  font-weight:800;
+  background:linear-gradient(135deg,var(--text-primary),var(--text-secondary));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  margin-bottom:4px;
 }}
-.bg-green{{background:var(--green-bg);color:#34D399}}
-.bg-red{{background:var(--red-bg);color:#FCA5A5}}
-.usage-section{{margin-bottom:18px}}
-.usage-bar{{height:8px;border-radius:4px;background:rgba(59,130,246,0.1);overflow:hidden;margin-bottom:6px}}
-.usage-fill{{height:100%;border-radius:4px;transition:width 0.4s}}
-.usage-text{{font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between}}
+.hero-meta{{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  margin-bottom:16px;
+  font-size:12px;
+  color:var(--text-muted);
+}}
+.hero-meta span{{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}}
+.hero-meta i{{color:var(--accent)}}
+
+.status-badge{{
+  font-size:10px;
+  font-weight:700;
+  padding:3px 12px;
+  border-radius:20px;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  white-space:nowrap;
+}}
+.status-badge.active{{
+  background:var(--success-bg);
+  color:var(--success);
+}}
+.status-badge.inactive{{
+  background:var(--danger-bg);
+  color:var(--danger);
+}}
+
+.usage-section{{
+  margin-bottom:18px;
+}}
+.usage-bar{{
+  height:6px;
+  border-radius:3px;
+  background:rgba(255,255,255,0.06);
+  overflow:hidden;
+  margin-bottom:4px;
+}}
+.usage-fill{{
+  height:100%;
+  border-radius:3px;
+  transition:width 0.6s ease;
+}}
+.usage-text{{
+  font-size:12px;
+  color:var(--text-muted);
+  display:flex;
+  justify-content:space-between;
+}}
+
 .vless-box{{
-  background:rgba(0,0,0,0.2);
-  border:1px solid var(--glass-border);
-  border-radius:12px;
-  padding:14px;
+  background:rgba(0,0,0,0.3);
+  border:1px solid var(--border-color);
+  border-radius:10px;
+  padding:12px 16px;
   font-family:ui-monospace,monospace;
   font-size:11px;
-  color:var(--accent-soft);
+  color:var(--accent);
   word-break:break-all;
-  line-height:1.9;
-  margin-bottom:16px;
+  line-height:1.8;
+  margin-bottom:18px;
+  transition:var(--transition);
 }}
-.actions{{display:flex;gap:10px;flex-wrap:wrap}}
+.vless-box:hover{{
+  border-color:var(--border-hover);
+}}
+
+.actions{{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}}
 .btn{{
-  font-family:inherit;font-size:12px;font-weight:600;
-  border-radius:10px;
-  padding:10px 16px;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:600;
+  border-radius:8px;
+  padding:10px 18px;
   cursor:pointer;
-  display:inline-flex;align-items:center;gap:6px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
   border:none;
-  transition:all 0.15s;
+  transition:var(--transition);
+  text-decoration:none;
 }}
 .btn i{{font-size:14px}}
 .btn-primary{{
-  background:linear-gradient(135deg,#2563EB,#1D4ED8);
+  background:linear-gradient(135deg,var(--accent),var(--accent-dark));
   color:#fff;
-  box-shadow:0 4px 16px rgba(37,99,235,0.3);
+  box-shadow:0 4px 16px var(--accent-glow);
 }}
-.btn-primary:hover{{filter:brightness(1.1)}}
+.btn-primary:hover{{
+  transform:translateY(-1px);
+  box-shadow:0 6px 24px var(--accent-glow);
+  filter:brightness(1.08);
+}}
 .btn-ghost{{
-  background:rgba(59,130,246,0.08);
-  color:var(--accent-soft);
-  border:1px solid rgba(59,130,246,0.15);
+  background:rgba(232,60,106,0.08);
+  color:var(--accent);
+  border:1px solid rgba(232,60,106,0.15);
 }}
-.btn-ghost:hover{{background:rgba(59,130,246,0.15)}}
+.btn-ghost:hover{{
+  background:rgba(232,60,106,0.15);
+  transform:translateY(-1px);
+}}
+.btn-ghost-light{{
+  background:rgba(255,255,255,0.04);
+  color:var(--text-secondary);
+  border:1px solid var(--border-color);
+}}
+.btn-ghost-light:hover{{
+  background:rgba(255,255,255,0.08);
+  color:var(--text-primary);
+}}
+
 .toast{{
-  position:fixed;bottom:24px;left:50%;
+  position:fixed;
+  bottom:24px;
+  left:50%;
   transform:translateX(-50%) translateY(60px);
-  background:var(--bg-surface);
-  border:1px solid var(--glass-border);
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
   color:var(--text-primary);
   border-radius:12px;
   padding:12px 20px;
   font-size:13px;
   opacity:0;
-  transition:all 0.25s;
+  transition:all 0.3s ease;
   z-index:999;
   pointer-events:none;
-  display:flex;align-items:center;gap:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
   box-shadow:var(--shadow);
 }}
-.toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
-.toast.ok{{border-color:rgba(16,185,129,0.3);background:var(--green-bg);color:#34D399}}
+.toast.show{{
+  opacity:1;
+  transform:translateX(-50%) translateY(0);
+}}
+.toast.ok{{
+  border-color:rgba(16,185,129,0.3);
+  background:var(--success-bg);
+  color:var(--success);
+}}
+.toast.err{{
+  border-color:rgba(239,68,68,0.3);
+  background:var(--danger-bg);
+  color:var(--danger);
+}}
+
 .qr-modal{{
   display:none;
-  position:fixed;inset:0;
-  background:rgba(0,0,0,0.7);
-  backdrop-filter:blur(6px);
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.75);
+  backdrop-filter:blur(8px);
   z-index:600;
-  align-items:center;justify-content:center;
+  align-items:center;
+  justify-content:center;
 }}
-.qr-modal.open{{display:flex}}
+.qr-modal.open{{
+  display:flex;
+}}
 .qr-box{{
-  background:var(--bg-surface);
-  border:1px solid var(--glass-border);
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
   border-radius:20px;
   padding:24px;
   text-align:center;
   max-width:340px;
   width:calc(100% - 32px);
+  animation:fadeSlide 0.25s ease;
 }}
-.qr-img{{border-radius:14px;overflow:hidden;margin-bottom:16px}}
-.qr-img img{{width:100%;display:block;background:#fff;padding:8px;border-radius:14px}}
-.footer{{text-align:center;padding-top:30px;font-size:11px;color:var(--text-muted)}}
-.footer a{{color:var(--accent-soft);font-weight:600}}
-@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
+.qr-title{{
+  font-size:15px;
+  font-weight:700;
+  margin-bottom:16px;
+}}
+.qr-img{{
+  border-radius:14px;
+  overflow:hidden;
+  margin-bottom:16px;
+  background:#fff;
+  padding:12px;
+}}
+.qr-img img{{
+  width:100%;
+  display:block;
+}}
+
+.footer{{
+  text-align:center;
+  padding-top:32px;
+  font-size:11px;
+  color:var(--text-muted);
+  border-top:1px solid var(--border-color);
+  margin-top:24px;
+}}
+.footer a{{
+  color:var(--accent);
+  font-weight:600;
+  text-decoration:none;
+}}
+.footer a:hover{{text-decoration:underline}}
+
+@keyframes pulse{{
+  0%,100%{{opacity:1}}
+  50%{{opacity:0.3}}
+}}
+@keyframes fadeSlide{{
+  from{{opacity:0;transform:translateY(12px)}}
+  to{{opacity:1;transform:none}}
+}}
+@keyframes spin{{
+  to{{transform:rotate(360deg)}}
+}}
+
+@media(max-width:640px){{
+  .wrap{{
+    padding:16px 12px 40px;
+  }}
+  .hero-card{{
+    padding:18px 16px;
+  }}
+  .header{{
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:center;
+  }}
+  .brand{{
+    flex:1;
+  }}
+  .header-actions{{
+    flex:1;
+    justify-content:flex-end;
+  }}
+  .actions{{
+    justify-content:center;
+  }}
+  .vless-box{{
+    font-size:10px;
+    padding:10px 12px;
+  }}
+}}
 </style>
 </head>
 <body>
-<div class="bg-layer"></div><div class="grid"></div>
+<div class="bg-layer"></div>
+<div class="grid-overlay"></div>
+
 <div class="toast" id="toast"></div>
+
 <div class="qr-modal" id="qr-modal" onclick="this.classList.remove('open')">
   <div class="qr-box" onclick="event.stopPropagation()">
     <div class="qr-title" id="qr-label">QR Code</div>
     <div class="qr-img"><img id="qr-img" src="" alt="QR"></div>
-    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('qr-modal').classList.remove('open')"><i class="ti ti-x"></i> بستن</button>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('qr-modal').classList.remove('open')">
+      <i class="ti ti-x"></i> بستن
+    </button>
   </div>
 </div>
+
 <div class="wrap">
-  <div class="top">
+  <div class="header">
     <div class="brand">
-      <div class="brand-img"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="تیم آزادی"></div>
-      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">RVG Gateway · v9.0</div></div>
+      <div class="brand-icon">آ</div>
+      <div>
+        <div class="brand-text">تیم آزادی</div>
+        <div class="brand-sub">RVG Gateway · v9.0</div>
+      </div>
     </div>
-    <a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#C084FC;font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>
+    <div class="header-actions">
+      <a class="channel-link" href="https://t.me/TimAzadi" target="_blank">
+        <i class="ti ti-brand-telegram"></i> @TimAzadi
+      </a>
+    </div>
   </div>
 
-  <div class="hero">
+  <div class="hero-card">
     <div class="hero-title">{label}</div>
     <div class="hero-meta">
-      <i class="ti ti-calendar"></i> {created_at[:10] if created_at else "—"}
-      <span class="status-badge {'bg-green' if active and not expired else 'bg-red'}">
+      <span><i class="ti ti-calendar"></i> {created_at[:10] if created_at else "—"}</span>
+      <span class="status-badge {'active' if active and not expired else 'inactive'}">
         <i class="ti ti-{'circle-check' if active and not expired else 'circle-x'}"></i>
         {'فعال' if active and not expired else 'غیرفعال'}
       </span>
@@ -2367,30 +3132,46 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 
     <div class="usage-section">
       <div class="usage-bar"><div class="usage-fill" style="width:{pct}%;background:{bar_color}"></div></div>
-      <div class="usage-text"><span>مصرف: {used_fmt}</span><span>سهمیه: {limit_fmt}</span></div>
+      <div class="usage-text">
+        <span>مصرف: {used_fmt}</span>
+        <span>سهمیه: {limit_fmt}</span>
+      </div>
     </div>
 
     <div class="vless-box">{vless_link}</div>
 
     <div class="actions">
-      <button class="btn btn-primary" onclick="copyToClipboard('{vless_link}')"><i class="ti ti-copy"></i> کپی لینک VLESS</button>
-      <button class="btn btn-ghost" onclick="showQR('{label}', '{vless_link}')"><i class="ti ti-qrcode"></i> QR Code</button>
-      <button class="btn btn-ghost" onclick="copyToClipboard('{sub_url}')"><i class="ti ti-rss"></i> کپی لینک ساب</button>
+      <button class="btn btn-primary" onclick="copyToClipboard('{vless_link}')">
+        <i class="ti ti-copy"></i> کپی لینک VLESS
+      </button>
+      <button class="btn btn-ghost" onclick="showQR('{label}', '{vless_link}')">
+        <i class="ti ti-qrcode"></i> QR Code
+      </button>
+      <button class="btn btn-ghost-light" onclick="copyToClipboard('{sub_url}')">
+        <i class="ti ti-rss"></i> کپی لینک ساب
+      </button>
     </div>
   </div>
 
-  <div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · RVG Gateway v9.0</div>
+  <div class="footer">
+    کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a>
+    ·
+    تیم آزادی · RVG Gateway v9.0
+  </div>
 </div>
 
 <script>
 function toast(msg,type){{
   const t=document.getElementById('toast');
-  t.textContent=msg;t.className='toast show'+(type?' '+type:'');
-  setTimeout(()=>t.classList.remove('show'),2400);
+  t.textContent=msg;
+  t.className='toast show'+(type?' '+type:'');
+  setTimeout(()=>t.classList.remove('show'),2600);
 }}
+
 function copyToClipboard(text){{
   navigator.clipboard.writeText(text).then(()=>toast('کپی شد ✓','ok'));
 }}
+
 function showQR(label,link){{
   document.getElementById('qr-label').textContent=label;
   document.getElementById('qr-img').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(link);
