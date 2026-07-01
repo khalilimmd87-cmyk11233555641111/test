@@ -18,9 +18,9 @@ import httpx
 import logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("RVG-Gateway")
+logger = logging.getLogger("تیم-آزادی-Gateway")
 
-app = FastAPI(title="RVG Gateway – AnsooyeFilter", docs_url=None, redoc_url=None)
+app = FastAPI(title="تیم آزادی Gateway", docs_url=None, redoc_url=None)
 
 CONFIG = {
     "port": int(os.environ.get("PORT", 8000)),
@@ -97,7 +97,7 @@ SESSION_TTL = 60 * 60 * 24 * 7
 def hash_password(pw: str) -> str:
     return hashlib.sha256(f"{pw}{CONFIG['secret']}".encode()).hexdigest()
 
-AUTH = {"password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "@ansooyefilter"))}
+AUTH = {"password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "@TimAzadi"))}
 SESSIONS: dict = {}
 SESSIONS_LOCK = asyncio.Lock()
 
@@ -141,7 +141,7 @@ async def startup():
         limits=limits, timeout=timeout, follow_redirects=True,
     )
     await load_state()
-    logger.info(f"🚀 RVG Gateway v9.0 started on port {CONFIG['port']}")
+    logger.info(f"🚀 تیم آزادی Gateway v9.0 started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -157,7 +157,7 @@ def generate_uuid() -> str:
     h = secrets.token_hex(16)
     return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
 
-def generate_vless_link(uuid: str, host: str, remark: str = "RVG") -> str:
+def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی") -> str:
     path = f"/ws/{uuid}"
     params = {
         "encryption": "none",
@@ -240,7 +240,12 @@ async def ensure_default_link():
 # ── Basic endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"service": "RVG Gateway", "version": "9.0", "status": "active", "channel": "https://t.me/AnsooyeFilter"}
+    return {
+        "service": "تیم آزادی Gateway",
+        "version": "9.0",
+        "status": "active",
+        "channel": "https://t.me/TimAzadi"
+    }
 
 @app.get("/health")
 async def health():
@@ -258,7 +263,7 @@ async def subscription_single(uuid: str, request: Request):
         raise HTTPException(status_code=404, detail="not found or inactive")
 
     host = get_host()
-    vless = generate_vless_link(uuid, host, remark=f"RVG-{link['label']}")
+    vless = generate_vless_link(uuid, host, remark=f"تیم-آزادی-{link['label']}")
     sub_url = f"https://{host}/sub/{uuid}"
 
     # اگر مرورگر باشد، صفحه HTML زیبا نشان بده
@@ -283,7 +288,7 @@ async def subscription_single(uuid: str, request: Request):
         media_type="text/plain",
         headers={
             "profile-title": quote(link["label"]),
-            "support-url": "https://t.me/AnsooyeFilter",
+            "support-url": "https://t.me/TimAzadi",
         }
     )
 
@@ -416,14 +421,14 @@ async def sub_group_subscription(uuid_key: str, request: Request):
         for lid in link_ids:
             link = LINKS.get(lid)
             if link and is_link_allowed(link):
-                lines.append(generate_vless_link(lid, host, remark=f"RVG-{link['label']}"))
+                lines.append(generate_vless_link(lid, host, remark=f"تیم-آزادی-{link['label']}"))
     content = base64.b64encode("\n".join(lines).encode()).decode()
     return Response(
         content=content,
         media_type="text/plain",
         headers={
             "profile-title": quote(sub["name"]),
-            "support-url": "https://t.me/AnsooyeFilter",
+            "support-url": "https://t.me/TimAzadi",
             "profile-update-interval": "12",
         }
     )
@@ -522,7 +527,7 @@ async def create_link(request: Request, _=Depends(require_auth)):
         "uuid": uid,
         **LINKS[uid],
         "expired": False,
-        "vless_link": generate_vless_link(uid, host, remark=f"RVG-{label}"),
+        "vless_link": generate_vless_link(uid, host, remark=f"تیم-آزادی-{label}"),
         "sub_url": f"https://{host}/sub/{uid}",
     }
 
@@ -537,7 +542,7 @@ async def list_links(_=Depends(require_auth)):
             "uuid": uid,
             **d,
             "expired": is_link_expired(d),
-            "vless_link": generate_vless_link(uid, host, remark=f"RVG-{d['label']}"),
+            "vless_link": generate_vless_link(uid, host, remark=f"تیم-آزادی-{d['label']}"),
             "sub_url": f"https://{host}/sub/{uid}",
         })
     result.sort(key=lambda x: x["created_at"], reverse=True)
@@ -816,7 +821,7 @@ async def public_sub_data(uuid_key: str, request: Request):
             "limit_bytes": link.get("limit_bytes", 0),
             "limit_fmt": "∞" if link.get("limit_bytes", 0) == 0 else fmt_bytes(link["limit_bytes"]),
             "expires_at": link.get("expires_at"),
-            "vless_link": generate_vless_link(lid, host, remark=f"RVG-{link['label']}"),
+            "vless_link": generate_vless_link(lid, host, remark=f"تیم-آزادی-{link['label']}"),
             "sub_url": f"https://{host}/sub/{lid}",
             "connections": conn_count,
         })
