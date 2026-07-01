@@ -1,4 +1,4 @@
-# pages.py  –  AnsooyeFilter · RVG Gateway v9.0
+# pages.py  –  تیم آزادی · RVG Gateway v9.0
 # طراحی کاملاً جدید با رویکرد Premium Glassmorphism
 # شامل صفحات: ورود، داشبورد، صفحه عمومی گروه، صفحه عمومی کانفیگ تکی
 
@@ -6,7 +6,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ورود · AnsooyeFilter</title>
+<title>ورود · تیم آزادی</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -268,9 +268,9 @@ h1{
 <div class="wrapper">
   <div class="glass-card">
     <div class="brand-row">
-      <div class="brand-logo"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="AnsooyeFilter"></div>
+      <div class="brand-logo"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="تیم آزادی"></div>
       <div>
-        <div class="brand-name">AnsooyeFilter</div>
+        <div class="brand-name">تیم آزادی</div>
         <div class="brand-ver">RVG Gateway · v9.0</div>
       </div>
     </div>
@@ -279,7 +279,7 @@ h1{
     <div class="error-msg" id="err"><i class="ti ti-alert-circle" style="font-size:18px"></i><span id="err-text"></span></div>
     <div class="hint-box">
       <span class="hint-label">رمز پیش‌فرض سیستم</span>
-      <span class="hint-value" onclick="document.getElementById('pw').value='@ansooyefilter';document.getElementById('pw').focus()">@ansooyefilter</span>
+      <span class="hint-value" onclick="document.getElementById('pw').value='@TimAzadi';document.getElementById('pw').focus()">@TimAzadi</span>
     </div>
     <form id="form">
       <div class="field">
@@ -293,7 +293,7 @@ h1{
     </form>
     <div class="footer-row">
       کانال رسمی
-      <a href="https://t.me/AnsooyeFilter" target="_blank"><i class="ti ti-brand-telegram"></i> @AnsooyeFilter</a>
+      <a href="https://t.me/TimAzadi" target="_blank"><i class="ti ti-brand-telegram"></i> @TimAzadi</a>
     </div>
   </div>
 </div>
@@ -319,7 +319,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>داشبورد · AnsooyeFilter</title>
+<title>داشبورد · تیم آزادی</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -1123,8 +1123,8 @@ body{
 <!-- Mobile top bar -->
 <div class="mob-top">
   <div style="display:flex;align-items:center;gap:10px">
-    <div class="mob-logo"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="cb"></div>
-    <span class="mob-title">AnsooyeFilter</span>
+    <div class="mob-logo"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="تیم آزادی"></div>
+    <span class="mob-title">تیم آزادی</span>
   </div>
   <div class="mob-actions">
     <button class="theme-mob" id="theme-mob-btn" onclick="toggleTheme()"><i class="ti ti-sun" id="theme-mob-icon"></i></button>
@@ -1139,9 +1139,9 @@ body{
 <aside class="sidebar" id="sb">
   <button class="sb-close" id="close-sb"><i class="ti ti-x"></i></button>
   <div class="logo-block">
-    <div class="logo-img"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="cb"></div>
+    <div class="logo-img"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="تیم آزادی"></div>
     <div>
-      <div class="logo-name">AnsooyeFilter</div>
+      <div class="logo-name">تیم آزادی</div>
       <div class="logo-sub">RVG Gateway · v9.0</div>
     </div>
   </div>
@@ -1165,8 +1165,8 @@ body{
     <button class="btn-theme" onclick="toggleTheme()">
       <i class="ti ti-moon" id="theme-icon"></i> <span id="theme-label">تم روشن</span>
     </button>
-    <a class="btn-telegram" href="https://t.me/AnsooyeFilter" target="_blank">
-      <i class="ti ti-brand-telegram"></i> @AnsooyeFilter
+    <a class="btn-telegram" href="https://t.me/TimAzadi" target="_blank">
+      <i class="ti ti-brand-telegram"></i> @TimAzadi
     </a>
     <button class="btn-logout" id="logout-btn"><i class="ti ti-logout"></i> خروج</button>
   </div>
@@ -1264,8 +1264,8 @@ body{
     </div>
 
     <div class="dash-footer">
-      <span>AnsooyeFilter RVG Gateway v9.0 · Railway · 2025</span>
-      <a class="df-link" href="https://t.me/AnsooyeFilter" target="_blank"><i class="ti ti-brand-telegram"></i> t.me/AnsooyeFilter</a>
+      <span>تیم آزادی · RVG Gateway v9.0 · Railway · 2025</span>
+      <a class="df-link" href="https://t.me/TimAzadi" target="_blank"><i class="ti ti-brand-telegram"></i> t.me/TimAzadi</a>
     </div>
   </section>
 
@@ -1785,7 +1785,7 @@ def get_public_page_html(uuid_key: str) -> str:
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RVG Sub · AnsooyeFilter</title>
+<title>RVG Sub · تیم آزادی</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -2016,15 +2016,15 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 <div class="wrap">
   <div class="top">
     <div class="brand">
-      <div class="brand-img"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="cb"></div>
-      <div><div class="brand-name">AnsooyeFilter</div><div class="brand-sub">RVG Gateway · v9.0</div></div>
+      <div class="brand-img"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="تیم آزادی"></div>
+      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">RVG Gateway · v9.0</div></div>
     </div>
-    <a href="https://t.me/AnsooyeFilter" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#C084FC;font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @AnsooyeFilter</a>
+    <a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#C084FC;font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>
   </div>
   <div id="root">
     <div style="text-align:center;padding:80px 20px;color:var(--text-muted)"><i class="ti ti-loader-2" style="font-size:38px;display:block;margin-bottom:14px;animation:spin 1s linear infinite"></i>در حال بارگذاری...</div>
   </div>
-  <div class="footer">کانال رسمی: <a href="https://t.me/AnsooyeFilter" target="_blank">@AnsooyeFilter</a> · RVG Gateway v9.0</div>
+  <div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · RVG Gateway v9.0</div>
 </div>
 <script>
 const UUID_KEY='{uuid_key}';
@@ -2204,7 +2204,7 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{label} · AnsooyeFilter</title>
+<title>{label} · تیم آزادی</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -2349,10 +2349,10 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 <div class="wrap">
   <div class="top">
     <div class="brand">
-      <div class="brand-img"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="cb"></div>
-      <div><div class="brand-name">AnsooyeFilter</div><div class="brand-sub">RVG Gateway · v9.0</div></div>
+      <div class="brand-img"><img src="https://sftaq.ir/photo_2026-06-11_23-01-59.jpg" alt="تیم آزادی"></div>
+      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">RVG Gateway · v9.0</div></div>
     </div>
-    <a href="https://t.me/AnsooyeFilter" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#C084FC;font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @AnsooyeFilter</a>
+    <a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#C084FC;font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>
   </div>
 
   <div class="hero">
@@ -2379,7 +2379,7 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
     </div>
   </div>
 
-  <div class="footer">کانال رسمی: <a href="https://t.me/AnsooyeFilter" target="_blank">@AnsooyeFilter</a> · RVG Gateway v9.0</div>
+  <div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · RVG Gateway v9.0</div>
 </div>
 
 <script>
