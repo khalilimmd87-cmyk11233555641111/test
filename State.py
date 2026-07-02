@@ -1,11 +1,4 @@
 # state.py — تیم آزادی Gateway v10.0
-# ══════════════════════════════════════════════════════════════════════════════
-# تمام state مشترک (LINKS، SUBS، stats، connections، ...) و توابع کمکی که هم
-# main.py و هم relay_vless.py و هم xhttp_siz10.py بهشون نیاز دارن، اینجا زندگی
-# می‌کنن. این فایل عمداً از main.py، relay_vless.py یا xhttp_siz10.py هیچی
-# ایمپورت نمی‌کنه تا حلقه‌ی وارداتی (circular import) که باعث خطای
-# "cannot import name 'router' from 'xhttp_siz10'" می‌شد، دیگه پیش نیاد.
-# ══════════════════════════════════════════════════════════════════════════════
 
 import asyncio
 import json
@@ -13,7 +6,7 @@ import os
 import hashlib
 import secrets
 import time
-import aiofiles
+import socket
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -22,45 +15,53 @@ from pathlib import Path
 
 from fastapi import Request, HTTPException
 
+# ── تنظیمات لاگ ──────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("تیم-آزادی-Gateway")
-
 IRAN_TZ = ZoneInfo("Asia/Tehran")
 
 # ── Secret / Config ──────────────────────────────────────────────────────────
 def _load_or_create_secret() -> str:
-    """اگر SECRET_KEY در env تنظیم نشده باشد، آن را یک‌بار می‌سازد و روی دیسک
-    ذخیره می‌کند تا با هر ری‌استارت سرور عوض نشود (که باعث نامعتبر شدن
-    session‌ها و هش‌های وابسته به secret می‌شد)."""
     env_secret = os.environ.get("SECRET_KEY")
-    if env_secret:
+    if env_secret and len(env_secret) >= 16:
+        logger.info("✅ SECRET_KEY loaded from environment")
         return env_secret
+    
     secret_dir = Path(os.environ.get("DATA_DIR", "/data"))
     secret_file = secret_dir / ".secret_key"
+    
     try:
         secret_dir.mkdir(parents=True, exist_ok=True)
         if secret_file.exists():
-            return secret_file.read_text(encoding="utf-8").strip()
+            content = secret_file.read_text(encoding="utf-8").strip()
+            if content and len(content) >= 16:
+                logger.info("✅ SECRET_KEY loaded from file")
+                return content
         new_secret = secrets.token_urlsafe(32)
         secret_file.write_text(new_secret, encoding="utf-8")
+        logger.info("✅ SECRET_KEY created and saved")
         return new_secret
-    except Exception:
-        # اگر دیسک در دسترس نبود (مثلاً محیط فقط-خواندنی)، حداقل برای طول عمر
-        # همین پردازه یک مقدار ثابت داشته باشیم.
-        return secrets.token_urlsafe(32)
+    except Exception as e:
+        logger.warning(f"⚠️ Could not access secret file: {e}")
+        try:
+            hostname = socket.gethostname()
+            return hashlib.sha256(f"{hostname}-timazadi".encode()).hexdigest()
+        except:
+            return "fixed-secret-timazadi-v10"
 
 CONFIG = {
     "port": int(os.environ.get("PORT", 8000)),
     "secret": _load_or_create_secret(),
     "host": os.environ.get("RAILWAY_PUBLIC_DOMAIN", "localhost"),
 }
+logger.info(f"🚀 Config loaded: port={CONFIG['port']}, host={CONFIG['host']}")
 
-# ── Persistence ───────────────────────────────────────────────────────────────
+# ── Persistence ──────────────────────────────────────────────────────────────
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 DATA_FILE = DATA_DIR / "rvg_state.json"
 SAVE_LOCK = asyncio.Lock()
 
-# ── In-memory state ───────────────────────────────────────────────────────────
+# ── In-memory state ──────────────────────────────────────────────────────────
 connections: dict = {}
 stats = {
     "total_bytes": 0,
@@ -76,12 +77,10 @@ LINKS_LOCK = asyncio.Lock()
 SUBS: dict = {}
 SUBS_LOCK = asyncio.Lock()
 
-# پروتکل‌های پشتیبانی‌شده برای هر کانفیگ
-PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one")
+PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up")
 DEFAULT_PROTOCOL = "vless-ws"
 
 def log_activity(kind: str, message: str, level: str = "info"):
-    """ثبت یک رخداد در لاگ فعالیت‌ها (ساخت/حذف/ویرایش کانفیگ، ورود، و...)."""
     activity_logs.append({
         "kind": kind,
         "level": level,
@@ -89,7 +88,7 @@ def log_activity(kind: str, message: str, level: str = "info"):
         "time": datetime.now().isoformat(),
     })
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
+# ── Auth ─────────────────────────────────────────────────────────────────────
 SESSION_COOKIE = "rvg_session"
 SESSION_TTL = 60 * 60 * 24 * 7
 
@@ -116,6 +115,7 @@ async def is_valid_session(token: str | None) -> bool:
         if exp < time.time():
             SESSIONS.pop(token, None)
             return False
+        SESSIONS[token] = time.time() + SESSION_TTL
         return True
 
 async def destroy_session(token: str | None):
@@ -130,12 +130,13 @@ async def require_auth(request: Request):
         raise HTTPException(status_code=401, detail="unauthorized")
     return token
 
-# ── Persistence I/O ───────────────────────────────────────────────────────────
+# ── Persistence I/O ──────────────────────────────────────────────────────────
 async def load_state():
     global LINKS, AUTH, SUBS
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
+            import aiofiles
             async with aiofiles.open(DATA_FILE, "r", encoding="utf-8") as f:
                 raw = await f.read()
             data = json.loads(raw)
@@ -143,9 +144,9 @@ async def load_state():
             SUBS.update(data.get("subs", {}))
             if "password_hash" in data:
                 AUTH["password_hash"] = data["password_hash"]
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs")
+            logger.info(f"✅ State loaded: {len(LINKS)} links, {len(SUBS)} subs")
     except Exception as e:
-        logger.warning(f"Could not load state: {e}")
+        logger.warning(f"⚠️ Could not load state: {e}")
 
 async def save_state():
     async with SAVE_LOCK:
@@ -157,14 +158,15 @@ async def save_state():
                 "password_hash": AUTH["password_hash"],
                 "saved_at": datetime.now().isoformat(),
             }
+            import aiofiles
             tmp = DATA_FILE.with_suffix(".tmp")
             async with aiofiles.open(tmp, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(data, ensure_ascii=False, indent=2))
             tmp.replace(DATA_FILE)
         except Exception as e:
-            logger.warning(f"Could not save state: {e}")
+            logger.warning(f"⚠️ Could not save state: {e}")
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────────────────
 def get_host() -> str:
     return os.environ.get("RAILWAY_PUBLIC_DOMAIN", CONFIG["host"])
 
@@ -176,7 +178,6 @@ def now_ir() -> datetime:
     return datetime.now(IRAN_TZ)
 
 def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی", protocol: str = DEFAULT_PROTOCOL) -> str:
-    """می‌سازد VLESS share-link متناسب با پروتکل انتخاب‌شده (WS کلاسیک یا یکی از مدهای XHTTP)."""
     from urllib.parse import quote
     if protocol == "vless-ws":
         path = f"/ws/{uuid}"
@@ -191,9 +192,11 @@ def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی",
             "alpn": "http/1.1",
         }
     else:
-        # xhttp-packet-up / xhttp-stream-up / xhttp-stream-one
-        mode = protocol.replace("xhttp-", "")  # packet-up | stream-up | stream-one
+        mode = protocol.replace("xhttp-", "")
         path = f"/xhttp-siz10/{mode}/{uuid}"
+        if mode == "stream-up":
+            sess_id = secrets.token_urlsafe(8)
+            path = f"/xhttp-siz10/{mode}/{uuid}/{sess_id}"
         params = {
             "encryption": "none",
             "security": "tls",
@@ -248,7 +251,6 @@ def fmt_bytes(b: int) -> str:
     return f"{b/1024**3:.2f} GB"
 
 def client_ip(request: Request) -> str:
-    """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه."""
     fwd = request.headers.get("x-forwarded-for")
     if fwd:
         return fwd.split(",")[0].strip()
@@ -257,7 +259,6 @@ def client_ip(request: Request) -> str:
         return real_ip.strip()
     return request.client.host if request.client else "نامشخص"
 
-# ── Default link ──────────────────────────────────────────────────────────────
 _default_link_created = False
 
 async def ensure_default_link():
@@ -282,4 +283,5 @@ async def ensure_default_link():
                     "protocol": DEFAULT_PROTOCOL,
                 }
                 asyncio.create_task(save_state())
+                logger.info("✅ Default link created")
         _default_link_created = True
