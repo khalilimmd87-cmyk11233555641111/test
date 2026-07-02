@@ -40,21 +40,17 @@ http_client: httpx.AsyncClient | None = None
 @app.on_event("startup")
 async def startup():
     global http_client
-    logger.info(f"🔐 Secret loaded: {CONFIG['secret'][:8]}...")
-    
     limits = httpx.Limits(max_connections=500, max_keepalive_connections=100)
     timeout = httpx.Timeout(30.0, connect=10.0)
     http_client = httpx.AsyncClient(
         limits=limits, timeout=timeout, follow_redirects=True,
     )
     await load_state()
-    await ensure_default_link()
-    
     import os
     if os.environ.get("ADMIN_PASSWORD") is None:
-        logger.warning("⚠️ ADMIN_PASSWORD در env تنظیم نشده")
+        logger.warning("⚠️  ADMIN_PASSWORD در env تنظیم نشده؛ رمز پیش‌فرض در حال استفاده است. برای امنیت، آن را در متغیرهای محیطی ست کنید و/یا از پنل تغییر بدهید.")
     log_activity("system", "سرور راه‌اندازی شد", "ok")
-    logger.info(f"✅ تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
+    logger.info(f"تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -69,15 +65,7 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {
-        "status": "ok",
-        "connections": len(connections),
-        "uptime": uptime(),
-        "links": len(LINKS),
-        "subs": len(SUBS),
-        "auth_ready": bool(AUTH.get("password_hash")),
-        "secret_loaded": bool(CONFIG.get("secret"))
-    }
+    return {"status": "ok", "connections": len(connections), "uptime": uptime()}
 
 # ── Subscription (single link) ────────────────────────────────────────────────
 @app.get("/sub/{uuid}")
@@ -321,9 +309,16 @@ async def get_stats(_=Depends(require_auth)):
 async def get_activity(_=Depends(require_auth)):
     return {"logs": list(activity_logs)[-150:]}
 
-# ── Live connections ─────────────────────────────────────────────────────────
+# ── Live connections (with IP) ────────────────────────────────────────────────
 @app.get("/api/connections")
 async def get_connections(_=Depends(require_auth)):
+    """
+    خروجی این endpoint حالا بر اساس IP گروه‌بندی شده:
+    هر آی‌پی فقط یک آیتم نمایش داده می‌شود، با جمع بایت‌های تمام سشن‌های
+    باز روی همان آی‌پی و تعداد سشن‌های فعال آن آی‌پی.
+    raw_count همچنان تعداد واقعی اتصالات باز (سشن‌های خام، مثلاً ۴۰ تا
+    اتصال هم‌زمان یک موبایل) را برمی‌گرداند.
+    """
     async with LINKS_LOCK:
         snap = dict(LINKS)
 
@@ -372,8 +367,8 @@ async def get_connections(_=Depends(require_auth)):
 
     return {
         "connections": result,
-        "count": len(result),
-        "raw_count": len(connections),
+        "count": len(result),          # تعداد آی‌پی‌های یکتا
+        "raw_count": len(connections), # تعداد کل اتصالات باز (بدون گروه‌بندی)
     }
 
 # ── Link Management ───────────────────────────────────────────────────────────
@@ -509,7 +504,7 @@ async def delete_link(uid: str, _=Depends(require_auth)):
     return {"ok": True, "deleted": uid}
 
 # ══════════════════════════════════════════════════════════════════════════════
-# VLESS Relay
+# VLESS Relay — جدا شده به relay_vless.py (دست نخورده)
 # ══════════════════════════════════════════════════════════════════════════════
 
 from relay_vless import (
@@ -524,7 +519,7 @@ from relay_vless import (
 app.add_api_websocket_route("/ws/{uuid}", websocket_tunnel)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# XHTTP
+# XHTTP — Siz10a XHTTP Ultra (ترابرد جدید، جدا از VLESS/WS، هر ۳ مد)
 # ══════════════════════════════════════════════════════════════════════════════
 from xhttp_siz10 import router as xhttp_router
 app.include_router(xhttp_router)
@@ -616,7 +611,7 @@ async def public_sub_data(uuid_key: str, request: Request):
         "links": links_out,
     }
 
-# ── HTML Pages ───────────────────────────────────────────────────────────────
+# ── HTML Pages (login + dashboard) ───────────────────────────────────────────
 from pages import LOGIN_HTML, DASHBOARD_HTML
 
 @app.get("/login", response_class=HTMLResponse)
