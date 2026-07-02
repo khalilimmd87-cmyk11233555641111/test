@@ -8,7 +8,7 @@ from datetime import datetime
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from main import (
+from state import (
     LINKS,
     LINKS_LOCK,
     stats,
