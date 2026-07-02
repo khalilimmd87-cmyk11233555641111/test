@@ -96,7 +96,8 @@ SESSION_TTL = 60 * 60 * 24 * 7
 def hash_password(pw: str) -> str:
     return hashlib.sha256(f"{pw}{CONFIG['secret']}".encode()).hexdigest()
 
-AUTH = {"password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "TimAzadi@2026"))}
+# ✅ تغییر: رمز پیش‌فرض از "TimAzadi@2026" به "TimAzadi" تغییر کرد
+AUTH = {"password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "TimAzadi"))}
 SESSIONS: dict = {}
 SESSIONS_LOCK = asyncio.Lock()
 
