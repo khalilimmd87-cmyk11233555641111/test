@@ -24,6 +24,22 @@ from state import (
     ensure_default_link,
 )
 
+# ── متغیر سراسری برای مدیریت تسک ذخیره‌سازی ──
+_save_task = None
+
+async def schedule_save():
+    """ذخیره‌سازی state رو با اولویت پایین و بدون تداخل انجام بده"""
+    global _save_task
+    # اگر تسک قبلی هنوز در حال اجراست، اون رو کنسل کن
+    if _save_task and not _save_task.done():
+        _save_task.cancel()
+        try:
+            await _save_task
+        except asyncio.CancelledError:
+            pass
+    # تسک جدید رو شروع کن
+    _save_task = asyncio.create_task(save_state())
+
 app = FastAPI(title="تیم آزادی Gateway", docs_url=None, redoc_url=None)
 
 app.add_middleware(
@@ -140,7 +156,7 @@ async def create_sub(request: Request, _=Depends(require_auth)):
             "created_at": datetime.now().isoformat(),
             "link_ids": [],
         }
-    asyncio.create_task(save_state())
+    await schedule_save()
     log_activity("sub", f"گروه «{name}» ساخته شد", "ok")
     host = get_host()
     return {
@@ -193,7 +209,7 @@ async def update_sub(sub_id: str, request: Request, _=Depends(require_auth)):
             s["password_hash"] = hash_password(pw) if pw else None
         if "link_ids" in body:
             s["link_ids"] = list(body["link_ids"])
-    asyncio.create_task(save_state())
+    await schedule_save()
     return {"ok": True}
 
 @app.delete("/api/subs/{sub_id}")
@@ -207,7 +223,7 @@ async def delete_sub(sub_id: str, _=Depends(require_auth)):
         for link in LINKS.values():
             if link.get("sub_id") == sub_id:
                 link["sub_id"] = None
-    asyncio.create_task(save_state())
+    await schedule_save()
     log_activity("sub", f"گروه «{name}» حذف شد", "warn")
     return {"ok": True, "deleted": sub_id}
 
@@ -230,7 +246,7 @@ async def assign_link_to_sub(sub_id: str, request: Request, _=Depends(require_au
     async with LINKS_LOCK:
         if link_id in LINKS:
             LINKS[link_id]["sub_id"] = sub_id if action == "add" else None
-    asyncio.create_task(save_state())
+    await schedule_save()
     return {"ok": True}
 
 # ── Public sub-group subscription file ───────────────────────────────────────
@@ -305,7 +321,7 @@ async def api_change_password(request: Request, token=Depends(require_auth)):
     async with SESSIONS_LOCK:
         SESSIONS.clear()
         SESSIONS[token] = time.time() + SESSION_TTL
-    await save_state()
+    await schedule_save()
     log_activity("auth", "رمز عبور پنل تغییر کرد", "ok")
     return {"ok": True}
 
@@ -427,7 +443,7 @@ async def create_link(request: Request, _=Depends(require_auth)):
                 if uid not in ids:
                     ids.append(uid)
 
-    asyncio.create_task(save_state())
+    await schedule_save()
     log_activity("link", f"کانفیگ «{label}» ساخته شد", "ok")
     host = get_host()
     return {
@@ -500,7 +516,7 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
                 if uid not in ids:
                     ids.append(uid)
 
-    asyncio.create_task(save_state())
+    await schedule_save()
     return {"ok": True}
 
 @app.delete("/api/links/{uid}")
@@ -517,7 +533,7 @@ async def delete_link(uid: str, _=Depends(require_auth)):
                 ids = SUBS[sub_id].get("link_ids", [])
                 if uid in ids:
                     ids.remove(uid)
-    asyncio.create_task(save_state())
+    await schedule_save()
     log_activity("link", f"کانفیگ «{label}» حذف شد", "err")
     return {"ok": True, "deleted": uid}
 
