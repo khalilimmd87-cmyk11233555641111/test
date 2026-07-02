@@ -1,5 +1,5 @@
 # pages.py  -  تیم آزادی Gateway v10.0
-# شامل: LOGIN_HTML, DASHBOARD_HTML, get_public_page_html()
+# شامل: LOGIN_HTML, DASHBOARD_HTML, get_public_page_html(), get_single_link_page_html()
 
 LOGIN_HTML = r"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -1863,7 +1863,6 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .cfg-title i{{color:var(--accent);font-size:15px}}
 .cfg-grid{{display:grid;gap:13px}}
 
-/* ── کارت کانفیگ به‌شکل بلیط دسترسی (signature element) ── */
 .cfg-card{{background:var(--card);border:1px solid var(--card-b);border-radius:18px;transition:all .2s;position:relative;overflow:hidden}}
 .cfg-card:hover{{border-color:var(--card-bh);box-shadow:var(--shadow)}}
 .cfg-top{{padding:17px 19px 15px;position:relative}}
@@ -1884,7 +1883,6 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .ubar-f{{height:100%;border-radius:4px;transition:width .5s ease}}
 .utxt{{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}}
 
-/* خط جداکننده‌ی بلیطی با دندانه‌های گرد، شبیه پاره‌خط بُرد بلیط */
 .cfg-tear{{position:relative;height:0;border-top:1.5px dashed var(--card-b);margin:0 19px}}
 .cfg-tear::before,.cfg-tear::after{{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--bg);transform:translateY(-50%);border:1px solid var(--card-b)}}
 .cfg-tear::before{{right:-28px}}
@@ -1914,7 +1912,6 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .dot{{width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.25}}}}
 
-/* ── صفحه‌ی قفل / رمز ── */
 .lock-stage{{display:flex;align-items:center;justify-content:center;min-height:78vh;padding:20px 0}}
 .lock-card{{background:var(--card);border:1px solid var(--card-b);border-radius:26px;padding:0;text-align:center;max-width:380px;width:100%;box-shadow:var(--shadow);overflow:hidden;position:relative}}
 .lock-banner{{background:linear-gradient(150deg,rgba(59,124,246,.16),rgba(59,124,246,.02) 70%);padding:38px 30px 26px;position:relative}}
@@ -2218,5 +2215,238 @@ async function init(){{
 }}
 
 init();
+</script>
+</body></html>"""
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ✅ تابع جدید: صفحه عمومی برای لینک‌های تکی (سینگل ساب)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_single_link_page_html(uuid: str, link_data: dict) -> str:
+    """صفحه‌ی عمومی یک کانفیگ تکی – نمایش حجم مصرف، سهمیه، لینک و QR"""
+    label = link_data.get("label", "بدون نام")
+    vless_link = link_data.get("vless_link", "")
+    sub_url = link_data.get("sub_url", "")
+    used_fmt = link_data.get("used_fmt", "0 B")
+    limit_fmt = link_data.get("limit_fmt", "∞")
+    limit_bytes = link_data.get("limit_bytes", 0)
+    used_bytes = link_data.get("used_bytes", 0)
+    active = link_data.get("active", True)
+    expired = link_data.get("expired", False)
+    created_at = link_data.get("created_at", "")
+    protocol = link_data.get("protocol", "vless-ws")
+    
+    # نمایش پروتکل به فارسی
+    proto_names = {
+        "vless-ws": "VLESS / WebSocket",
+        "xhttp-packet-up": "XHTTP · packet-up",
+        "xhttp-stream-up": "XHTTP · stream-up",
+        "xhttp-stream-one": "XHTTP ULTRA"
+    }
+    proto_display = proto_names.get(protocol, protocol)
+    
+    pct = 0 if limit_bytes == 0 else min(100, used_bytes / limit_bytes * 100)
+    bar_color = "var(--red)" if pct > 90 else ("var(--amber)" if pct > 70 else "var(--green)")
+
+    return f"""<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{label} · تیم آزادی</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+:root{{
+  --bg-root:#0B1220;
+  --bg-surface:#111827;
+  --glass-bg:rgba(17,24,39,0.75);
+  --glass-border:rgba(59,130,246,0.12);
+  --accent:#3B82F6;
+  --accent-soft:#60A5FA;
+  --green:#10B981;--green-bg:rgba(16,185,129,0.12);
+  --red:#EF4444;--red-bg:rgba(239,68,68,0.12);
+  --amber:#F59E0B;--amber-bg:rgba(245,158,11,0.12);
+  --text-primary:#F1F5F9;
+  --text-secondary:#94A3B8;
+  --text-muted:#64748B;
+  --radius:16px;
+  --shadow:0 8px 32px rgba(0,0,0,0.3);
+}}
+html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',sans-serif;color:var(--text-primary);font-size:14px}}
+.bg-layer{{position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(59,130,246,0.06),transparent 60%),var(--bg-root);z-index:0;pointer-events:none}}
+.grid{{position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:44px 44px;z-index:0;pointer-events:none}}
+.wrap{{position:relative;z-index:10;max-width:660px;margin:0 auto;padding:28px 16px 60px}}
+.top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}}
+.brand{{display:flex;align-items:center;gap:12px}}
+.brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 0 20px rgba(59,130,246,0.25);display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3B82F6,#1D4ED8);font-weight:900;font-size:20px;color:#fff}}
+.brand-name{{font-size:15px;font-weight:700}}
+.brand-sub{{font-size:10px;color:var(--text-muted)}}
+.hero{{
+  background:var(--glass-bg);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--glass-border);
+  border-radius:24px;
+  padding:28px;
+  margin-bottom:20px;
+  box-shadow:var(--shadow);
+}}
+.hero-title{{font-size:20px;font-weight:700;margin-bottom:6px}}
+.hero-meta{{font-size:11px;color:var(--text-muted);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}}
+.status-badge{{
+  font-size:10px;padding:4px 12px;
+  border-radius:20px;font-weight:700;
+  display:inline-flex;align-items:center;gap:6px;
+}}
+.bg-green{{background:var(--green-bg);color:#34D399}}
+.bg-red{{background:var(--red-bg);color:#FCA5A5}}
+.bg-blue{{background:rgba(59,130,246,0.12);color:var(--accent-soft)}}
+.usage-section{{margin-bottom:18px}}
+.usage-bar{{height:8px;border-radius:4px;background:rgba(59,130,246,0.1);overflow:hidden;margin-bottom:6px}}
+.usage-fill{{height:100%;border-radius:4px;transition:width 0.4s}}
+.usage-text{{font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between}}
+.vless-box{{
+  background:rgba(0,0,0,0.2);
+  border:1px solid var(--glass-border);
+  border-radius:12px;
+  padding:14px;
+  font-family:ui-monospace,monospace;
+  font-size:11px;
+  color:var(--accent-soft);
+  word-break:break-all;
+  line-height:1.9;
+  margin-bottom:16px;
+}}
+.actions{{display:flex;gap:10px;flex-wrap:wrap}}
+.btn{{
+  font-family:inherit;font-size:12px;font-weight:600;
+  border-radius:10px;
+  padding:10px 16px;
+  cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  border:none;
+  transition:all 0.15s;
+}}
+.btn i{{font-size:14px}}
+.btn-primary{{
+  background:linear-gradient(135deg,#2563EB,#1D4ED8);
+  color:#fff;
+  box-shadow:0 4px 16px rgba(37,99,235,0.3);
+}}
+.btn-primary:hover{{filter:brightness(1.1)}}
+.btn-ghost{{
+  background:rgba(59,130,246,0.08);
+  color:var(--accent-soft);
+  border:1px solid rgba(59,130,246,0.15);
+}}
+.btn-ghost:hover{{background:rgba(59,130,246,0.15)}}
+.toast{{
+  position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:var(--bg-surface);
+  border:1px solid var(--glass-border);
+  color:var(--text-primary);
+  border-radius:12px;
+  padding:12px 20px;
+  font-size:13px;
+  opacity:0;
+  transition:all 0.25s;
+  z-index:999;
+  pointer-events:none;
+  display:flex;align-items:center;gap:8px;
+  box-shadow:var(--shadow);
+}}
+.toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
+.toast.ok{{border-color:rgba(16,185,129,0.3);background:var(--green-bg);color:#34D399}}
+.qr-modal{{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(6px);
+  z-index:600;
+  align-items:center;justify-content:center;
+}}
+.qr-modal.open{{display:flex}}
+.qr-box{{
+  background:var(--bg-surface);
+  border:1px solid var(--glass-border);
+  border-radius:20px;
+  padding:24px;
+  text-align:center;
+  max-width:340px;
+  width:calc(100% - 32px);
+}}
+.qr-img{{border-radius:14px;overflow:hidden;margin-bottom:16px}}
+.qr-img img{{width:100%;display:block;background:#fff;padding:8px;border-radius:14px}}
+.footer{{text-align:center;padding-top:30px;font-size:11px;color:var(--text-muted)}}
+.footer a{{color:var(--accent-soft);font-weight:600}}
+@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
+</style>
+</head>
+<body>
+<div class="bg-layer"></div><div class="grid"></div>
+<div class="toast" id="toast"></div>
+<div class="qr-modal" id="qr-modal" onclick="this.classList.remove('open')">
+  <div class="qr-box" onclick="event.stopPropagation()">
+    <div class="qr-title" id="qr-label">QR Code</div>
+    <div class="qr-img"><img id="qr-img" src="" alt="QR"></div>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('qr-modal').classList.remove('open')"><i class="ti ti-x"></i> بستن</button>
+  </div>
+</div>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="brand-img">آ</div>
+      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
+    </div>
+    <a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-soft);font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>
+  </div>
+
+  <div class="hero">
+    <div class="hero-title">{label}</div>
+    <div class="hero-meta">
+      <i class="ti ti-calendar"></i> {created_at[:10] if created_at else "—"}
+      <span class="status-badge bg-blue">
+        <i class="ti ti-plug"></i> {proto_display}
+      </span>
+      <span class="status-badge {'bg-green' if active and not expired else 'bg-red'}">
+        <i class="ti ti-{'circle-check' if active and not expired else 'circle-x'}"></i>
+        {'فعال' if active and not expired else 'غیرفعال'}
+      </span>
+    </div>
+
+    <div class="usage-section">
+      <div class="usage-bar"><div class="usage-fill" style="width:{pct}%;background:{bar_color}"></div></div>
+      <div class="usage-text"><span>مصرف: {used_fmt}</span><span>سهمیه: {limit_fmt}</span></div>
+    </div>
+
+    <div class="vless-box">{vless_link}</div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="copyToClipboard('{vless_link}')"><i class="ti ti-copy"></i> کپی لینک VLESS</button>
+      <button class="btn btn-ghost" onclick="showQR('{label}', '{vless_link}')"><i class="ti ti-qrcode"></i> QR Code</button>
+      <button class="btn btn-ghost" onclick="copyToClipboard('{sub_url}')"><i class="ti ti-rss"></i> کپی لینک ساب</button>
+    </div>
+  </div>
+
+  <div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · تیم آزادی Gateway v10.0</div>
+</div>
+
+<script>
+function toast(msg,type){{
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast show'+(type?' '+type:'');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}}
+function copyToClipboard(text){{
+  navigator.clipboard.writeText(text).then(()=>toast('کپی شد ✓','ok'));
+}}
+function showQR(label,link){{
+  document.getElementById('qr-label').textContent=label;
+  document.getElementById('qr-img').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(link);
+  document.getElementById('qr-modal').classList.add('open');
+}}
 </script>
 </body></html>"""
