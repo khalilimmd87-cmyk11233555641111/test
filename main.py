@@ -69,18 +69,44 @@ async def health():
 
 # ── Subscription (single link) ────────────────────────────────────────────────
 @app.get("/sub/{uuid}")
-async def subscription_single(uuid: str):
+async def subscription_single(uuid: str, request: Request):
     import base64
     async with LINKS_LOCK:
         link = LINKS.get(uuid)
     if not link or not is_link_allowed(link):
         raise HTTPException(status_code=404, detail="not found or inactive")
+    
     host = get_host()
     proto = link.get("protocol", DEFAULT_PROTOCOL)
     vless = generate_vless_link(uuid, host, remark=f"تیم‌آزادی-{link['label']}", protocol=proto)
+    sub_url = f"https://{host}/sub/{uuid}"
+    
+    # ✅ اگر مرورگر باشد، صفحه HTML زیبا نشان بده
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        from pages import get_single_link_page_html
+        link_data = {
+            "uuid": uuid,
+            **link,
+            "expired": is_link_expired(link),
+            "vless_link": vless,
+            "sub_url": sub_url,
+            "used_fmt": fmt_bytes(link.get("used_bytes", 0)),
+            "limit_fmt": "∞" if link.get("limit_bytes", 0) == 0 else fmt_bytes(link["limit_bytes"]),
+            "protocol": proto,
+        }
+        return HTMLResponse(content=get_single_link_page_html(uuid, link_data))
+    
+    # در غیر این صورت، فایل base64 برای اپ‌ها
     content = base64.b64encode(vless.encode()).decode()
-    return Response(content=content, media_type="text/plain",
-                    headers={"profile-title": quote(link["label"]), "support-url": "https://t.me/TimAzadi"})
+    return Response(
+        content=content,
+        media_type="text/plain",
+        headers={
+            "profile-title": quote(link["label"]),
+            "support-url": "https://t.me/TimAzadi",
+        }
+    )
 
 @app.get("/sub-all")
 async def subscription_all(_=Depends(require_auth)):
@@ -312,13 +338,6 @@ async def get_activity(_=Depends(require_auth)):
 # ── Live connections (with IP) ────────────────────────────────────────────────
 @app.get("/api/connections")
 async def get_connections(_=Depends(require_auth)):
-    """
-    خروجی این endpoint حالا بر اساس IP گروه‌بندی شده:
-    هر آی‌پی فقط یک آیتم نمایش داده می‌شود، با جمع بایت‌های تمام سشن‌های
-    باز روی همان آی‌پی و تعداد سشن‌های فعال آن آی‌پی.
-    raw_count همچنان تعداد واقعی اتصالات باز (سشن‌های خام، مثلاً ۴۰ تا
-    اتصال هم‌زمان یک موبایل) را برمی‌گرداند.
-    """
     async with LINKS_LOCK:
         snap = dict(LINKS)
 
@@ -367,8 +386,8 @@ async def get_connections(_=Depends(require_auth)):
 
     return {
         "connections": result,
-        "count": len(result),          # تعداد آی‌پی‌های یکتا
-        "raw_count": len(connections), # تعداد کل اتصالات باز (بدون گروه‌بندی)
+        "count": len(result),
+        "raw_count": len(connections),
     }
 
 # ── Link Management ───────────────────────────────────────────────────────────
