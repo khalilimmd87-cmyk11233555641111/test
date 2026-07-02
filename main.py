@@ -81,7 +81,6 @@ async def subscription_single(uuid: str, request: Request):
     vless = generate_vless_link(uuid, host, remark=f"تیم‌آزادی-{link['label']}", protocol=proto)
     sub_url = f"https://{host}/sub/{uuid}"
     
-    # ✅ اگر مرورگر باشد، صفحه HTML زیبا نشان بده
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         from pages import get_single_link_page_html
@@ -97,7 +96,6 @@ async def subscription_single(uuid: str, request: Request):
         }
         return HTMLResponse(content=get_single_link_page_html(uuid, link_data))
     
-    # در غیر این صورت، فایل base64 برای اپ‌ها
     content = base64.b64encode(vless.encode()).decode()
     return Response(
         content=content,
@@ -113,11 +111,11 @@ async def subscription_all(_=Depends(require_auth)):
     import base64
     host = get_host()
     async with LINKS_LOCK:
-        lines = [
-            generate_vless_link(uid, host, remark=f"تیم‌آزادی-{d['label']}", protocol=d.get("protocol", DEFAULT_PROTOCOL))
-            for uid, d in LINKS.items()
-            if is_link_allowed(d)
-        ]
+        lines = []
+        for uid, d in LINKS.items():
+            if is_link_allowed(d):
+                proto = d.get("protocol", DEFAULT_PROTOCOL)
+                lines.append(generate_vless_link(uid, host, remark=f"تیم‌آزادی-{d['label']}", protocol=proto))
     content = base64.b64encode("\n".join(lines).encode()).decode()
     return Response(content=content, media_type="text/plain")
 
@@ -256,7 +254,8 @@ async def sub_group_subscription(uuid_key: str, request: Request):
         for lid in link_ids:
             link = LINKS.get(lid)
             if link and is_link_allowed(link):
-                lines.append(generate_vless_link(lid, host, remark=f"تیم‌آزادی-{link['label']}", protocol=link.get("protocol", DEFAULT_PROTOCOL)))
+                proto = link.get("protocol", DEFAULT_PROTOCOL)
+                lines.append(generate_vless_link(lid, host, remark=f"تیم‌آزادی-{link['label']}", protocol=proto))
 
     content = base64.b64encode("\n".join(lines).encode()).decode()
     return Response(
@@ -523,7 +522,7 @@ async def delete_link(uid: str, _=Depends(require_auth)):
     return {"ok": True, "deleted": uid}
 
 # ══════════════════════════════════════════════════════════════════════════════
-# VLESS Relay — جدا شده به relay_vless.py (دست نخورده)
+# VLESS Relay
 # ══════════════════════════════════════════════════════════════════════════════
 
 from relay_vless import (
@@ -538,7 +537,7 @@ from relay_vless import (
 app.add_api_websocket_route("/ws/{uuid}", websocket_tunnel)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# XHTTP — Siz10a XHTTP Ultra (ترابرد جدید، جدا از VLESS/WS، هر ۳ مد)
+# XHTTP
 # ══════════════════════════════════════════════════════════════════════════════
 from xhttp_siz10 import router as xhttp_router
 app.include_router(xhttp_router)
@@ -636,19 +635,23 @@ from pages import LOGIN_HTML, DASHBOARD_HTML
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     if await is_valid_session(request.cookies.get(SESSION_COOKIE)):
-        return RedirectResponse(url="/dashboard")
+        return RedirectResponse(url="/timazadi")
     return HTMLResponse(content=LOGIN_HTML)
 
-@app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/timazadi", response_class=HTMLResponse)
 async def dashboard(request: Request):
     if not await is_valid_session(request.cookies.get(SESSION_COOKIE)):
         return RedirectResponse(url="/login")
     await ensure_default_link()
     return HTMLResponse(content=DASHBOARD_HTML)
 
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_redirect(request: Request):
+    return RedirectResponse(url="/timazadi")
+
 @app.get("/test-ws", response_class=HTMLResponse)
 async def test_ws_redirect():
-    return HTMLResponse(content="<script>location.href='/dashboard'</script>")
+    return HTMLResponse(content="<script>location.href='/timazadi'</script>")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=CONFIG["port"], log_level="info", workers=1)
