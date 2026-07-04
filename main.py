@@ -10,19 +10,37 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import httpx
 
+import os
+
 from state import (
     logger, CONFIG,
     connections, stats, error_logs, activity_logs, hourly_traffic,
     LINKS, LINKS_LOCK, SUBS, SUBS_LOCK,
     PROTOCOLS, DEFAULT_PROTOCOL, log_activity,
-    SESSION_COOKIE, SESSION_TTL, hash_password, AUTH,
+    SESSION_COOKIE, SESSION_TTL, hash_password, verify_password, is_legacy_hash, AUTH,
     SESSIONS, SESSIONS_LOCK,
     create_session, is_valid_session, destroy_session, require_auth,
     load_state, save_state,
     get_host, generate_uuid, now_ir, generate_vless_link, uptime,
     parse_size_to_bytes, is_link_expired, is_link_allowed, fmt_bytes, client_ip,
     ensure_default_link,
+    check_login_rate_limit, record_login_attempt,
+    is_blocked_proxy_target,
 )
+
+# ✅ امنیت: به‌جای CORS باز (allow_origins=["*"] + allow_credentials=True که
+# ترکیب خطرناکی‌ست و می‌تواند کوکی سشن را در معرض هر سایتی بگذارد)، فقط
+# دامنه‌ی واقعی سرویس (و هر چیزی که صریحاً در ALLOWED_ORIGINS ست شود) مجاز است.
+_public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+_extra_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+ALLOWED_ORIGINS = list({
+    *( [f"https://{_public_domain}"] if _public_domain else [] ),
+    *_extra_origins,
+}) or ["http://localhost:8000"]  # دست‌کم یک مقدار امن برای اجرای لوکال
+
+# کوکی سشن روی HTTPS واقعی (Railway) باید secure باشد؛ فقط برای اجرای لوکال
+# روی http://localhost می‌توان با متغیر محیطی خاموشش کرد.
+SECURE_COOKIES = os.environ.get("DISABLE_SECURE_COOKIE", "0") != "1"
 
 # ── متغیر سراسری برای مدیریت تسک ذخیره‌سازی ──
 _save_task = None
@@ -44,7 +62,7 @@ app = FastAPI(title="تیم آزادی Gateway", docs_url=None, redoc_url=None)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,7 +80,6 @@ async def startup():
         limits=limits, timeout=timeout, follow_redirects=True,
     )
     await load_state()
-    import os
     if os.environ.get("ADMIN_PASSWORD") is None:
         logger.warning("⚠️  ADMIN_PASSWORD در env تنظیم نشده؛ رمز پیش‌فرض در حال استفاده است. برای امنیت، آن را در متغیرهای محیطی ست کنید و/یا از پنل تغییر بدهید.")
     log_activity("system", "سرور راه‌اندازی شد", "ok")
@@ -287,15 +304,33 @@ async def sub_group_subscription(uuid_key: str, request: Request):
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 @app.post("/api/login")
 async def api_login(request: Request):
-    body = await request.json()
     ip = client_ip(request)
-    if hash_password(str(body.get("password", ""))) != AUTH["password_hash"]:
+
+    # ✅ امنیت: rate-limit روی تلاش‌های ورود برای مقابله با brute-force
+    if not await check_login_rate_limit(ip):
+        log_activity("auth", f"مسدود شدن موقت تلاش‌های ورود از {ip} (بیش از حد مجاز)", "err")
+        raise HTTPException(status_code=429, detail="تعداد تلاش‌ها بیش از حد است، چند دقیقه بعد دوباره تلاش کنید")
+
+    body = await request.json()
+    password = str(body.get("password", ""))
+
+    if not verify_password(password, AUTH["password_hash"]):
+        await record_login_attempt(ip)
         log_activity("auth", f"تلاش ورود ناموفق از {ip}", "err")
         raise HTTPException(status_code=401, detail="رمز عبور اشتباه است")
+
+    # ✅ ارتقای خودکار هش قدیمی (sha256 ساده) به PBKDF2 بعد از اولین ورود موفق
+    if is_legacy_hash(AUTH["password_hash"]):
+        AUTH["password_hash"] = hash_password(password)
+        await schedule_save()
+
     token = await create_session()
     log_activity("auth", f"ورود موفق به پنل از {ip}", "ok")
     resp = JSONResponse({"ok": True})
-    resp.set_cookie(SESSION_COOKIE, token, max_age=SESSION_TTL, httponly=True, samesite="lax", path="/")
+    resp.set_cookie(
+        SESSION_COOKIE, token, max_age=SESSION_TTL,
+        httponly=True, samesite="lax", secure=SECURE_COOKIES, path="/",
+    )
     return resp
 
 @app.post("/api/logout")
@@ -312,7 +347,7 @@ async def api_me(request: Request):
 @app.post("/api/change-password")
 async def api_change_password(request: Request, token=Depends(require_auth)):
     body = await request.json()
-    if hash_password(str(body.get("current_password", ""))) != AUTH["password_hash"]:
+    if not verify_password(str(body.get("current_password", "")), AUTH["password_hash"]):
         raise HTTPException(status_code=400, detail="رمز فعلی اشتباه است")
     new = str(body.get("new_password", ""))
     if len(new) < 4:
@@ -566,6 +601,14 @@ _HOP = {"connection","keep-alive","proxy-authenticate","proxy-authorization",
 async def http_proxy(target_url: str, request: Request, _=Depends(require_auth)):
     if not target_url.startswith("http"):
         target_url = "https://" + target_url
+
+    # ✅ امنیت: قبلاً این پراکسی به هر URL دلخواه (از جمله IPهای داخلی شبکه یا
+    # سرویس متادیتای کلود مثل 169.254.169.254) وصل می‌شد که یک ریسک SSRF
+    # واقعی بود. الان آی‌پی خصوصی/لوکال/متادیتا (چه literal و چه بعد از resolve
+    # نام دامنه) مسدود می‌شود.
+    if await is_blocked_proxy_target(target_url):
+        raise HTTPException(status_code=400, detail="این آدرس مجاز نیست")
+
     try:
         body = await request.body()
         headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP and k.lower() != "host"}
