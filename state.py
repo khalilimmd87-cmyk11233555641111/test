@@ -308,10 +308,22 @@ def client_ip(conn) -> str:
     """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه.
     ✅ یکی‌سازی شد: قبلاً این منطق در main.py/state.py، relay_vless.py و
     xhttp_siz10.py سه بار جدا تکرار شده بود. هم برای fastapi.Request و هم
-    برای fastapi.WebSocket کار می‌کند (هر دو .headers و .client دارند)."""
+    برای fastapi.WebSocket کار می‌کند (هر دو .headers و .client دارند).
+
+    🐛 باگ امنیتی رفع‌شده: قبلاً اولین مقدار X-Forwarded-For (`split(",")[0]`)
+    برداشته می‌شد. در یک زنجیره‌ی X-Forwarded-For، اولین مقدار همان چیزی است
+    که خودِ کلاینت (یا هر پراکسی قبلی) اعلام کرده و کاملاً قابل جعل است —
+    مثلاً با curl -H "X-Forwarded-For: 1.2.3.4" هرکسی می‌توانست IP دلخواه
+    نشان‌داده‌شده در داشبورد را تغییر بدهد و مهم‌تر از آن، rate-limit ورود به
+    پنل (که بر اساس IP است) را با چرخوندن این هدر در هر تلاش، کاملاً دور بزند.
+    فقط یک پراکسی مورد اعتماد (لبه‌ی Railway/Cloudflare) بین کلاینت و این
+    سرویس وجود دارد و آن پراکسی IP واقعی را به‌عنوان آخرین مقدار زنجیره
+    اضافه می‌کند؛ پس آخرین مقدار قابل‌اعتماد است، نه اولین."""
     fwd = conn.headers.get("x-forwarded-for")
     if fwd:
-        return fwd.split(",")[0].strip()
+        parts = [p.strip() for p in fwd.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
     real_ip = conn.headers.get("x-real-ip")
     if real_ip:
         return real_ip.strip()
