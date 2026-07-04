@@ -270,6 +270,39 @@ def uptime() -> str:
     h, m, s = secs // 3600, (secs % 3600) // 60, secs % 60
     return f"{h:02d}:{m:02d}:{s:02d}"
 
+def fmt_bytes(b: int) -> str:
+    if b < 1024: return f"{b} B"
+    if b < 1024**2: return f"{b/1024:.1f} KB"
+    if b < 1024**3: return f"{b/1024**2:.2f} MB"
+    return f"{b/1024**3:.2f} GB"
+
+# پروتکل‌هایی که واقعاً روی این استک کار می‌کنند (xhttp-stream-one در PROTOCOLS
+# نگه داشته شده برای سازگاری با نصب‌های قبلی، ولی route ندارد و همیشه 404
+# می‌دهد — عمداً از باندل خودکار ساب کنار گذاشته شده تا کانفیگ خراب پخش نشود).
+ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up")
+_PROTOCOL_TAG = {"vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S"}
+
+def quota_suffix(used_bytes: int, limit_bytes: int) -> str:
+    """رشته‌ی حجم دقیق برای نمایش در remark لینک/QR، مثلاً «12.3GB/100GB» یا «12.3GB/∞»."""
+    used = fmt_bytes(used_bytes).replace(" ", "")
+    limit = "∞" if not limit_bytes else fmt_bytes(limit_bytes).replace(" ", "")
+    return f"{used}/{limit}"
+
+def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int = 0, limit_bytes: int = 0) -> list[dict]:
+    """برای یک لینک، هر سه پروتکل کارکردی (WS + دو مد XHTTP) را با remark
+    یکسان (شامل حجم دقیق مصرف/سهمیه) می‌سازد — همان چیزی که در ساب باندل
+    می‌شود تا کلاینت هر سه را همزمان ببیند و اگر یکی فیلتر شد، بقیه در دسترس
+    باشند."""
+    quota = quota_suffix(used_bytes, limit_bytes)
+    out = []
+    for proto in ACTIVE_PROTOCOLS:
+        remark = f"تیم‌آزادی-{label}-{_PROTOCOL_TAG[proto]}-{quota}"
+        out.append({
+            "protocol": proto,
+            "vless_link": generate_vless_link(uuid, host, remark=remark, protocol=proto),
+        })
+    return out
+
 def parse_size_to_bytes(value: float, unit: str) -> int:
     unit = unit.upper()
     if unit == "GB": return int(value * 1024 ** 3)
@@ -297,12 +330,6 @@ def is_link_allowed(link: dict | None) -> bool:
     if lb > 0 and link.get("used_bytes", 0) >= lb:
         return False
     return True
-
-def fmt_bytes(b: int) -> str:
-    if b < 1024: return f"{b} B"
-    if b < 1024**2: return f"{b/1024:.1f} KB"
-    if b < 1024**3: return f"{b/1024**2:.2f} MB"
-    return f"{b/1024**3:.2f} GB"
 
 def client_ip(conn) -> str:
     """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه.
