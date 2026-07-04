@@ -680,10 +680,33 @@ a{color:inherit;text-decoration:none}
   .main{padding:62px 12px 50px}
   .sub-grid,.cfg-grid,.conn-grid{grid-template-columns:1fr}
 }
+.qr-modal-v2{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:900;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:20px}
+.qr-modal-v2.open{display:flex}
+.qr-box-v2{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:22px;width:100%;max-width:340px;text-align:center}
+.qr-box-v2 .qr-title{font-weight:800;font-size:15px;margin-bottom:12px}
+.qr-box-v2 .qr-img-wrap{background:#fff;border-radius:14px;padding:10px;margin-bottom:12px}
+.qr-box-v2 .qr-img-wrap img{width:100%;display:block;border-radius:6px}
+.qr-proto-tabs{display:flex;gap:6px;margin-bottom:12px}
+.qr-proto-tab{flex:1;padding:7px 4px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);font-size:11px;font-weight:700;cursor:pointer;color:var(--text2)}
+.qr-proto-tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.qr-usage-line{font-size:12px;color:var(--text2);margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:6px}
+.qr-box-v2 .btnrow{display:flex;gap:8px}
 </style>
 </head>
 <body>
 <div class="toast" id="toast"></div>
+<div class="qr-modal-v2" id="qr-modal-v2" onclick="this.classList.remove('open')">
+  <div class="qr-box-v2" onclick="event.stopPropagation()">
+    <div class="qr-title" id="qrv2-label">QR Code</div>
+    <div class="qr-proto-tabs" id="qrv2-tabs"></div>
+    <div class="qr-img-wrap"><img id="qrv2-img" src="" alt="QR"></div>
+    <div class="qr-usage-line" id="qrv2-usage"></div>
+    <div class="btnrow">
+      <button class="btn btn-g" style="flex:1;justify-content:center" onclick="copyCurrentQrLink()"><i class="ti ti-copy"></i> کپی این پروتکل</button>
+      <button class="btn btn-g" style="flex:1;justify-content:center" onclick="document.getElementById('qr-modal-v2').classList.remove('open')"><i class="ti ti-x"></i> بستن</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="modal-links">
   <div class="modal-v2" style="max-width:500px">
     <div class="lmodal-head">
@@ -1342,9 +1365,9 @@ async function loadLinks(){
       <div class="cfg-divider-v"></div>
       <div class="cfg-actions">
         <button class="tog${allowed?' on':''}" onclick="toggleActive('${l.uuid}',${!l.active})" title="فعال/غیرفعال"></button>
-        <button class="btn btn-sm btn-g btn-icon" onclick="navigator.clipboard.writeText('${esc(l.vless_link)}').then(()=>toast('لینک کپی شد','ok'))" title="کپی لینک"><i class="ti ti-copy"></i></button>
+        <button class="btn btn-sm btn-g btn-icon" onclick='copyAllProtocols(${JSON.stringify(l.uuid)})' title="کپی هر ۳ کانفیگ باهم"><i class="ti ti-copy"></i></button>
         <button class="btn btn-sm btn-g btn-icon" onclick="navigator.clipboard.writeText('${esc(l.sub_url)}').then(()=>toast('Sub کپی شد','ok'))" title="Sub URL"><i class="ti ti-rss"></i></button>
-        <button class="btn btn-sm btn-g btn-icon" onclick="showQR('${esc(l.vless_link)}')" title="QR"><i class="ti ti-qrcode"></i></button>
+        <button class="btn btn-sm btn-g btn-icon" onclick='openQrModal(${JSON.stringify(l.uuid)})' title="QR"><i class="ti ti-qrcode"></i></button>
         <button class="btn btn-sm btn-amber btn-icon" onclick="openEditLink('${l.uuid}')" title="ویرایش"><i class="ti ti-edit"></i></button>
         <button class="btn btn-sm btn-g btn-icon" onclick="resetUsage('${l.uuid}')" title="ریست مصرف"><i class="ti ti-rotate"></i></button>
         <button class="btn btn-sm btn-d btn-icon" onclick="deleteLink('${l.uuid}')" title="حذف"><i class="ti ti-trash"></i></button>
@@ -1407,7 +1430,36 @@ async function deleteLink(uuid){
   if(!confirm('حذف این کانفیگ؟'))return;
   try{const r=await authF('/api/links/'+uuid,{method:'DELETE'});if(!r.ok)throw new Error();toast('حذف شد ✓','ok');loadLinks();}catch(e){toast('خطا','err')}
 }
-function showQR(link){window.open('https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(link),'_blank')}
+const PROTO_TAG={'vless-ws':'WS','xhttp-packet-up':'XHTTP-P','xhttp-stream-up':'XHTTP-S','xhttp-stream-one':'ULTRA'};
+function copyAllProtocols(uuid){
+  const l=allLinksList.find(x=>x.uuid===uuid);
+  if(!l)return;
+  const bundle=(l.vless_links&&l.vless_links.length)?l.vless_links:[{vless_link:l.vless_link}];
+  navigator.clipboard.writeText(bundle.map(b=>b.vless_link).join('\n'))
+    .then(()=>toast('هر '+toFa(bundle.length)+' کانفیگ کپی شد ✓','ok'));
+}
+let qrCurrentBundle=[],qrCurrentIdx=0;
+function openQrModal(uuid){
+  const l=allLinksList.find(x=>x.uuid===uuid);
+  if(!l)return;
+  qrCurrentBundle=(l.vless_links&&l.vless_links.length)?l.vless_links:[{protocol:l.protocol,vless_link:l.vless_link}];
+  qrCurrentIdx=Math.max(0,qrCurrentBundle.findIndex(b=>b.protocol===l.protocol));
+  document.getElementById('qrv2-label').textContent=l.label;
+  const lim=l.limit_bytes===0?'∞':fmtB(l.limit_bytes);
+  document.getElementById('qrv2-usage').innerHTML='<i class="ti ti-chart-bar"></i> حجم دقیق: '+fmtB(l.used_bytes)+' از '+lim;
+  document.getElementById('qrv2-tabs').innerHTML=qrCurrentBundle.map((b,i)=>
+    `<button class="qr-proto-tab${i===qrCurrentIdx?' on':''}" onclick="selectQrProto(${i})">${PROTO_TAG[b.protocol]||b.protocol}</button>`).join('');
+  renderQrImg();
+  document.getElementById('qr-modal-v2').classList.add('open');
+}
+function selectQrProto(i){qrCurrentIdx=i;document.querySelectorAll('.qr-proto-tab').forEach((el,idx)=>el.classList.toggle('on',idx===i));renderQrImg()}
+function renderQrImg(){
+  const link=qrCurrentBundle[qrCurrentIdx].vless_link;
+  document.getElementById('qrv2-img').src='https://api.qrserver.com/v1/create-qr-code/?size=280x280&data='+encodeURIComponent(link);
+}
+function copyCurrentQrLink(){
+  navigator.clipboard.writeText(qrCurrentBundle[qrCurrentIdx].vless_link).then(()=>toast('لینک این پروتکل کپی شد ✓','ok'));
+}
 let allSubsRaw=[];
 async function loadSubs(){
   try{
@@ -2236,8 +2288,11 @@ init();
 
 def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     """صفحه‌ی عمومی یک کانفیگ تکی – نمایش حجم مصرف، سهمیه، لینک و QR"""
+    import json as _json
     label = link_data.get("label", "بدون نام")
     vless_link = link_data.get("vless_link", "")
+    vless_links = link_data.get("vless_links") or [{"protocol": link_data.get("protocol", "vless-ws"), "vless_link": vless_link}]
+    vless_links_json = _json.dumps(vless_links, ensure_ascii=False)
     sub_url = link_data.get("sub_url", "")
     used_fmt = link_data.get("used_fmt", "0 B")
     limit_fmt = link_data.get("limit_fmt", "∞")
@@ -2392,6 +2447,9 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 }}
 .qr-img{{border-radius:14px;overflow:hidden;margin-bottom:16px}}
 .qr-img img{{width:100%;display:block;background:#fff;padding:8px;border-radius:14px}}
+.proto-tabs{{display:flex;gap:6px;margin-bottom:10px}}
+.proto-tab{{flex:1;padding:8px 4px;border-radius:10px;background:var(--bg-surface);border:1px solid var(--glass-border);font-size:11px;font-weight:700;cursor:pointer;color:var(--text-muted)}}
+.proto-tab.on{{background:var(--accent);color:#fff;border-color:var(--accent)}}
 .footer{{text-align:center;padding-top:30px;font-size:11px;color:var(--text-muted)}}
 .footer a{{color:var(--accent-soft);font-weight:600}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
@@ -2434,11 +2492,13 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
       <div class="usage-text"><span>مصرف: {used_fmt}</span><span>سهمیه: {limit_fmt}</span></div>
     </div>
 
-    <div class="vless-box">{vless_link}</div>
+    <div class="proto-tabs" id="proto-tabs"></div>
+    <div class="vless-box" id="vless-box">{vless_link}</div>
 
     <div class="actions">
-      <button class="btn btn-primary" onclick="copyToClipboard('{vless_link}')"><i class="ti ti-copy"></i> کپی لینک VLESS</button>
-      <button class="btn btn-ghost" onclick="showQR('{label}', '{vless_link}')"><i class="ti ti-qrcode"></i> QR Code</button>
+      <button class="btn btn-primary" onclick="copyCurrentProto()"><i class="ti ti-copy"></i> کپی این پروتکل</button>
+      <button class="btn btn-ghost" onclick="copyAllProtocols()"><i class="ti ti-copy-plus"></i> کپی هر سه</button>
+      <button class="btn btn-ghost" onclick="showQR()"><i class="ti ti-qrcode"></i> QR Code</button>
       <button class="btn btn-ghost" onclick="copyToClipboard('{sub_url}')"><i class="ti ti-rss"></i> کپی لینک ساب</button>
     </div>
   </div>
@@ -2447,6 +2507,15 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 </div>
 
 <script>
+const VLESS_BUNDLE = {vless_links_json};
+const PROTO_TAG={{'vless-ws':'VLESS · WS','xhttp-packet-up':'XHTTP · packet-up','xhttp-stream-up':'XHTTP · stream-up','xhttp-stream-one':'XHTTP ULTRA'}};
+let curProtoIdx = Math.max(0, VLESS_BUNDLE.findIndex(b=>b.protocol==={protocol!r}));
+function renderProtoTabs(){{
+  document.getElementById('proto-tabs').innerHTML = VLESS_BUNDLE.map((b,i)=>
+    `<button class="proto-tab${{i===curProtoIdx?' on':''}}" onclick="selectProto(${{i}})">${{PROTO_TAG[b.protocol]||b.protocol}}</button>`).join('');
+  document.getElementById('vless-box').textContent = VLESS_BUNDLE[curProtoIdx].vless_link;
+}}
+function selectProto(i){{curProtoIdx=i;renderProtoTabs()}}
 function toast(msg,type){{
   const t=document.getElementById('toast');
   t.textContent=msg;t.className='toast show'+(type?' '+type:'');
@@ -2455,10 +2524,16 @@ function toast(msg,type){{
 function copyToClipboard(text){{
   navigator.clipboard.writeText(text).then(()=>toast('کپی شد ✓','ok'));
 }}
-function showQR(label,link){{
-  document.getElementById('qr-label').textContent=label;
-  document.getElementById('qr-img').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(link);
+function copyCurrentProto(){{copyToClipboard(VLESS_BUNDLE[curProtoIdx].vless_link)}}
+function copyAllProtocols(){{
+  navigator.clipboard.writeText(VLESS_BUNDLE.map(b=>b.vless_link).join('\\n'))
+    .then(()=>toast('هر '+VLESS_BUNDLE.length+' کانفیگ کپی شد ✓','ok'));
+}}
+function showQR(){{
+  document.getElementById('qr-label').textContent='{label}'+' · '+(PROTO_TAG[VLESS_BUNDLE[curProtoIdx].protocol]||'');
+  document.getElementById('qr-img').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(VLESS_BUNDLE[curProtoIdx].vless_link);
   document.getElementById('qr-modal').classList.add('open');
 }}
+renderProtoTabs();
 </script>
 </body></html>"""
