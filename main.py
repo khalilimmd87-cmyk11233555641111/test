@@ -70,6 +70,20 @@ app.add_middleware(
 
 http_client: httpx.AsyncClient | None = None
 
+# ✅ ضد-پروبینگ/سخت‌سازی: uvicorn به‌صورت پیش‌فرض هدر "server: uvicorn" را روی
+# هر پاسخ می‌گذارد که یک نشانه‌ی رایگان برای شناسایی این‌که پشت این دامنه یک
+# اپ پایتونی/uvicorn است (به‌جای مثلاً یک وب‌سرور معمولی) به هر پروب فعال
+# می‌دهد. این middleware آن را حذف/جایگزین می‌کند و چند هدر امنیتی استاندارد
+# هم اضافه می‌کند که تفاوتش با یک سایت معمولی را کمتر می‌کند.
+@app.middleware("http")
+async def _harden_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["server"] = "nginx"
+    response.headers.setdefault("x-content-type-options", "nosniff")
+    response.headers.setdefault("referrer-policy", "no-referrer")
+    response.headers.setdefault("x-frame-options", "SAMEORIGIN")
+    return response
+
 # ── Startup / Shutdown ────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup():
@@ -92,12 +106,24 @@ async def shutdown():
         await http_client.aclose()
 
 # ── Basic endpoints ───────────────────────────────────────────────────────────
+# 🐛 باگ امنیتی/ضد-پروبینگ رفع‌شده: قبلاً "/" و "/health" بدون هیچ احراز
+# هویتی، هویت این سرویس (نام پروژه، ورژن) و حتی تعداد اتصالات زنده را به هر
+# بازدیدکننده‌ی ناشناس (از جمله ابزارهای اسکن/پروبینگ سانسور) اعلام می‌کردند —
+# دقیقاً برخلاف هدف «ضد-پروبینگ»ی که بقیه‌ی پروژه (حذف پیام‌های خطای
+# اختصاصی و...) دنبالش بود. الان این دو مسیر مثل یک وب‌سرویس معمولی و
+# بی‌اهمیت به نظر می‌رسند؛ آمار زنده‌ی واقعی فقط برای ادمین لاگین‌شده
+# در دسترس است.
 @app.get("/")
 async def root():
-    return {"service": "تیم آزادی Gateway", "version": "10.0", "status": "active", "channel": "https://t.me/TimAzadi"}
+    return JSONResponse({"status": "ok"})
 
 @app.get("/health")
 async def health():
+    return JSONResponse({"status": "ok"})
+
+@app.get("/api/health")
+async def health_admin(_=Depends(require_auth)):
+    """آمار سلامت واقعی (اتصالات زنده، uptime) — فقط برای ادمین لاگین‌شده."""
     return {"status": "ok", "connections": len(connections), "uptime": uptime()}
 
 # ── Subscription (single link) ────────────────────────────────────────────────
@@ -606,18 +632,43 @@ async def http_proxy(target_url: str, request: Request, _=Depends(require_auth))
     # سرویس متادیتای کلود مثل 169.254.169.254) وصل می‌شد که یک ریسک SSRF
     # واقعی بود. الان آی‌پی خصوصی/لوکال/متادیتا (چه literal و چه بعد از resolve
     # نام دامنه) مسدود می‌شود.
+    #
+    # 🐛 باگ امنیتی رفع‌شده: این چک فقط روی URL اولیه انجام می‌شد، اما
+    # http_client با follow_redirects=True ساخته شده بود؛ یعنی یک سرور مجاز و
+    # عمومی می‌توانست با یک 3xx به یک آدرس داخلی/متادیتا ریدایرکت کند و httpx
+    # بدون عبور از چک SSRF آن را دنبال می‌کرد (SSRF-via-redirect، دور زدن کامل
+    # محافظت بالا). الان هر hop ریدایرکت هم به‌طور جداگانه اعتبارسنجی می‌شود و
+    # ریدایرکت خودکار httpx خاموش شده است.
     if await is_blocked_proxy_target(target_url):
         raise HTTPException(status_code=400, detail="این آدرس مجاز نیست")
 
+    MAX_REDIRECTS = 5
     try:
         body = await request.body()
         headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP and k.lower() != "host"}
-        resp = await http_client.request(method=request.method, url=target_url, headers=headers, content=body)
+        method = request.method
+        url = target_url
+        for _hop in range(MAX_REDIRECTS + 1):
+            resp = await http_client.request(
+                method=method, url=url, headers=headers, content=body, follow_redirects=False,
+            )
+            if resp.status_code in (301, 302, 303, 307, 308) and "location" in resp.headers:
+                next_url = str(httpx.URL(url).join(resp.headers["location"]))
+                if await is_blocked_proxy_target(next_url):
+                    raise HTTPException(status_code=400, detail="این آدرس مجاز نیست")
+                url = next_url
+                if resp.status_code == 303:
+                    method = "GET"
+                    body = b""
+                continue
+            break
         stats["total_bytes"] += len(resp.content)
         stats["total_requests"] += 1
         hourly_traffic[now_ir().strftime("%H:00")] += len(resp.content)
         return Response(content=resp.content, status_code=resp.status_code,
                         headers={k: v for k, v in resp.headers.items() if k.lower() not in _HOP})
+    except HTTPException:
+        raise
     except Exception as exc:
         stats["total_errors"] += 1
         error_logs.append({"error": str(exc), "url": target_url, "time": datetime.now().isoformat()})
