@@ -1479,7 +1479,7 @@ async function deleteSub(sub_id){
   if(!confirm('حذف این گروه؟ کانفیگ‌ها حذف نمی‌شوند.'))return;
   try{const r=await authF('/api/subs/'+sub_id,{method:'DELETE'});if(!r.ok)throw new Error();toast('گروه حذف شد ✓','ok');loadSubs();loadLinks();}catch(e){toast('خطا','err')}
 }
-let lmodalLinks=[],lmodalInSub=new Set();
+let lmodalLinks=[],lmodalInSub=new Set(),lmodalOriginal=new Set();
 async function openSubLinks(sub_id,name){
   currentSubId=sub_id;
   document.getElementById('modal-sub-name').textContent=name;
@@ -1492,6 +1492,7 @@ async function openSubLinks(sub_id,name){
     const {subs=[]}=await sr.json();
     const thisSub=subs.find(s=>s.sub_id===sub_id);
     lmodalInSub=new Set(thisSub?.link_ids||[]);
+    lmodalOriginal=new Set(thisSub?.link_ids||[]);
     lmodalLinks=links;
     renderLmodalList(links);
   }catch(e){toast('خطا در بارگذاری','err')}
@@ -1536,12 +1537,20 @@ function filterLmodal(q){
 async function saveSubLinks(){
   if(!currentSubId)return;
   const link_ids=[...lmodalInSub];
+  // 🐛 باگ رفع‌شده: قبلاً اینجا روی *همه‌ی* لینک‌های کل سیستم لوپ می‌زد و برای
+  // هرکدام که در این مودال تیک نداشت (یعنی همه‌ی لینک‌های گروه‌های دیگر هم!)
+  // sub_id را null می‌کرد — یعنی ذخیره‌کردن گروه A، لینک‌های گروه B و C را هم
+  // از آن گروه‌ها جدا می‌کرد. الان فقط لینک‌هایی که واقعاً عضویتشان در همین
+  // گروه (نسبت به لحظه‌ی باز شدن مودال) تغییر کرده، PATCH می‌شوند.
+  const added=[...lmodalInSub].filter(u=>!lmodalOriginal.has(u));
+  const removed=[...lmodalOriginal].filter(u=>!lmodalInSub.has(u));
   try{
     const r=await authF('/api/subs/'+currentSubId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({link_ids})});
     if(!r.ok)throw new Error();
-    await Promise.all(lmodalLinks.map(l=>
-      authF('/api/links/'+l.uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sub_id:lmodalInSub.has(l.uuid)?currentSubId:null})})
-    ));
+    await Promise.all([
+      ...added.map(uuid=>authF('/api/links/'+uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sub_id:currentSubId})})),
+      ...removed.map(uuid=>authF('/api/links/'+uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sub_id:null})})),
+    ]);
     closeModal('modal-links');
     toast('کانفیگ‌های گروه ذخیره شدند ✓','ok');
     loadSubs();loadLinks();
