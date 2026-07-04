@@ -21,7 +21,7 @@ from state import (
     SESSIONS, SESSIONS_LOCK,
     create_session, is_valid_session, destroy_session, require_auth,
     load_state, save_state,
-    get_host, generate_uuid, now_ir, generate_vless_link, uptime,
+    get_host, generate_uuid, now_ir, generate_vless_link, generate_all_vless_links, uptime,
     parse_size_to_bytes, is_link_expired, is_link_allowed, fmt_bytes, client_ip,
     ensure_default_link,
     check_login_rate_limit, record_login_attempt,
@@ -134,12 +134,18 @@ async def subscription_single(uuid: str, request: Request):
         link = LINKS.get(uuid)
     if not link or not is_link_allowed(link):
         raise HTTPException(status_code=404, detail="not found or inactive")
-    
+
     host = get_host()
     proto = link.get("protocol", DEFAULT_PROTOCOL)
-    vless = generate_vless_link(uuid, host, remark=f"تیم‌آزادی-{link['label']}", protocol=proto)
+    used_bytes = link.get("used_bytes", 0)
+    limit_bytes = link.get("limit_bytes", 0)
+    # ✅ فیچر: به‌جای یک کانفیگ تک‌پروتکلی، ساب حالا هر سه پروتکل کارکردی
+    # (WS + دو مد XHTTP) را با هم می‌دهد — اگر یکی فیلتر شد، بقیه در کلاینت
+    # موجودند؛ هر سه روی همان uuid/سهمیه کار می‌کنند.
+    bundle = generate_all_vless_links(uuid, host, link["label"], used_bytes, limit_bytes)
+    vless = next((b["vless_link"] for b in bundle if b["protocol"] == proto), bundle[0]["vless_link"])
     sub_url = f"https://{host}/sub/{uuid}"
-    
+
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         from pages import get_single_link_page_html
@@ -148,14 +154,15 @@ async def subscription_single(uuid: str, request: Request):
             **link,
             "expired": is_link_expired(link),
             "vless_link": vless,
+            "vless_links": bundle,
             "sub_url": sub_url,
-            "used_fmt": fmt_bytes(link.get("used_bytes", 0)),
-            "limit_fmt": "∞" if link.get("limit_bytes", 0) == 0 else fmt_bytes(link["limit_bytes"]),
+            "used_fmt": fmt_bytes(used_bytes),
+            "limit_fmt": "∞" if limit_bytes == 0 else fmt_bytes(limit_bytes),
             "protocol": proto,
         }
         return HTMLResponse(content=get_single_link_page_html(uuid, link_data))
-    
-    content = base64.b64encode(vless.encode()).decode()
+
+    content = base64.b64encode("\n".join(b["vless_link"] for b in bundle).encode()).decode()
     return Response(
         content=content,
         media_type="text/plain",
@@ -173,8 +180,8 @@ async def subscription_all(_=Depends(require_auth)):
         lines = []
         for uid, d in LINKS.items():
             if is_link_allowed(d):
-                proto = d.get("protocol", DEFAULT_PROTOCOL)
-                lines.append(generate_vless_link(uid, host, remark=f"تیم‌آزادی-{d['label']}", protocol=proto))
+                bundle = generate_all_vless_links(uid, host, d["label"], d.get("used_bytes", 0), d.get("limit_bytes", 0))
+                lines.extend(b["vless_link"] for b in bundle)
     content = base64.b64encode("\n".join(lines).encode()).decode()
     return Response(content=content, media_type="text/plain")
 
@@ -313,8 +320,8 @@ async def sub_group_subscription(uuid_key: str, request: Request):
         for lid in link_ids:
             link = LINKS.get(lid)
             if link and is_link_allowed(link):
-                proto = link.get("protocol", DEFAULT_PROTOCOL)
-                lines.append(generate_vless_link(lid, host, remark=f"تیم‌آزادی-{link['label']}", protocol=proto))
+                bundle = generate_all_vless_links(lid, host, link["label"], link.get("used_bytes", 0), link.get("limit_bytes", 0))
+                lines.extend(b["vless_link"] for b in bundle)
 
     content = base64.b64encode("\n".join(lines).encode()).decode()
     return Response(
@@ -523,12 +530,20 @@ async def list_links(_=Depends(require_auth)):
     result = []
     for uid, d in snap.items():
         proto = d.get("protocol", DEFAULT_PROTOCOL)
+        used_bytes = d.get("used_bytes", 0)
+        limit_bytes = d.get("limit_bytes", 0)
+        # ✅ فیچر: بسته‌ی هر ۳ پروتکل (WS + دو مد XHTTP) اینجا هم اضافه شد؛
+        # قبلاً فقط generate_vless_link (تک‌پروتکلی) صدا زده می‌شد و پنل هیچ
+        # دسترسی‌ای به بسته‌ی کامل نداشت، برای همین دکمه‌ی کپی/QR توی خودِ
+        # پنل هم فقط یک پروتکل را نشان می‌داد.
+        bundle = generate_all_vless_links(uid, host, d["label"], used_bytes, limit_bytes)
         result.append({
             "uuid": uid,
             **d,
             "protocol": proto,
             "expired": is_link_expired(d),
-            "vless_link": generate_vless_link(uid, host, remark=f"تیم‌آزادی-{d['label']}", protocol=proto),
+            "vless_link": next((b["vless_link"] for b in bundle if b["protocol"] == proto), bundle[0]["vless_link"]),
+            "vless_links": bundle,
             "sub_url": f"https://{host}/sub/{uid}",
         })
     result.sort(key=lambda x: x["created_at"], reverse=True)
@@ -713,17 +728,21 @@ async def public_sub_data(uuid_key: str, request: Request):
         conn_count = sum(1 for c in connections.values() if c.get("uuid") == lid)
         active_conns += conn_count
         proto = link.get("protocol", DEFAULT_PROTOCOL)
+        used_bytes = link.get("used_bytes", 0)
+        limit_bytes = link.get("limit_bytes", 0)
+        bundle = generate_all_vless_links(lid, host, link["label"], used_bytes, limit_bytes)
         links_out.append({
             "uuid": lid,
             "label": link["label"],
             "active": allowed,
             "protocol": proto,
-            "used_bytes": link.get("used_bytes", 0),
-            "used_fmt": fmt_bytes(link.get("used_bytes", 0)),
-            "limit_bytes": link.get("limit_bytes", 0),
-            "limit_fmt": "∞" if link.get("limit_bytes", 0) == 0 else fmt_bytes(link["limit_bytes"]),
+            "used_bytes": used_bytes,
+            "used_fmt": fmt_bytes(used_bytes),
+            "limit_bytes": limit_bytes,
+            "limit_fmt": "∞" if limit_bytes == 0 else fmt_bytes(limit_bytes),
             "expires_at": link.get("expires_at"),
-            "vless_link": generate_vless_link(lid, host, remark=f"تیم‌آزادی-{link['label']}", protocol=proto),
+            "vless_link": next((b["vless_link"] for b in bundle if b["protocol"] == proto), bundle[0]["vless_link"]),
+            "vless_links": bundle,
             "sub_url": f"https://{host}/sub/{lid}",
             "connections": conn_count,
         })
