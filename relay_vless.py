@@ -20,6 +20,7 @@ from state import (
     save_state,
     log_activity,
     now_ir,
+    client_ip,  # ✅ یکی‌سازی شد: قبلاً نسخه‌ی جداگانه‌ی _ws_client_ip اینجا بود
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -27,15 +28,6 @@ from state import (
 # ══════════════════════════════════════════════════════════════════════════════
 
 RELAY_BUF = 256 * 1024   # 256 KB buffer
-
-def _ws_client_ip(ws: WebSocket) -> str:
-    fwd = ws.headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    real_ip = ws.headers.get("x-real-ip")
-    if real_ip:
-        return real_ip.strip()
-    return ws.client.host if ws.client else "نامشخص"
 
 async def parse_vless_header(chunk: bytes):
     if len(chunk) < 24:
@@ -120,10 +112,14 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
 
     if not is_link_allowed(link):
         logger.warning(f"🚫 WS rejected uuid={uuid[:8]}… (not allowed)")
-        await ws.close(code=1008, reason="not authorized")
+        # ✅ ضد-پروبینگ: قبلاً reason="not authorized" در فریم close فرستاده
+        # می‌شد که یک امضای شناسایی‌شدنی برای ابزارهای پروب فعال DPI است.
+        # کد بستن عمومی (1000) بدون متن اختصاصی، رفتار سرور را از یک
+        # وب‌سرور معمولی که یک اتصال WS نامعتبر را می‌بندد، کمتر متمایز می‌کند.
+        await ws.close(code=1000)
         return
 
-    ip = _ws_client_ip(ws)
+    ip = client_ip(ws)
     conn_id = secrets.token_urlsafe(6)
     connections[conn_id] = {
         "uuid": uuid,
