@@ -34,6 +34,7 @@ router = APIRouter()
 XHTTP_BUF = 512 * 1024
 DOWNLINK_QUEUE_MAX = 512
 SESSION_IDLE_TIMEOUT = 30
+CONNECTED_IDLE_TIMEOUT = 120  # سشن‌های متصل (tcp_open) بیشتر مهلت می‌گیرند تا مکث‌های عادی کاربر قطعشان نکند
 REAPER_INTERVAL = 10
 TCP_CONNECT_TIMEOUT = 10.0
 
@@ -262,8 +263,20 @@ async def _reaper():
         await asyncio.sleep(REAPER_INTERVAL)
         now = time.time()
         async with XHTTP_LOCK:
-            stale = [sid for sid, s in xhttp_sessions.items()
-                     if now - s["last_seen"] > SESSION_IDLE_TIMEOUT and not s.get("tcp_open")]
+            # 🐛 باگ رفع‌شده: قبلاً شرط `and not s.get("tcp_open")` باعث می‌شد
+            # سشن‌هایی که تونل TCP‌شان باز شده بود، هرگز توسط ری‌پر جمع نشوند —
+            # اگر کلاینت بعد از اتصال ناگهان قطع می‌شد (پرش شبکه، یا یک کلاینت
+            # پروب فعال که فقط اتصال را باز و بعد رها می‌کند)، آن سشن و
+            # کانکشن TCP مرتبط با آن تا ری‌استارت سرور در حافظه می‌ماند —
+            # نشتی منابع در سناریوی دقیقاً همان تهدیدی (پروبینگ) که این پروژه
+            # می‌خواهد در برابرش سخت باشد. الان سشن‌های متصل هم با یک idle
+            # timeout طولانی‌تر (برای اینکه مکث عادی کاربر قطع نشود) جمع می‌شوند.
+            stale = [
+                sid for sid, s in xhttp_sessions.items()
+                if now - s["last_seen"] > (
+                    CONNECTED_IDLE_TIMEOUT if s.get("tcp_open") else SESSION_IDLE_TIMEOUT
+                )
+            ]
         for sid in stale:
             await _teardown(sid)
 
@@ -350,6 +363,13 @@ async def xhttp_downlink(mode: str, uuid: str, session_id: str, request: Request
 @router.post("/xhttp-siz10/packet-up/{uuid}/{session_id}/{seq}")
 async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Request):
     ensure_reaper()
+    # 🐛 باگ رفع‌شده: قبلاً session (و یک رکورد connections جعلی که در
+    # داشبورد دیده می‌شود) قبل از اعتبارسنجی uuid ساخته می‌شد. یعنی هرکسی،
+    # حتی بدون uuid معتبر، می‌توانست با POST به این مسیر، حافظه‌ی سرور و
+    # داشبورد را با session/connection جعلی پر کند (رد فقط دیرتر، در
+    # check_and_use، اتفاق می‌افتاد). الان مثل مسیر دانلینک، ابتدا لینک چک
+    # می‌شود و برای uuid نامعتبر هیچ session ساخته نمی‌شود.
+    await _check_link(uuid)
     sess = await _get_or_create_session(uuid, "packet-up", session_id, client_ip(request))
     if sess.get("closed"):
         raise HTTPException(status_code=404, detail="session closed")
@@ -416,6 +436,8 @@ async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Reques
 @router.post("/xhttp-siz10/stream-up/{uuid}/{session_id}")
 async def stream_up_upload(uuid: str, session_id: str, request: Request):
     ensure_reaper()
+    # 🐛 همان رفع باگ packet-up: چک لینک قبل از ساخت session
+    await _check_link(uuid)
     sess = await _get_or_create_session(uuid, "stream-up", session_id, client_ip(request))
     if sess.get("closed"):
         raise HTTPException(status_code=404, detail="session closed")
