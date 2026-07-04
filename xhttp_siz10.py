@@ -25,6 +25,7 @@ from state import (
     logger,
     is_link_allowed,
     save_state,
+    client_ip,  # ✅ یکی‌سازی شد: قبلاً نسخه‌ی جداگانه‌ی _req_client_ip اینجا بود
 )
 from relay_vless import parse_vless_header, check_and_use
 
@@ -53,6 +54,12 @@ QUOTA_START_BATCH = 64 * 1024
 QUOTA_CHECK_INTERVAL = 0.2  # سقف زمانی؛ حتی اگر batch پر نشده، بعد این مدت چک کن
 
 PACKET_UP_HIGH_WATER = 2 * 1024 * 1024  # packet-up همون منطق ساده‌ی قبلی رو داره (تمرکز این راند فقط stream-up بود)
+
+# ✅ امنیت: سقف تعداد پکت‌های خارج-از-ترتیب بافرشده در seq_buf. قبلاً این
+# دیکشنری بدون هیچ محدودیتی رشد می‌کرد؛ یک کلاینت بدخواه می‌توانست با
+# فرستادن seqهای خیلی دور (بدون هرگز رسیدن seq=0) تا idle-timeout (۳۰ ثانیه)
+# حافظه‌ی سرور را پر کند.
+MAX_SEQ_BUF_ENTRIES = 64
 
 xhttp_sessions: dict = {}
 XHTTP_LOCK = asyncio.Lock()
@@ -166,16 +173,6 @@ class _AdaptiveFlow:
             self.high_water = max(FLOW_MIN_HW, self.high_water // 2)
 
 
-def _req_client_ip(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    real_ip = request.headers.get("x-real-ip")
-    if real_ip:
-        return real_ip.strip()
-    return request.client.host if request.client else "نامشخص"
-
-
 async def _open_tcp_from_header(first_chunk: bytes):
     command, address, port, payload = await parse_vless_header(first_chunk)
     reader, writer = await asyncio.wait_for(
@@ -192,7 +189,11 @@ async def _check_link(uuid: str):
     async with LINKS_LOCK:
         link = LINKS.get(uuid)
     if not is_link_allowed(link):
-        raise HTTPException(status_code=403, detail="not authorized")
+        # ✅ ضد-پروبینگ: قبلاً 403 با متن ثابت "not authorized" برمی‌گشت که
+        # یک امضای یکتا برای این کدبیس است (هر دیپلوی این پروژه با همین متن
+        # جواب می‌داد و ابزارهای پروب فعال DPI می‌توانند رویش fingerprint
+        # بسازند). یک 404 عمومی، رفتار عادی‌تری برای «این مسیر پیدا نشد» است.
+        raise HTTPException(status_code=404, detail="Not Found")
 
 
 async def _get_or_create_session(uuid: str, mode: str, session_id: str, ip: str = "نامشخص") -> dict:
@@ -337,7 +338,7 @@ async def xhttp_downlink(mode: str, uuid: str, session_id: str, request: Request
         raise HTTPException(status_code=404, detail="unknown mode")
     await _check_link(uuid)
     fp = request.query_params.get("fp", DEFAULT_FINGERPRINT)
-    sess = await _get_or_create_session(uuid, mode, session_id, _req_client_ip(request))
+    sess = await _get_or_create_session(uuid, mode, session_id, client_ip(request))
     if sess.get("closed"):
         raise HTTPException(status_code=404, detail="session closed")
 
@@ -349,7 +350,7 @@ async def xhttp_downlink(mode: str, uuid: str, session_id: str, request: Request
 @router.post("/xhttp-siz10/packet-up/{uuid}/{session_id}/{seq}")
 async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Request):
     ensure_reaper()
-    sess = await _get_or_create_session(uuid, "packet-up", session_id, _req_client_ip(request))
+    sess = await _get_or_create_session(uuid, "packet-up", session_id, client_ip(request))
     if sess.get("closed"):
         raise HTTPException(status_code=404, detail="session closed")
 
@@ -370,6 +371,9 @@ async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Reques
             # اولین پکتی که حاوی هدر VLESS است، می‌تونه seq=0 نباشه اگر پکت‌ها
             # خارج از ترتیب برسن؛ بافر کوچیک برای سورت کردن seqهای زودرس.
             if seq != 0:
+                if len(sess["seq_buf"]) >= MAX_SEQ_BUF_ENTRIES:
+                    await _teardown(session_id)
+                    raise HTTPException(status_code=403, detail="too many out-of-order packets")
                 sess["seq_buf"][seq] = body
                 return {"ok": True, "buffered": True}
             await _open_tcp_for_session(session_id, uuid, sess, body)
@@ -390,6 +394,9 @@ async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Reques
                 sess["writer"].write(pending)
                 sess["next_seq"] += 1
         else:
+            if len(sess["seq_buf"]) >= MAX_SEQ_BUF_ENTRIES:
+                await _teardown(session_id)
+                raise HTTPException(status_code=403, detail="too many out-of-order packets")
             sess["seq_buf"][seq] = body
 
         if sess["writer"].transport.get_write_buffer_size() > PACKET_UP_HIGH_WATER:
@@ -409,7 +416,7 @@ async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Reques
 @router.post("/xhttp-siz10/stream-up/{uuid}/{session_id}")
 async def stream_up_upload(uuid: str, session_id: str, request: Request):
     ensure_reaper()
-    sess = await _get_or_create_session(uuid, "stream-up", session_id, _req_client_ip(request))
+    sess = await _get_or_create_session(uuid, "stream-up", session_id, client_ip(request))
     if sess.get("closed"):
         raise HTTPException(status_code=404, detail="session closed")
 
