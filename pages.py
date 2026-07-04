@@ -1,6 +1,8 @@
 # pages.py  -  تیم آزادی Gateway v10.0
 # شامل: LOGIN_HTML, DASHBOARD_HTML, get_public_page_html(), get_single_link_page_html()
 
+from assets import LOGO_DATA_URI
+
 LOGIN_HTML = r"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -57,7 +59,7 @@ input:focus+.ic{color:var(--accent)}
 <div class="wrap">
   <div class="card">
     <div class="brand">
-      <div class="brand-img" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3B82F6,#1D4ED8);font-weight:900;font-size:20px;color:#fff">آ</div>
+      <div class="brand-img"><img src="{{LOGO}}" alt="تیم آزادی"></div>
       <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
     </div>
     <h1>ورود به پنل</h1>
@@ -92,7 +94,7 @@ document.getElementById('form').addEventListener('submit',async e=>{
   }
 });
 </script>
-</body></html>"""
+</body></html>""".replace("{{LOGO}}", LOGO_DATA_URI)
 
 
 DASHBOARD_HTML = r"""<!DOCTYPE html>
@@ -763,7 +765,7 @@ a{color:inherit;text-decoration:none}
 </div>
 <div class="mob-top">
   <div class="ml">
-    <div class="mob-logo" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3B82F6,#1D4ED8);font-weight:900;color:#fff">آ</div>
+    <div class="mob-logo"><img src="{{LOGO}}" alt="تیم آزادی"></div>
     <span class="mob-title">تیم آزادی Gateway</span>
   </div>
   <div class="mob-right">
@@ -775,7 +777,7 @@ a{color:inherit;text-decoration:none}
 <aside class="sidebar" id="sb">
   <button class="sb-close" id="close-sb"><i class="ti ti-x"></i></button>
   <div class="logo">
-    <div class="logo-img" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3B82F6,#1D4ED8);font-weight:900;color:#fff">آ</div>
+    <div class="logo-img"><img src="{{LOGO}}" alt="تیم آزادی"></div>
     <div><div class="logo-name">تیم آزادی</div><div class="logo-sub">تیم آزادی Gateway · v10.0</div></div>
   </div>
   <div class="nav-wrap">
@@ -1782,7 +1784,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   },5000);
 });
 </script>
-</body></html>"""
+</body></html>""".replace("{{LOGO}}", LOGO_DATA_URI)
 
 
 def get_public_page_html(uuid_key: str) -> str:
@@ -1976,7 +1978,7 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 <div class="wrap">
   <div class="top">
     <div class="brand">
-      <div class="brand-img" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3B82F6,#1D4ED8);font-weight:900;font-size:18px;color:#fff">آ</div>
+      <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
       <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
     </div>
     <div class="top-actions">
@@ -2281,7 +2283,8 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 .wrap{{position:relative;z-index:10;max-width:660px;margin:0 auto;padding:28px 16px 60px}}
 .top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}}
 .brand{{display:flex;align-items:center;gap:12px}}
-.brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 0 20px rgba(59,130,246,0.25);display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3B82F6,#1D4ED8);font-weight:900;font-size:20px;color:#fff}}
+.brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 0 20px rgba(59,130,246,0.25);flex-shrink:0}}
+.brand-img img{{width:100%;height:100%;object-fit:cover}}
 .brand-name{{font-size:15px;font-weight:700}}
 .brand-sub{{font-size:10px;color:var(--text-muted)}}
 .hero{{
@@ -2398,7 +2401,7 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 <div class="wrap">
   <div class="top">
     <div class="brand">
-      <div class="brand-img">آ</div>
+      <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
       <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
     </div>
     <a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-soft);font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>
