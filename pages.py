@@ -85,7 +85,7 @@ document.getElementById('form').addEventListener('submit',async e=>{
   try{
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});
     if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'خطا');}
-    location.href='/dashboard';
+    location.href='/timazadi';
   }catch(e){
     et.textContent=e.message;err.classList.add('show');
     btn.disabled=false;btn.innerHTML='<i class="ti ti-login-2"></i> ورود به داشبورد';
