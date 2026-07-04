@@ -8,14 +8,17 @@
 # ══════════════════════════════════════════════════════════════════════════════
 
 import asyncio
+import ipaddress
 import json
 import os
 import hashlib
+import hmac
 import secrets
 import time
 import aiofiles
 import logging
 from datetime import datetime
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 from collections import deque, defaultdict
 from pathlib import Path
@@ -93,13 +96,66 @@ def log_activity(kind: str, message: str, level: str = "info"):
 SESSION_COOKIE = "rvg_session"
 SESSION_TTL = 60 * 60 * 24 * 7
 
-def hash_password(pw: str) -> str:
+# ✅ امنیت: هش رمز از SHA256 ساده (سریع و در برابر brute-force ضعیف) به
+# PBKDF2-HMAC-SHA256 با salt تصادفی و ۲۶۰٬۰۰۰ round تغییر کرد. فرمت ذخیره:
+#   pbkdf2$<iterations>$<salt-hex>$<hash-hex>
+# سازگاری با نصب‌های قبلی حفظ شده: اگر هش ذخیره‌شده فرمت قدیمی
+# (sha256(pw+secret)) باشد، verify_password آن را هم قبول می‌کند و طبق کد
+# لاگین در main.py، بعد از اولین ورود موفق به‌صورت خودکار به فرمت جدید
+# ارتقا (migrate) پیدا می‌کند.
+PBKDF2_ITERATIONS = 260_000
+
+def hash_password(pw: str, salt: bytes | None = None) -> str:
+    if salt is None:
+        salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, PBKDF2_ITERATIONS)
+    return f"pbkdf2${PBKDF2_ITERATIONS}${salt.hex()}${dk.hex()}"
+
+def _hash_password_legacy(pw: str) -> str:
+    """فرمت قدیمی، فقط برای سازگاری با نصب‌های قبلی نگه داشته شده."""
     return hashlib.sha256(f"{pw}{CONFIG['secret']}".encode()).hexdigest()
 
-# ✅ تغییر: رمز پیش‌فرض از "TimAzadi@2026" به "TimAzadi" تغییر کرد
+def verify_password(pw: str, stored: str | None) -> bool:
+    if not stored:
+        return False
+    if stored.startswith("pbkdf2$"):
+        try:
+            _, iters_s, salt_hex, hash_hex = stored.split("$")
+            salt = bytes.fromhex(salt_hex)
+            dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, int(iters_s))
+            return hmac.compare_digest(dk.hex(), hash_hex)
+        except Exception:
+            return False
+    # فرمت قدیمی (legacy) — sha256(pw + secret)
+    return hmac.compare_digest(_hash_password_legacy(pw), stored)
+
+def is_legacy_hash(stored: str | None) -> bool:
+    return bool(stored) and not stored.startswith("pbkdf2$")
+
 AUTH = {"password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "TimAzadi"))}
 SESSIONS: dict = {}
 SESSIONS_LOCK = asyncio.Lock()
+
+# ── Login rate limiting ───────────────────────────────────────────────────────
+# ✅ امنیت: محدودیت تلاش ورود بر اساس IP، برای مقابله با brute-force روی
+# رمز پنل (به‌خصوص وقتی رمز پیش‌فرض عوض نشده باشد).
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_WINDOW_SECONDS = 300  # ۵ دقیقه
+LOGIN_ATTEMPTS: dict = defaultdict(deque)
+LOGIN_RATE_LOCK = asyncio.Lock()
+
+async def check_login_rate_limit(ip: str) -> bool:
+    """True = هنوز اجازه‌ی تلاش دارد. تلاش‌های قدیمی‌تر از پنجره‌ی زمانی پاک می‌شوند."""
+    now = time.time()
+    async with LOGIN_RATE_LOCK:
+        dq = LOGIN_ATTEMPTS[ip]
+        while dq and now - dq[0] > LOGIN_WINDOW_SECONDS:
+            dq.popleft()
+        return len(dq) < LOGIN_MAX_ATTEMPTS
+
+async def record_login_attempt(ip: str):
+    async with LOGIN_RATE_LOCK:
+        LOGIN_ATTEMPTS[ip].append(time.time())
 
 async def create_session() -> str:
     token = secrets.token_urlsafe(32)
@@ -248,15 +304,63 @@ def fmt_bytes(b: int) -> str:
     if b < 1024**3: return f"{b/1024**2:.2f} MB"
     return f"{b/1024**3:.2f} GB"
 
-def client_ip(request: Request) -> str:
-    """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه."""
-    fwd = request.headers.get("x-forwarded-for")
+def client_ip(conn) -> str:
+    """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه.
+    ✅ یکی‌سازی شد: قبلاً این منطق در main.py/state.py، relay_vless.py و
+    xhttp_siz10.py سه بار جدا تکرار شده بود. هم برای fastapi.Request و هم
+    برای fastapi.WebSocket کار می‌کند (هر دو .headers و .client دارند)."""
+    fwd = conn.headers.get("x-forwarded-for")
     if fwd:
         return fwd.split(",")[0].strip()
-    real_ip = request.headers.get("x-real-ip")
+    real_ip = conn.headers.get("x-real-ip")
     if real_ip:
         return real_ip.strip()
-    return request.client.host if request.client else "نامشخص"
+    client = getattr(conn, "client", None)
+    return client.host if client else "نامشخص"
+
+# ── SSRF protection برای /proxy ────────────────────────────────────────────────
+# ✅ امنیت: قبلاً /proxy/{target_url} با هر URL دلخواه (حتی IPهای داخلی/متادیتای
+# کلود مثل 169.254.169.254) کار می‌کرد. این تابع IPهای خصوصی/لوکال/متادیتا رو
+# چه به‌صورت literal و چه بعد از DNS resolve مسدود می‌کند.
+_BLOCKED_PROXY_HOSTNAMES = {
+    "metadata.google.internal", "metadata", "metadata.azure.com",
+    "instance-data", "localhost",
+}
+
+def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
+    return (
+        ip.is_private or ip.is_loopback or ip.is_link_local or
+        ip.is_reserved or ip.is_multicast or ip.is_unspecified
+    )
+
+async def is_blocked_proxy_target(url: str) -> bool:
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return True
+    if not host:
+        return True
+    if host in _BLOCKED_PROXY_HOSTNAMES:
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+        return _is_blocked_ip(ip)
+    except ValueError:
+        pass  # هاست‌نیم است نه IP لیترال؛ باید resolve کنیم (محافظت در برابر DNS rebinding)
+    try:
+        loop = asyncio.get_event_loop()
+        infos = await loop.getaddrinfo(host, None)
+        for info in infos:
+            addr = info[4][0]
+            try:
+                if _is_blocked_ip(ipaddress.ip_address(addr)):
+                    return True
+            except ValueError:
+                continue
+        return False
+    except Exception:
+        # اگر resolve نشد، برای احتیاط مسدودش کن
+        return True
 
 # ── Default link ──────────────────────────────────────────────────────────────
 _default_link_created = False
