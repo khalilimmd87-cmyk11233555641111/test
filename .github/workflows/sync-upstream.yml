@@ -1,4 +1,8 @@
-name: Sync Upstream (Auto-update forks)
+# ⚠️ توجه: این workflow واقعاً هیچ push/PR ای به فورک‌ها نمی‌زند — فقط یک
+# پیام لاگ می‌گذارد که یادآوری کند upstream آپدیت شده. برای sync واقعی به
+# فورک‌ها، باید یک GitHub App/PAT با دسترسی نوشتن به آن ریپوها ست شود که
+# فعلاً در این پروژه وجود ندارد. اسم job عوض شد تا گمراه‌کننده نباشد.
+name: Notify Upstream Updated (no real fork-sync yet)
 
 on:
   # هر push به main → upstream را آپدیت می‌کند
