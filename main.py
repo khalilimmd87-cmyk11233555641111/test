@@ -139,10 +139,15 @@ async def subscription_single(uuid: str, request: Request):
     proto = link.get("protocol", DEFAULT_PROTOCOL)
     used_bytes = link.get("used_bytes", 0)
     limit_bytes = link.get("limit_bytes", 0)
+    # ✅ سفید-برند: اگر این کانفیگ متعلق به یک ساب سفید-برند (تقسیم/هدیه‌شده)
+    # باشد، هیچ اسمی از تیم‌آزادی حتی داخل remark (اسمی که در اپ کلاینت
+    # دیده می‌شود) نمی‌آید.
+    owning_sub = SUBS.get(link.get("sub_id")) if link.get("sub_id") else None
+    white_label = bool(owning_sub and owning_sub.get("white_label"))
     # ✅ فیچر: به‌جای یک کانفیگ تک‌پروتکلی، ساب حالا هر سه پروتکل کارکردی
     # (WS + دو مد XHTTP) را با هم می‌دهد — اگر یکی فیلتر شد، بقیه در کلاینت
     # موجودند؛ هر سه روی همان uuid/سهمیه کار می‌کنند.
-    bundle = generate_all_vless_links(uuid, host, link["label"], used_bytes, limit_bytes)
+    bundle = generate_all_vless_links(uuid, host, link["label"], used_bytes, limit_bytes, brand=not white_label)
     vless = next((b["vless_link"] for b in bundle if b["protocol"] == proto), bundle[0]["vless_link"])
     sub_url = f"https://{host}/sub/{uuid}"
 
@@ -159,18 +164,15 @@ async def subscription_single(uuid: str, request: Request):
             "used_fmt": fmt_bytes(used_bytes),
             "limit_fmt": "∞" if limit_bytes == 0 else fmt_bytes(limit_bytes),
             "protocol": proto,
+            "white_label": white_label,
         }
         return HTMLResponse(content=get_single_link_page_html(uuid, link_data))
 
     content = base64.b64encode("\n".join(b["vless_link"] for b in bundle).encode()).decode()
-    return Response(
-        content=content,
-        media_type="text/plain",
-        headers={
-            "profile-title": quote(link["label"]),
-            "support-url": "https://t.me/TimAzadi",
-        }
-    )
+    headers = {"profile-title": quote(link["label"])}
+    if not white_label:
+        headers["support-url"] = "https://t.me/TimAzadi"
+    return Response(content=content, media_type="text/plain", headers=headers)
 
 @app.get("/sub-all")
 async def subscription_all(_=Depends(require_auth)):
@@ -186,6 +188,112 @@ async def subscription_all(_=Depends(require_auth)):
     return Response(content=content, media_type="text/plain")
 
 # ══════════════════════════════════════════════════════════════════════════════
+# QUOTA SPLIT — خودِ کاربرِ یک ساب (بدون نیاز به لاگین ادمین؛ uuid خودش توکن
+# دسترسی است، مثل بقیه‌ی مسیرهای /sub/{uuid}) می‌تواند بخشی از سهمیه‌ی باقی‌مانده‌ی
+# خودش را به‌صورت یک ساب کاملاً مستقل و بدون‌برند جدا کند و به یک دوست بدهد.
+# ══════════════════════════════════════════════════════════════════════════════
+
+MAX_CHILDREN_PER_LINK = 50
+MIN_SPLIT_BYTES = 1 * 1024 * 1024  # حداقل ۱ مگابایت، برای جلوگیری از هرزنامه/ساب‌های صفر-حجمی
+
+def _child_view(uid: str, d: dict, host: str) -> dict:
+    return {
+        "uuid": uid,
+        "label": d["label"],
+        "used_bytes": d.get("used_bytes", 0),
+        "used_fmt": fmt_bytes(d.get("used_bytes", 0)),
+        "limit_bytes": d.get("limit_bytes", 0),
+        "limit_fmt": "∞" if not d.get("limit_bytes") else fmt_bytes(d["limit_bytes"]),
+        "active": d.get("active", True),
+        "expired": is_link_expired(d),
+        "created_at": d.get("created_at"),
+        "sub_url": f"https://{host}/sub/{uid}",
+    }
+
+@app.post("/api/public/split/{uuid}")
+async def create_split_child(uuid: str, request: Request):
+    body = await request.json()
+    amount = float(body.get("amount") or 0)
+    unit = body.get("unit") or "GB"
+    label = (body.get("label") or "اشتراکی").strip()[:60]
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="مقدار حجم نامعتبر است")
+    amount_bytes = parse_size_to_bytes(amount, unit)
+    if amount_bytes < MIN_SPLIT_BYTES:
+        raise HTTPException(status_code=400, detail="حداقل حجم قابل‌جداسازی ۱ مگابایت است")
+
+    host = get_host()
+    async with LINKS_LOCK:
+        parent = LINKS.get(uuid)
+        if not parent or not is_link_allowed(parent):
+            raise HTTPException(status_code=404, detail="not found or inactive")
+        n_children = sum(1 for d in LINKS.values() if d.get("parent_id") == uuid)
+        if n_children >= MAX_CHILDREN_PER_LINK:
+            raise HTTPException(status_code=400, detail="سقف تعداد ساب‌های ساخته‌شده از این لینک پر شده")
+
+        parent_limit = parent.get("limit_bytes", 0)
+        if parent_limit > 0:
+            remaining = parent_limit - parent.get("used_bytes", 0)
+            if amount_bytes > remaining:
+                raise HTTPException(status_code=400, detail="این مقدار بیشتر از سهمیه‌ی باقی‌مانده‌ی توست")
+            parent["limit_bytes"] = parent_limit - amount_bytes
+        # اگه سهمیه‌ی خودِ parent نامحدود باشه (limit_bytes==0)، جداسازی یک
+        # سهمیه‌ی مستقل و محدود می‌سازه بدون اینکه چیزی از parent کم بشه.
+
+        child_uid = generate_uuid()
+        LINKS[child_uid] = {
+            "label": label,
+            "limit_bytes": amount_bytes,
+            "used_bytes": 0,
+            "created_at": datetime.now().isoformat(),
+            "active": True,
+            "expires_at": None,
+            "note": "",
+            "is_default": False,
+            "sub_id": None,
+            "protocol": parent.get("protocol", DEFAULT_PROTOCOL),
+            "parent_id": uuid,
+            "white_label": True,
+        }
+        parent_view = _child_view(uuid, parent, host)
+        child_view = _child_view(child_uid, LINKS[child_uid], host)
+
+    await schedule_save()
+    log_activity("link", f"سهمیه‌ی «{fmt_bytes(amount_bytes)}» از «{parent['label']}» جدا و ساب جدید «{label}» ساخته شد", "ok")
+    return {"child": child_view, "parent": parent_view}
+
+@app.get("/api/public/children/{uuid}")
+async def list_split_children(uuid: str):
+    host = get_host()
+    async with LINKS_LOCK:
+        if uuid not in LINKS:
+            raise HTTPException(status_code=404, detail="not found")
+        children = [_child_view(uid, d, host) for uid, d in LINKS.items() if d.get("parent_id") == uuid]
+    children.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return {"children": children}
+
+@app.delete("/api/public/split/{uuid}/{child_uuid}")
+async def revoke_split_child(uuid: str, child_uuid: str):
+    host = get_host()
+    async with LINKS_LOCK:
+        parent = LINKS.get(uuid)
+        child = LINKS.get(child_uuid)
+        if not parent or not child or child.get("parent_id") != uuid:
+            raise HTTPException(status_code=404, detail="not found")
+        # سهمیه‌ی مصرف‌نشده‌ی ساب لغو‌شده، به سهمیه‌ی خودِ کاربر برمی‌گردد
+        # (فقط اگر سهمیه‌ی parent محدود باشد؛ برای نامحدود چیزی برای برگرداندن نیست).
+        if parent.get("limit_bytes", 0) > 0:
+            unused = max(0, child.get("limit_bytes", 0) - child.get("used_bytes", 0))
+            parent["limit_bytes"] += unused
+        del LINKS[child_uuid]
+        connections.pop(child_uuid, None)
+        parent_view = _child_view(uuid, parent, host)
+
+    await schedule_save()
+    log_activity("link", f"ساب «{child['label']}» لغو شد و سهمیه‌ی باقی‌مانده به «{parent['label']}» برگشت", "warn")
+    return {"parent": parent_view}
+
+# ══════════════════════════════════════════════════════════════════════════════
 # SUB GROUP endpoints
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -195,6 +303,13 @@ async def create_sub(request: Request, _=Depends(require_auth)):
     name = (body.get("name") or "گروه جدید").strip()[:60]
     desc = (body.get("desc") or "").strip()[:200]
     password = (body.get("password") or "").strip()
+    # ✅ فیچر: «استخر تقسیم‌پذیر» — اگر ادمین یک سقف حجم (pool) برای این گروه
+    # تعیین کند، صاحب همین ساب می‌تواند بعداً از داخل صفحه‌ی عمومی خودش
+    # بخشی از این سقف را جدا کند و به‌عنوان یک ساب-فرزند مستقل به کس دیگری
+    # بدهد (بدون نیاز به پنل ادمین).
+    pool_value = float(body.get("pool_value") or 0)
+    pool_unit = str(body.get("pool_unit") or "GB")
+    pool_limit_bytes = parse_size_to_bytes(pool_value, pool_unit) if pool_value > 0 else 0
     sub_id = generate_uuid()
     uuid_key = secrets.token_urlsafe(16)
     async with SUBS_LOCK:
@@ -205,6 +320,11 @@ async def create_sub(request: Request, _=Depends(require_auth)):
             "uuid_key": uuid_key,
             "created_at": datetime.now().isoformat(),
             "link_ids": [],
+            "pool_limit_bytes": pool_limit_bytes,
+            "pool_allocated_bytes": 0,
+            "parent_sub_id": None,
+            "child_sub_ids": [],
+            "white_label": False,
         }
     await schedule_save()
     log_activity("sub", f"گروه «{name}» ساخته شد", "ok")
@@ -228,6 +348,8 @@ async def list_subs(_=Depends(require_auth)):
         link_ids = s.get("link_ids", [])
         active_count = sum(1 for lid in link_ids if is_link_allowed(snap_links.get(lid)))
         total_used = sum(snap_links[lid].get("used_bytes", 0) for lid in link_ids if lid in snap_links)
+        pool_limit = s.get("pool_limit_bytes", 0)
+        pool_alloc = s.get("pool_allocated_bytes", 0)
         result.append({
             "sub_id": sid,
             **s,
@@ -237,6 +359,11 @@ async def list_subs(_=Depends(require_auth)):
             "active_count": active_count,
             "total_used_bytes": total_used,
             "total_used_fmt": fmt_bytes(total_used),
+            "pool_limit_bytes": pool_limit,
+            "pool_allocated_bytes": pool_alloc,
+            "pool_available_bytes": max(0, pool_limit - pool_alloc) if pool_limit else 0,
+            "pool_limit_fmt": fmt_bytes(pool_limit) if pool_limit else "—",
+            "pool_available_fmt": fmt_bytes(max(0, pool_limit - pool_alloc)) if pool_limit else "—",
             "public_url": f"https://{host}/p/{s['uuid_key']}",
             "sub_url": f"https://{host}/sub-group/{s['uuid_key']}",
         })
@@ -259,6 +386,11 @@ async def update_sub(sub_id: str, request: Request, _=Depends(require_auth)):
             s["password_hash"] = hash_password(pw) if pw else None
         if "link_ids" in body:
             s["link_ids"] = list(body["link_ids"])
+        if "pool_value" in body:
+            pool_value = float(body.get("pool_value") or 0)
+            pool_unit = str(body.get("pool_unit") or "GB")
+            s["pool_limit_bytes"] = parse_size_to_bytes(pool_value, pool_unit) if pool_value > 0 else 0
+            s.setdefault("pool_allocated_bytes", 0)
     await schedule_save()
     return {"ok": True}
 
@@ -315,24 +447,20 @@ async def sub_group_subscription(uuid_key: str, request: Request):
 
     host = get_host()
     link_ids = sub.get("link_ids", [])
+    white_label = bool(sub.get("white_label"))
     async with LINKS_LOCK:
         lines = []
         for lid in link_ids:
             link = LINKS.get(lid)
             if link and is_link_allowed(link):
-                bundle = generate_all_vless_links(lid, host, link["label"], link.get("used_bytes", 0), link.get("limit_bytes", 0))
+                bundle = generate_all_vless_links(lid, host, link["label"], link.get("used_bytes", 0), link.get("limit_bytes", 0), brand=not white_label)
                 lines.extend(b["vless_link"] for b in bundle)
 
     content = base64.b64encode("\n".join(lines).encode()).decode()
-    return Response(
-        content=content,
-        media_type="text/plain",
-        headers={
-            "profile-title": quote(sub["name"]),
-            "support-url": "https://t.me/TimAzadi",
-            "profile-update-interval": "12",
-        }
-    )
+    headers = {"profile-title": quote(sub["name"]), "profile-update-interval": "12"}
+    if not white_label:
+        headers["support-url"] = "https://t.me/TimAzadi"
+    return Response(content=content, media_type="text/plain", headers=headers)
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 @app.post("/api/login")
@@ -502,6 +630,8 @@ async def create_link(request: Request, _=Depends(require_auth)):
             "is_default": False,
             "sub_id": sub_id,
             "protocol": protocol,
+            "parent_id": None,
+            "white_label": False,
         }
 
     if sub_id:
@@ -697,7 +827,7 @@ async def public_sub_page(uuid_key: str, request: Request):
         sub = next(({"sub_id": sid, **s} for sid, s in SUBS.items() if s.get("uuid_key") == uuid_key), None)
     if not sub:
         return HTMLResponse("<h2 style='font-family:sans-serif;padding:40px'>گروه پیدا نشد</h2>", status_code=404)
-    return HTMLResponse(content=get_public_page_html(uuid_key))
+    return HTMLResponse(content=get_public_page_html(uuid_key, white_label=bool(sub.get("white_label"))))
 
 @app.get("/api/public/sub/{uuid_key}")
 async def public_sub_data(uuid_key: str, request: Request):
@@ -715,6 +845,7 @@ async def public_sub_data(uuid_key: str, request: Request):
 
     host = get_host()
     link_ids = sub.get("link_ids", [])
+    white_label = bool(sub.get("white_label"))
     async with LINKS_LOCK:
         snap = dict(LINKS)
 
@@ -730,7 +861,7 @@ async def public_sub_data(uuid_key: str, request: Request):
         proto = link.get("protocol", DEFAULT_PROTOCOL)
         used_bytes = link.get("used_bytes", 0)
         limit_bytes = link.get("limit_bytes", 0)
-        bundle = generate_all_vless_links(lid, host, link["label"], used_bytes, limit_bytes)
+        bundle = generate_all_vless_links(lid, host, link["label"], used_bytes, limit_bytes, brand=not white_label)
         links_out.append({
             "uuid": lid,
             "label": link["label"],
@@ -748,6 +879,9 @@ async def public_sub_data(uuid_key: str, request: Request):
         })
 
     total_used = sum(l["used_bytes"] for l in links_out)
+    pool_limit = sub.get("pool_limit_bytes", 0)
+    pool_alloc = sub.get("pool_allocated_bytes", 0)
+    pool_available = max(0, pool_limit - pool_alloc) if pool_limit else 0
     return {
         "locked": False,
         "name": sub["name"],
@@ -756,6 +890,100 @@ async def public_sub_data(uuid_key: str, request: Request):
         "active_connections": active_conns,
         "total_used_fmt": fmt_bytes(total_used),
         "links": links_out,
+        "white_label": white_label,
+        # ✅ فیچر «تقسیم سهمیه»: اگر ادمین برای این ساب یک سقف (pool) تعیین
+        # کرده باشد، صاحب ساب می‌تواند از همین صفحه بخشی از باقی‌مانده‌ی
+        # سقف را جدا کند و به‌عنوان یک ساب مستقل و کاملاً سفید-برند (بدون
+        # هیچ نام/لوگویی) به کس دیگری بدهد.
+        "pool_enabled": pool_limit > 0,
+        "pool_limit_bytes": pool_limit,
+        "pool_allocated_bytes": pool_alloc,
+        "pool_available_bytes": pool_available,
+        "pool_limit_fmt": fmt_bytes(pool_limit) if pool_limit else "—",
+        "pool_available_fmt": fmt_bytes(pool_available) if pool_limit else "—",
+    }
+
+@app.post("/api/public/sub/{uuid_key}/split")
+async def split_sub_quota(uuid_key: str, request: Request):
+    """صاحب یک ساب استخردار (pool-managed) بخشی از سهمیه‌ی باقی‌مانده‌ی خودش را
+    جدا می‌کند و یک ساب-فرزند کاملاً مستقل و سفید-برند (بدون هیچ نام/لوگویی)
+    می‌سازد که می‌تواند به کس دیگری بدهد. سهمیه‌ی جداشده از سقف ساب خودش کم
+    می‌شود (رزرو می‌شود) تا امکان دوباره‌فروشی بیش از حجم واقعی وجود نداشته
+    باشد."""
+    body = await request.json()
+    pw = str(body.get("pw", ""))
+    amount_value = float(body.get("amount_value") or 0)
+    amount_unit = str(body.get("amount_unit") or "GB")
+    child_label = str(body.get("label") or "کانفیگ هدیه").strip()[:60]
+    child_name = str(body.get("name") or "ساب هدیه").strip()[:60]
+
+    async with SUBS_LOCK:
+        sub_entry = next(((sid, s) for sid, s in SUBS.items() if s.get("uuid_key") == uuid_key), None)
+        if not sub_entry:
+            raise HTTPException(status_code=404, detail="not found")
+        sub_id, sub = sub_entry
+        if sub.get("password_hash") and hash_password(pw) != sub["password_hash"]:
+            raise HTTPException(status_code=403, detail="رمز اشتباه است")
+
+        pool_limit = sub.get("pool_limit_bytes", 0)
+        if pool_limit <= 0:
+            raise HTTPException(status_code=400, detail="این ساب قابلیت تقسیم حجم ندارد")
+        pool_alloc = sub.get("pool_allocated_bytes", 0)
+        available = max(0, pool_limit - pool_alloc)
+
+        amount_bytes = parse_size_to_bytes(amount_value, amount_unit) if amount_value > 0 else 0
+        if amount_bytes <= 0:
+            raise HTTPException(status_code=400, detail="حجم نامعتبر است")
+        if amount_bytes > available:
+            raise HTTPException(status_code=400, detail=f"فقط {fmt_bytes(available)} از این ساب باقی مانده است")
+
+        host = get_host()
+        child_uuid = generate_uuid()
+        child_sub_id = generate_uuid()
+        child_uuid_key = secrets.token_urlsafe(16)
+
+        # سهمیه از استخر والد رزرو می‌شود — چه دوستش همین الان مصرف کند چه نه
+        sub["pool_allocated_bytes"] = pool_alloc + amount_bytes
+        sub.setdefault("child_sub_ids", []).append(child_sub_id)
+
+        SUBS[child_sub_id] = {
+            "name": child_name,
+            "desc": "",
+            "password_hash": None,
+            "uuid_key": child_uuid_key,
+            "created_at": datetime.now().isoformat(),
+            "link_ids": [child_uuid],
+            # سهمیه‌ی فرزند همان مقدار جداشده است و همان‌جا کامل رزرو شده،
+            # پس این ساب دیگر خودش قابل تقسیم مجدد نیست (available=0)
+            "pool_limit_bytes": amount_bytes,
+            "pool_allocated_bytes": amount_bytes,
+            "parent_sub_id": sub_id,
+            "child_sub_ids": [],
+            "white_label": True,
+        }
+
+    async with LINKS_LOCK:
+        LINKS[child_uuid] = {
+            "label": child_label,
+            "created_at": datetime.now().isoformat(),
+            "active": True,
+            "used_bytes": 0,
+            "limit_bytes": amount_bytes,
+            "expires_at": None,
+            "note": "",
+            "protocol": DEFAULT_PROTOCOL,
+            "sub_id": child_sub_id,
+        }
+
+    await schedule_save()
+    log_activity("sub", f"«{sub['name']}» مقدار {fmt_bytes(amount_bytes)} را به یک ساب هدیه‌ی جدید تقسیم کرد", "ok")
+
+    return {
+        "ok": True,
+        "public_url": f"https://{host}/p/{child_uuid_key}",
+        "sub_url": f"https://{host}/sub-group/{child_uuid_key}",
+        "amount_fmt": fmt_bytes(amount_bytes),
+        "pool_available_fmt": fmt_bytes(max(0, pool_limit - sub['pool_allocated_bytes'])),
     }
 
 # ── HTML Pages (login + dashboard) ───────────────────────────────────────────
