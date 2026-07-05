@@ -910,7 +910,17 @@ a{color:inherit;text-decoration:none}
           <div class="cp-block-label"><i class="ti ti-id-badge-2"></i> شناسه کانفیگ</div>
           <input class="cp-input-full" id="nl-label" placeholder="مثلاً: کاربر علی">
           <div class="cp-mini-row">
-            <input class="cp-input-full" id="nl-note" placeholder="یادداشت (اختیاری)">
+            <input class="cp-input-full" id="nl-note" placeholder="یادداشت (اختیاری)" style="flex:1">
+            <select class="cp-input-full fs" id="nl-flag" style="flex:.5">
+              <option value="🇺🇸" selected>🇺🇸 US</option>
+              <option value="🇳🇱">🇳🇱 NL</option>
+              <option value="🇩🇪">🇩🇪 DE</option>
+              <option value="🇬🇧">🇬🇧 GB</option>
+              <option value="🇫🇷">🇫🇷 FR</option>
+              <option value="🇹🇷">🇹🇷 TR</option>
+              <option value="🇸🇬">🇸🇬 SG</option>
+              <option value="🇯🇵">🇯🇵 JP</option>
+            </select>
           </div>
         </div>
         <div class="cp-block">
@@ -1396,8 +1406,9 @@ async function createLink(){
   const note=document.getElementById('nl-note').value.trim();
   const sub_id=document.getElementById('nl-sub').value||null;
   const protocol=document.getElementById('nl-proto').value||'vless-ws';
+  const flag=document.getElementById('nl-flag').value||'🇺🇸';
   try{
-    const r=await authF('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,limit_value:val||0,limit_unit:unit,expires_days:exp||0,note,sub_id,protocol})});
+    const r=await authF('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,limit_value:val||0,limit_unit:unit,expires_days:exp||0,note,sub_id,protocol,flag})});
     if(!r.ok)throw new Error('failed');
     ['nl-label','nl-val','nl-exp','nl-note'].forEach(id=>document.getElementById(id).value='');
     toast('کانفیگ ساخته شد ✓','ok');loadLinks();
@@ -2412,6 +2423,10 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     created_at = link_data.get("created_at", "")
     protocol = link_data.get("protocol", "vless-ws")
     white_label = bool(link_data.get("white_label"))
+    flag = link_data.get("flag", "") or ""
+    flag_json = _json.dumps(flag)
+    _country_names = {"🇺🇸": "آمریکا", "🇳🇱": "هلند", "🇩🇪": "آلمان", "🇬🇧": "بریتانیا", "🇫🇷": "فرانسه", "🇹🇷": "ترکیه", "🇸🇬": "سنگاپور", "🇯🇵": "ژاپن"}
+    country_name = _country_names.get(flag, "")
     
     # نمایش پروتکل به فارسی
     proto_names = {
@@ -2480,6 +2495,20 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 .brand-img img{{width:100%;height:100%;object-fit:cover}}
 .brand-name{{font-size:15px;font-weight:700}}
 .brand-sub{{font-size:10px;color:var(--text-muted)}}
+.top-actions{{display:flex;align-items:center;gap:10px}}
+.icon-btn{{width:38px;height:38px;border-radius:11px;background:rgba(59,130,246,.08);border:1px solid var(--glass-border);color:var(--accent-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}}
+.live-clock{{display:flex;align-items:center;gap:7px;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:700;color:var(--accent-soft);background:rgba(0,0,0,.16);border:1px solid var(--glass-border);border-radius:10px;padding:8px 13px;letter-spacing:.5px}}
+.skin-picker{{position:relative}}
+.skin-menu{{display:none;position:absolute;top:46px;left:0;background:var(--bg-surface);border:1px solid var(--glass-border);border-radius:14px;padding:10px;gap:8px;grid-template-columns:repeat(3,1fr);box-shadow:var(--shadow);z-index:80}}
+.skin-menu.open{{display:grid}}
+.skin-dot{{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s}}
+.skin-dot:hover{{transform:scale(1.15)}}
+.skin-dot.active{{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.2)}}
+html[data-skin="purple"]{{--accent:#8B5CF6;--accent-soft:#A78BFA;--bg-root:#120B22;--bg-surface:#180F2E;--glass-border:rgba(139,92,246,.18)}}
+html[data-skin="matrix"]{{--accent:#22C55E;--accent-soft:#4ADE80;--bg-root:#051208;--bg-surface:#0A1F0E;--glass-border:rgba(34,197,94,.18)}}
+html[data-skin="gold"]{{--accent:#F59E0B;--accent-soft:#FBBF24;--bg-root:#1A1206;--bg-surface:#241A0A;--glass-border:rgba(245,158,11,.18)}}
+html[data-skin="crimson"]{{--accent:#EF4444;--accent-soft:#F87171;--bg-root:#1A0808;--bg-surface:#260D0D;--glass-border:rgba(239,68,68,.18)}}
+html[data-skin="cyber"]{{--accent:#06B6D4;--accent-soft:#22D3EE;--bg-root:#07141A;--bg-surface:#0C1F28;--glass-border:rgba(6,182,212,.2)}}
 .hero{{
   background:var(--glass-bg);
   backdrop-filter:blur(16px);
@@ -2643,7 +2672,21 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 <div class="wrap">
   <div class="top">
     {header_brand_html}
-    {header_tg_html}
+    <div class="top-actions">
+      <div class="live-clock" id="live-clock"><i class="ti ti-clock"></i><span id="clock-time">--:--:--</span></div>
+      <div class="skin-picker">
+        <button class="icon-btn" id="skin-btn" onclick="toggleSkinMenu()" title="تغییر تم"><i class="ti ti-palette"></i></button>
+        <div class="skin-menu" id="skin-menu">
+          <div class="skin-dot" data-skin="neon" style="background:linear-gradient(135deg,#3B82F6,#60A5FA)" onclick="setSkin('neon')" title="نئون آبی"></div>
+          <div class="skin-dot" data-skin="purple" style="background:linear-gradient(135deg,#8B5CF6,#A78BFA)" onclick="setSkin('purple')" title="گالاکسی بنفش"></div>
+          <div class="skin-dot" data-skin="matrix" style="background:linear-gradient(135deg,#16A34A,#4ADE80)" onclick="setSkin('matrix')" title="ماتریکس سبز"></div>
+          <div class="skin-dot" data-skin="gold" style="background:linear-gradient(135deg,#D97706,#FBBF24)" onclick="setSkin('gold')" title="طلایی"></div>
+          <div class="skin-dot" data-skin="crimson" style="background:linear-gradient(135deg,#DC2626,#F87171)" onclick="setSkin('crimson')" title="قرمز آتشین"></div>
+          <div class="skin-dot" data-skin="cyber" style="background:linear-gradient(135deg,#0891B2,#22D3EE)" onclick="setSkin('cyber')" title="سایبرپانک"></div>
+        </div>
+      </div>
+      {header_tg_html}
+    </div>
   </div>
 
   <div class="hero">
@@ -2653,6 +2696,7 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
       <span class="status-badge bg-blue">
         <i class="ti ti-server-2"></i> تیم آزادی Gateway
       </span>
+      {f'<span class="status-badge bg-blue">{flag} {country_name}</span>' if flag else ''}
       <span class="status-badge {'bg-green' if active and not expired else 'bg-red'}">
         <i class="ti ti-{'circle-check' if active and not expired else 'circle-x'}"></i>
         {'فعال' if active and not expired else 'غیرفعال'}
@@ -2730,11 +2774,12 @@ const EXPIRES_AT = {expires_json};
 const PROTO_TAG={{'vless-ws':'VLESS · WS','xhttp-packet-up':'XHTTP · packet-up','xhttp-stream-up':'XHTTP · stream-up','xhttp-stream-one':'XHTTP ULTRA'}};
 let curProtoIdx = 0;
 function esc(s){{return String(s||'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
+const FLAG = {flag_json};
 function renderCfgList(){{
   document.getElementById('cfg-list').innerHTML = VLESS_BUNDLE.map((b,i)=>`
     <div class="cfg-row">
       <div class="cfg-row-head" onclick="toggleCfgRow(${{i}})">
-        <div class="cfg-row-name"><i class="ti ti-plug-connected"></i> ${{PROTO_TAG[b.protocol]||b.protocol}}</div>
+        <div class="cfg-row-name">${{FLAG?FLAG+' ':''}}${{PROTO_TAG[b.protocol]||b.protocol}}</div>
         <div class="cfg-row-actions">
           <button class="mini-btn" onclick="event.stopPropagation();copyOne(${{i}})" title="کپی"><i class="ti ti-copy"></i></button>
           <button class="mini-btn" onclick="event.stopPropagation();showQRFor(${{i}})" title="QR"><i class="ti ti-qrcode"></i></button>
@@ -2754,6 +2799,31 @@ function toggleCfgRow(i){{
 function copyOne(i){{copyToClipboard(VLESS_BUNDLE[i].vless_link)}}
 function showQRFor(i){{curProtoIdx=i;showQR()}}
 renderCfgList();
+
+function tickClock(){{
+  const now=new Date();
+  const el=document.getElementById('clock-time');
+  if(el) el.textContent = now.toLocaleTimeString('fa-IR',{{hour:'2-digit',minute:'2-digit',second:'2-digit'}});
+}}
+tickClock();setInterval(tickClock,1000);
+
+function setSkin(name){{
+  document.documentElement.setAttribute('data-skin',name);
+  try{{localStorage.setItem('rvg_skin',name)}}catch(e){{}}
+  document.querySelectorAll('.skin-dot').forEach(d=>d.classList.toggle('active',d.dataset.skin===name));
+  document.getElementById('skin-menu').classList.remove('open');
+}}
+function toggleSkinMenu(){{document.getElementById('skin-menu').classList.toggle('open')}}
+document.addEventListener('click',e=>{{
+  if(!e.target.closest('.skin-picker')) document.getElementById('skin-menu')?.classList.remove('open');
+}});
+(function(){{
+  let saved='neon';
+  try{{saved=localStorage.getItem('rvg_skin')||'neon'}}catch(e){{}}
+  document.documentElement.setAttribute('data-skin',saved);
+  const dot=document.querySelector('.skin-dot[data-skin="'+saved+'"]');
+  if(dot) dot.classList.add('active');
+}})();
 
 function tickCountdown(){{
   const el=document.getElementById('countdown');
