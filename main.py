@@ -143,7 +143,7 @@ async def subscription_single(uuid: str, request: Request):
     # باشد، هیچ اسمی از تیم‌آزادی حتی داخل remark (اسمی که در اپ کلاینت
     # دیده می‌شود) نمی‌آید.
     owning_sub = SUBS.get(link.get("sub_id")) if link.get("sub_id") else None
-    white_label = bool(owning_sub and owning_sub.get("white_label"))
+    white_label = bool(link.get("white_label")) or bool(owning_sub and owning_sub.get("white_label"))
     # ✅ فیچر: به‌جای یک کانفیگ تک‌پروتکلی، ساب حالا هر سه پروتکل کارکردی
     # (WS + دو مد XHTTP) را با هم می‌دهد — اگر یکی فیلتر شد، بقیه در کلاینت
     # موجودند؛ هر سه روی همان uuid/سهمیه کار می‌کنند.
