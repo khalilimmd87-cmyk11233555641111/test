@@ -288,15 +288,20 @@ def quota_suffix(used_bytes: int, limit_bytes: int) -> str:
     limit = "∞" if not limit_bytes else fmt_bytes(limit_bytes).replace(" ", "")
     return f"{used}/{limit}"
 
-def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int = 0, limit_bytes: int = 0) -> list[dict]:
+def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int = 0, limit_bytes: int = 0, brand: bool = True) -> list[dict]:
     """برای یک لینک، هر سه پروتکل کارکردی (WS + دو مد XHTTP) را با remark
     یکسان (شامل حجم دقیق مصرف/سهمیه) می‌سازد — همان چیزی که در ساب باندل
     می‌شود تا کلاینت هر سه را همزمان ببیند و اگر یکی فیلتر شد، بقیه در دسترس
-    باشند."""
+    باشند.
+
+    brand=False → بدون پیشوند «تیم‌آزادی-» در remark؛ برای ساب‌های سفید-برند
+    (تقسیم‌شده و هدیه‌داده‌شده به دیگران) که نباید هیچ نشانی از برند اصلی
+    حتی داخل خودِ اسم کانفیگ توی اپ کلاینت داشته باشند."""
     quota = quota_suffix(used_bytes, limit_bytes)
+    prefix = "تیم‌آزادی-" if brand else ""
     out = []
     for proto in ACTIVE_PROTOCOLS:
-        remark = f"تیم‌آزادی-{label}-{_PROTOCOL_TAG[proto]}-{quota}"
+        remark = f"{prefix}{label}-{_PROTOCOL_TAG[proto]}-{quota}"
         out.append({
             "protocol": proto,
             "vless_link": generate_vless_link(uuid, host, remark=remark, protocol=proto),
@@ -424,6 +429,8 @@ async def ensure_default_link():
                     "is_default": True,
                     "sub_id": None,
                     "protocol": DEFAULT_PROTOCOL,
+                    "parent_id": None,
+                    "white_label": False,
                 }
                 asyncio.create_task(save_state())
         _default_link_created = True
