@@ -2425,6 +2425,16 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     pct = 0 if limit_bytes == 0 else min(100, used_bytes / limit_bytes * 100)
     bar_color = "var(--red)" if pct > 90 else ("var(--amber)" if pct > 70 else "var(--green)")
 
+    def _fmtb(n):
+        n = max(0, n)
+        if n < 1024: return f"{n} B"
+        if n < 1024**2: return f"{n/1024:.1f} KB"
+        if n < 1024**3: return f"{n/1024**2:.2f} MB"
+        return f"{n/1024**3:.2f} GB"
+    remain_fmt = "∞" if limit_bytes == 0 else _fmtb(limit_bytes - used_bytes)
+    expires_at = link_data.get("expires_at")
+    expires_json = _json.dumps(expires_at)
+
     page_title = label if white_label else f"{label} · تیم آزادی"
     header_brand_html = "" if white_label else f"""
     <div class="brand">
@@ -2432,7 +2442,7 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
       <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
     </div>"""
     header_tg_html = "" if white_label else '<a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-soft);font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>'
-    footer_html = "" if white_label else '<div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · تیم آزادی Gateway v10.0</div>'
+    footer_html = "" if white_label else '<div class="footer">Powered by <b>تیم آزادی Gateway</b> · <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a></div>'
 
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -2493,6 +2503,34 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 .usage-bar{{height:8px;border-radius:4px;background:rgba(59,130,246,0.1);overflow:hidden;margin-bottom:6px}}
 .usage-fill{{height:100%;border-radius:4px;transition:width 0.4s}}
 .usage-text{{font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between}}
+.ring-wrap{{display:flex;justify-content:center;margin:6px 0 16px}}
+.ring{{width:136px;height:136px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.5s}}
+.ring-inner{{width:106px;height:106px;border-radius:50%;background:var(--bg-surface);display:flex;flex-direction:column;align-items:center;justify-content:center}}
+.ring-pct{{font-size:24px;font-weight:800}}
+.ring-lbl{{font-size:10px;color:var(--text-muted);margin-top:2px}}
+.stat-row{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}}
+.stat-chip{{background:rgba(0,0,0,.16);border:1px solid var(--glass-border);border-radius:14px;padding:12px;text-align:center}}
+.stat-chip-val{{font-size:15px;font-weight:800}}
+.stat-chip-lbl{{font-size:10.5px;color:var(--text-muted);margin-top:3px}}
+.countdown{{display:none;background:rgba(0,0,0,.14);border:1px solid var(--glass-border);border-radius:14px;padding:14px;margin-bottom:18px}}
+.cd-title{{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;margin-bottom:10px;justify-content:center}}
+.cd-grid{{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;text-align:center}}
+.cd-val{{font-size:18px;font-weight:800;font-family:ui-monospace,monospace}}
+.cd-lbl{{font-size:9.5px;color:var(--text-muted);margin-top:2px}}
+.cfg-title{{font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px}}
+.cfg-row{{border:1px solid var(--glass-border);border-radius:12px;margin-bottom:8px;overflow:hidden}}
+.cfg-row-head{{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;cursor:pointer;background:rgba(0,0,0,.1)}}
+.cfg-row-name{{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:7px}}
+.cfg-row-actions{{display:flex;align-items:center;gap:4px}}
+.mini-btn{{background:rgba(59,130,246,.1);color:var(--accent-soft);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer}}
+.cfg-chev{{font-size:15px;color:var(--text-muted);transition:transform .2s;margin-right:2px}}
+.cfg-row-body{{display:none;padding:12px 13px;font-family:ui-monospace,monospace;font-size:10.5px;color:var(--accent-soft);word-break:break-all;line-height:1.8;background:rgba(0,0,0,.15);border-top:1px solid var(--glass-border)}}
+.cfg-row-body.open{{display:block}}
+.guide-card{{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:20px;padding:22px;margin-bottom:20px}}
+.guide-title{{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:14px}}
+.guide-step{{display:flex;gap:11px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);line-height:1.8}}
+.guide-step:last-child{{margin-bottom:0}}
+.guide-num{{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:rgba(59,130,246,.14);color:var(--accent-soft);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}}
 .vless-box{{
   background:rgba(0,0,0,0.2);
   border:1px solid var(--glass-border);
@@ -2613,7 +2651,7 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
     <div class="hero-meta">
       <i class="ti ti-calendar"></i> {created_at[:10] if created_at else "—"}
       <span class="status-badge bg-blue">
-        <i class="ti ti-plug"></i> {proto_display}
+        <i class="ti ti-server-2"></i> تیم آزادی Gateway
       </span>
       <span class="status-badge {'bg-green' if active and not expired else 'bg-red'}">
         <i class="ti ti-{'circle-check' if active and not expired else 'circle-x'}"></i>
@@ -2621,20 +2659,44 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
       </span>
     </div>
 
-    <div class="usage-section">
-      <div class="usage-bar"><div class="usage-fill" style="width:{pct}%;background:{bar_color}"></div></div>
-      <div class="usage-text"><span>مصرف: {used_fmt}</span><span>سهمیه: {limit_fmt}</span></div>
+    <div class="ring-wrap">
+      <div class="ring" style="background:conic-gradient({bar_color} calc({pct}*1%),rgba(255,255,255,.07) 0)">
+        <div class="ring-inner">
+          <div class="ring-pct">{pct:.0f}%</div>
+          <div class="ring-lbl">مصرف</div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-chip"><div class="stat-chip-val">{used_fmt}</div><div class="stat-chip-lbl">مصرف‌شده</div></div>
+      <div class="stat-chip"><div class="stat-chip-val">{remain_fmt}</div><div class="stat-chip-lbl">باقی‌مانده</div></div>
     </div>
 
-    <div class="proto-tabs" id="proto-tabs"></div>
-    <div class="vless-box" id="vless-box">{vless_link}</div>
+    <div class="countdown" id="countdown">
+      <div class="cd-title"><i class="ti ti-clock-hour-4"></i> تا انقضا</div>
+      <div class="cd-grid">
+        <div class="cd-cell"><div class="cd-val" id="cd-d">--</div><div class="cd-lbl">روز</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-h">--</div><div class="cd-lbl">ساعت</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-m">--</div><div class="cd-lbl">دقیقه</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-s">--</div><div class="cd-lbl">ثانیه</div></div>
+      </div>
+    </div>
+
+    <div class="cfg-title"><i class="ti ti-list-details"></i> کانفیگ‌ها</div>
+    <div class="cfg-list" id="cfg-list"></div>
 
     <div class="actions">
-      <button class="btn btn-primary" onclick="copyCurrentProto()"><i class="ti ti-copy"></i> کپی این پروتکل</button>
-      <button class="btn btn-ghost" onclick="copyAllProtocols()"><i class="ti ti-copy-plus"></i> کپی هر سه</button>
-      <button class="btn btn-ghost" onclick="showQR()"><i class="ti ti-qrcode"></i> QR Code</button>
+      <button class="btn btn-primary" onclick="copyAllProtocols()"><i class="ti ti-copy-plus"></i> کپی همه‌ی کانفیگ‌ها</button>
       <button class="btn btn-ghost" onclick="copyToClipboard('{sub_url}')"><i class="ti ti-rss"></i> کپی لینک ساب</button>
     </div>
+  </div>
+
+  <div class="guide-card">
+    <div class="guide-title"><i class="ti ti-info-circle"></i> راهنمای اتصال</div>
+    <div class="guide-step"><div class="guide-num">۱</div><div>یک اپلیکیشن کلاینت مثل <b>v2rayNG</b> (اندروید)، <b>Streisand</b> (iOS) یا <b>Hiddify</b> نصب کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۲</div><div>روی آیکون <b>کپی</b> یا <b>QR</b> هرکدام از کانفیگ‌ها بزنید، یا همه را با هم کپی کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۳</div><div>در اپ، گزینه‌ی <b>Add Subscription</b> را انتخاب و لینک ساب را وارد کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۴</div><div><b>Connect</b> بزنید و اجازه‌ی VPN را تایید کنید.</div></div>
   </div>
 
   <div class="split-card">
@@ -2664,14 +2726,51 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 <script>
 const LINK_UUID='{uuid}';
 const VLESS_BUNDLE = {vless_links_json};
+const EXPIRES_AT = {expires_json};
 const PROTO_TAG={{'vless-ws':'VLESS · WS','xhttp-packet-up':'XHTTP · packet-up','xhttp-stream-up':'XHTTP · stream-up','xhttp-stream-one':'XHTTP ULTRA'}};
-let curProtoIdx = Math.max(0, VLESS_BUNDLE.findIndex(b=>b.protocol==={protocol!r}));
-function renderProtoTabs(){{
-  document.getElementById('proto-tabs').innerHTML = VLESS_BUNDLE.map((b,i)=>
-    `<button class="proto-tab${{i===curProtoIdx?' on':''}}" onclick="selectProto(${{i}})">${{PROTO_TAG[b.protocol]||b.protocol}}</button>`).join('');
-  document.getElementById('vless-box').textContent = VLESS_BUNDLE[curProtoIdx].vless_link;
+let curProtoIdx = 0;
+function esc(s){{return String(s||'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
+function renderCfgList(){{
+  document.getElementById('cfg-list').innerHTML = VLESS_BUNDLE.map((b,i)=>`
+    <div class="cfg-row">
+      <div class="cfg-row-head" onclick="toggleCfgRow(${{i}})">
+        <div class="cfg-row-name"><i class="ti ti-plug-connected"></i> ${{PROTO_TAG[b.protocol]||b.protocol}}</div>
+        <div class="cfg-row-actions">
+          <button class="mini-btn" onclick="event.stopPropagation();copyOne(${{i}})" title="کپی"><i class="ti ti-copy"></i></button>
+          <button class="mini-btn" onclick="event.stopPropagation();showQRFor(${{i}})" title="QR"><i class="ti ti-qrcode"></i></button>
+          <i class="ti ti-chevron-down cfg-chev" id="chev-${{i}}"></i>
+        </div>
+      </div>
+      <div class="cfg-row-body" id="body-${{i}}">${{esc(b.vless_link)}}</div>
+    </div>
+  `).join('');
 }}
-function selectProto(i){{curProtoIdx=i;renderProtoTabs()}}
+function toggleCfgRow(i){{
+  const body=document.getElementById('body-'+i), chev=document.getElementById('chev-'+i);
+  const opening = !body.classList.contains('open');
+  body.classList.toggle('open',opening);
+  chev.style.transform = opening?'rotate(180deg)':'';
+}}
+function copyOne(i){{copyToClipboard(VLESS_BUNDLE[i].vless_link)}}
+function showQRFor(i){{curProtoIdx=i;showQR()}}
+renderCfgList();
+
+function tickCountdown(){{
+  const el=document.getElementById('countdown');
+  if(!EXPIRES_AT){{el.style.display='none';return}}
+  el.style.display='block';
+  const diff = new Date(EXPIRES_AT).getTime() - Date.now();
+  const d = Math.max(0,Math.floor(diff/86400000));
+  const h = Math.max(0,Math.floor(diff%86400000/3600000));
+  const m = Math.max(0,Math.floor(diff%3600000/60000));
+  const s = Math.max(0,Math.floor(diff%60000/1000));
+  document.getElementById('cd-d').textContent=d;
+  document.getElementById('cd-h').textContent=h;
+  document.getElementById('cd-m').textContent=m;
+  document.getElementById('cd-s').textContent=s;
+}}
+tickCountdown();setInterval(tickCountdown,1000);
+
 function toast(msg,type){{
   const t=document.getElementById('toast');
   t.textContent=msg;t.className='toast show'+(type?' '+type:'');
@@ -2680,7 +2779,6 @@ function toast(msg,type){{
 function copyToClipboard(text){{
   navigator.clipboard.writeText(text).then(()=>toast('کپی شد ✓','ok'));
 }}
-function copyCurrentProto(){{copyToClipboard(VLESS_BUNDLE[curProtoIdx].vless_link)}}
 function copyAllProtocols(){{
   navigator.clipboard.writeText(VLESS_BUNDLE.map(b=>b.vless_link).join('\\n'))
     .then(()=>toast('هر '+VLESS_BUNDLE.length+' کانفیگ کپی شد ✓','ok'));
@@ -2690,10 +2788,8 @@ function showQR(){{
   document.getElementById('qr-img').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(VLESS_BUNDLE[curProtoIdx].vless_link);
   document.getElementById('qr-modal').classList.add('open');
 }}
-renderProtoTabs();
 
 function fmtB(b){{if(!b||b===0)return '0 B';if(b<1024)return b+' B';if(b<1024**2)return (b/1024).toFixed(1)+' KB';if(b<1024**3)return (b/1024**2).toFixed(2)+' MB';return (b/1024**3).toFixed(2)+' GB'}}
-function esc(s){{return String(s||'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
 
 async function submitSplitLink(){{
   const errEl=document.getElementById('split-err'), errTxt=document.getElementById('split-err-txt');
