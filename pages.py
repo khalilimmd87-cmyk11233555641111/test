@@ -759,6 +759,16 @@ a{color:inherit;text-decoration:none}
         <label><i class="ti ti-lock"></i> رمز صفحه پابلیک (اختیاری)</label>
         <input class="modal-v2-input" id="ns-pw" type="password" placeholder="خالی بگذارید = بدون رمز">
       </div>
+      <div class="modal-v2-field" style="margin-top:14px;margin-bottom:0">
+        <label><i class="ti ti-chart-pie"></i> سقف حجم قابل‌تقسیم (اختیاری)</label>
+        <div style="display:flex;gap:8px">
+          <input class="modal-v2-input" id="ns-pool-val" type="number" min="0" placeholder="مثلاً 10" style="flex:1">
+          <select class="modal-v2-input" id="ns-pool-unit" style="flex:.6">
+            <option value="GB">GB</option><option value="MB">MB</option>
+          </select>
+        </div>
+        <div class="cl" style="margin-top:8px"><i class="ti ti-info-circle"></i><span>اگر پر شود، صاحب این ساب می‌تواند خودش از داخل صفحه‌ی عمومی‌اش بخشی از این سقف را جدا کند و به‌عنوان یک ساب مستقل و بدون برند به کس دیگری بدهد.</span></div>
+      </div>
       <div class="cl" style="margin-top:14px"><i class="ti ti-info-circle"></i><span>صفحه پابلیک این گروه با یک لینک منحصر‌به‌فرد در اینترنت در دسترس خواهد بود.</span></div>
       <div class="modal-v2-footer">
         <button class="btn btn-o" onclick="closeModal('modal-create-sub')" style="flex:.6">انصراف</button>
@@ -1460,6 +1470,14 @@ function renderQrImg(){
 function copyCurrentQrLink(){
   navigator.clipboard.writeText(qrCurrentBundle[qrCurrentIdx].vless_link).then(()=>toast('لینک این پروتکل کپی شد ✓','ok'));
 }
+function showQR(link){
+  qrCurrentBundle=[{vless_link:link}];qrCurrentIdx=0;
+  document.getElementById('qrv2-label').textContent='QR Code';
+  document.getElementById('qrv2-usage').innerHTML='';
+  document.getElementById('qrv2-tabs').innerHTML='';
+  renderQrImg();
+  document.getElementById('qr-modal-v2').classList.add('open');
+}
 let allSubsRaw=[];
 async function loadSubs(){
   try{
@@ -1495,6 +1513,8 @@ function renderSubsGrid(subs){
           <div class="sub-card-stat"><div class="sub-card-stat-val" style="color:var(--green-t)">${toFa(s.active_count)}</div><div class="sub-card-stat-label">فعال</div></div>
           <div class="sub-card-stat"><div class="sub-card-stat-val" style="font-size:12px">${esc(s.total_used_fmt)}</div><div class="sub-card-stat-label">مصرف</div></div>
         </div>
+        ${s.pool_limit_bytes?`<div class="cl" style="margin-top:10px;background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.25)"><i class="ti ti-chart-pie" style="color:#a78bfa"></i><span>استخر تقسیم‌پذیر: <b>${esc(s.pool_available_fmt)}</b> باقی از <b>${esc(s.pool_limit_fmt)}</b>${s.child_sub_ids&&s.child_sub_ids.length?' · '+toFa(s.child_sub_ids.length)+' ساب هدیه‌داده‌شده':''}</span></div>`:''}
+        ${s.parent_sub_id?`<div class="cl" style="margin-top:10px"><i class="ti ti-gift"></i><span>این یک ساب هدیه‌ست (سفید-برند، بدون لوگو)</span></div>`:''}
       </div>
       <div class="sub-card-url-row">
         <span class="sub-card-url-text">${esc(s.public_url)}</span>
@@ -1519,10 +1539,12 @@ async function createSub(){
   const name=document.getElementById('ns-name').value.trim()||'گروه جدید';
   const desc=document.getElementById('ns-desc').value.trim();
   const pw=document.getElementById('ns-pw').value;
+  const pool_value=document.getElementById('ns-pool-val').value||0;
+  const pool_unit=document.getElementById('ns-pool-unit').value;
   try{
-    const r=await authF('/api/subs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc,password:pw})});
+    const r=await authF('/api/subs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc,password:pw,pool_value,pool_unit})});
     if(!r.ok)throw new Error('failed');
-    ['ns-name','ns-desc','ns-pw'].forEach(id=>document.getElementById(id).value='');
+    ['ns-name','ns-desc','ns-pw','ns-pool-val'].forEach(id=>document.getElementById(id).value='');
     closeModal('modal-create-sub');
     toast('گروه ساخته شد ✓','ok');loadSubs();
   }catch(e){toast('خطا در ساخت گروه','err')}
@@ -1848,13 +1870,25 @@ document.addEventListener('DOMContentLoaded',async()=>{
 </body></html>""".replace("{{LOGO}}", LOGO_DATA_URI)
 
 
-def get_public_page_html(uuid_key: str) -> str:
-    """صفحه پابلیک ساب v3 — طراحی حرفه‌ای‌تر: لینک کانفیگ پنهان با دکمه نمایش، صفحه‌ی رمز با طراحی ویژه"""
+def get_public_page_html(uuid_key: str, white_label: bool = False) -> str:
+    """صفحه پابلیک ساب v3 — طراحی حرفه‌ای‌تر: لینک کانفیگ پنهان با دکمه نمایش، صفحه‌ی رمز با طراحی ویژه
+
+    white_label=True → برای ساب‌های تقسیم‌شده/هدیه‌داده‌شده: هیچ نام برند،
+    لوگو، یا لینک تلگرام هیچ‌جای صفحه (حتی در <title>) نمایش داده نمی‌شود؛
+    فقط خودِ کانفیگ‌ها و حجم دقیقشان."""
+    page_title = "کانفیگ‌های من" if white_label else "تیم آزادی Sub"
+    header_html = "" if white_label else f"""
+    <div class="brand">
+      <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
+      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
+    </div>"""
+    telegram_btn_html = "" if white_label else '<a class="icon-btn" href="https://t.me/TimAzadi" target="_blank" title="کانال تلگرام"><i class="ti ti-brand-telegram"></i></a>'
+    footer_html = "" if white_label else '<div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · تیم آزادی Gateway v10.0</div>'
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>تیم آزادی Sub</title>
+<title>{page_title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -1921,6 +1955,26 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .copy-all-btn{{background:#fff;color:#1D4ED8;border:none;border-radius:12px;padding:10px 19px;font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;transition:.18s;white-space:nowrap}}
 .copy-all-btn:hover{{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.22)}}
 .copy-all-btn:active{{transform:translateY(0) scale(.98)}}
+
+.pool-card{{background:linear-gradient(135deg,rgba(157,123,240,.14),rgba(59,124,246,.06));border:1px solid rgba(157,123,240,.28);border-radius:20px;padding:20px 22px;margin-bottom:16px;position:relative;overflow:hidden}}
+.pool-head{{display:flex;align-items:center;gap:8px;margin-bottom:12px}}
+.pool-head i{{font-size:17px;color:var(--purple-t)}}
+.pool-head span{{font-size:13px;font-weight:800;color:var(--t1)}}
+.pool-gauge{{height:9px;border-radius:6px;background:rgba(157,123,240,.14);overflow:hidden;margin-bottom:9px}}
+.pool-gauge-f{{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--purple),var(--accent));transition:width .5s ease}}
+.pool-txt{{font-size:11px;color:var(--t2);display:flex;justify-content:space-between;margin-bottom:14px}}
+.split-form{{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:10px}}
+.split-form input,.split-form select{{font-family:inherit;font-size:12.5px;padding:10px 12px;border-radius:11px;border:1px solid var(--card-b);background:rgba(0,0,0,.18);color:var(--t1);outline:none}}
+[data-theme="light"] .split-form input,[data-theme="light"] .split-form select{{background:rgba(46,99,214,.04)}}
+.split-form input:focus,.split-form select:focus{{border-color:var(--purple);box-shadow:0 0 0 3px var(--purple-bg)}}
+.split-form-row2{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}}
+.split-err{{color:var(--red-t);font-size:11px;margin-bottom:10px;display:none;align-items:center;gap:5px}}
+.split-err.show{{display:flex}}
+.split-result{{background:var(--green-bg);border:1px solid rgba(31,184,126,.3);border-radius:14px;padding:14px 16px;margin-top:12px;display:none}}
+.split-result.show{{display:block}}
+.split-result-title{{font-size:12px;font-weight:800;color:var(--green-t);display:flex;align-items:center;gap:6px;margin-bottom:9px}}
+.split-result-url{{font-family:ui-monospace,monospace;font-size:10px;color:var(--t2);word-break:break-all;background:rgba(0,0,0,.15);border-radius:9px;padding:9px 11px;margin-bottom:9px}}
+[data-theme="light"] .split-result-url{{background:rgba(0,0,0,.04)}}
 
 .cfg-title{{font-size:12px;font-weight:800;color:var(--t2);margin-bottom:13px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.07em}}
 .cfg-title i{{color:var(--accent);font-size:15px}}
@@ -2038,22 +2092,20 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 </div>
 <div class="wrap">
   <div class="top">
-    <div class="brand">
-      <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
-      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
-    </div>
+    {header_html}
     <div class="top-actions">
       <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="تغییر تم"><i class="ti ti-sun" id="theme-icon"></i></button>
-      <a class="icon-btn" href="https://t.me/TimAzadi" target="_blank" title="کانال تلگرام"><i class="ti ti-brand-telegram"></i></a>
+      {telegram_btn_html}
     </div>
   </div>
   <div id="root">
     <div class="empty-state"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i>در حال بارگذاری...</div>
   </div>
-  <div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · تیم آزادی Gateway v10.0</div>
+  {footer_html}
 </div>
 <script>
 const UUID_KEY='{uuid_key}';
+const WHITE_LABEL={str(white_label).lower()};
 let savedPw='';
 
 let isDark=localStorage.getItem('rvg-pub-theme')!=='light';
@@ -2147,6 +2199,7 @@ function renderContent(d){{
 
   window._rvgSubUrl  = subUrl;
   window._rvgSubName = d.name;
+  window._rvgPool    = {{limit_fmt:d.pool_limit_fmt, available_fmt:d.pool_available_fmt, available_bytes:d.pool_available_bytes, limit_bytes:d.pool_limit_bytes}};
   window._rvgLinks   = d.links.map(l => ({{
     vless : l.vless_link,
     sub   : l.sub_url + (savedPw ? '?pw=' + encodeURIComponent(savedPw) : ''),
@@ -2171,6 +2224,8 @@ function renderContent(d){{
         </button>
       </div>
     </div>
+
+    ${{d.pool_enabled ? renderPoolCard(d) : ''}}
 
     <div class="copy-all-bar">
       <div class="copy-all-text">
@@ -2257,6 +2312,60 @@ function copyAllConfigs(){{
   if(!links.length){{toast('کانفیگی برای کپی نیست','');return}}
   const text=links.map(l=>l.vless).join('\\n');
   navigator.clipboard.writeText(text).then(()=>toast('همه‌ی '+toFa(links.length)+' کانفیگ کپی شد ✓','ok'));
+}}
+
+function renderPoolCard(d){{
+  const pct = d.pool_limit_bytes ? Math.min(100, (d.pool_allocated_bytes/d.pool_limit_bytes)*100) : 0;
+  return `
+    <div class="pool-card">
+      <div class="pool-head"><i class="ti ti-chart-pie"></i><span>استخر تقسیم‌پذیر</span></div>
+      <div class="pool-gauge"><div class="pool-gauge-f" style="width:${{pct}}%"></div></div>
+      <div class="pool-txt"><span>باقی‌مانده برای تقسیم: <b style="color:var(--t1)">${{esc(d.pool_available_fmt)}}</b></span><span>سقف کل: ${{esc(d.pool_limit_fmt)}}</span></div>
+      <div class="split-form">
+        <input id="split-val" type="number" min="0" step="0.1" placeholder="مقدار (مثلاً 5)">
+        <select id="split-unit"><option value="GB">GB</option><option value="MB">MB</option></select>
+      </div>
+      <div class="split-form-row2">
+        <input id="split-label" placeholder="اسم کانفیگ (اختیاری)">
+        <input id="split-name" placeholder="اسم ساب هدیه (اختیاری)">
+      </div>
+      <div class="split-err" id="split-err"><i class="ti ti-alert-circle"></i><span id="split-err-txt"></span></div>
+      <button class="btn btn-pur" style="width:100%;justify-content:center" onclick="submitSplit()"><i class="ti ti-gift"></i> جدا کردن و ساخت ساب هدیه</button>
+      <div class="split-result" id="split-result">
+        <div class="split-result-title"><i class="ti ti-circle-check"></i> ساب هدیه ساخته شد ✓ (سفید-برند، بدون هیچ لوگو/نامی)</div>
+        <div class="split-result-url" id="split-result-url"></div>
+        <div class="cfg-actions">
+          <button class="btn btn-p" onclick="copySplitUrl()"><i class="ti ti-copy"></i> کپی لینک</button>
+          <button class="btn btn-g" onclick="showQR('ساب هدیه',window._rvgSplitUrl)"><i class="ti ti-qrcode"></i> QR</button>
+          <button class="btn btn-g" onclick="window.open(window._rvgSplitUrl,'_blank')"><i class="ti ti-external-link"></i> باز کردن</button>
+        </div>
+      </div>
+    </div>
+  `;
+}}
+
+async function submitSplit(){{
+  const errEl=document.getElementById('split-err'), errTxt=document.getElementById('split-err-txt');
+  errEl.classList.remove('show');
+  const amount_value=document.getElementById('split-val').value;
+  const amount_unit=document.getElementById('split-unit').value;
+  const label=document.getElementById('split-label').value.trim();
+  const name=document.getElementById('split-name').value.trim();
+  if(!amount_value||Number(amount_value)<=0){{errTxt.textContent='یک مقدار معتبر وارد کن';errEl.classList.add('show');return}}
+  try{{
+    const r=await fetch('/api/public/sub/'+UUID_KEY+'/split',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{pw:savedPw,amount_value,amount_unit,label,name}})}});
+    const data=await r.json();
+    if(!r.ok){{errTxt.textContent=data.detail||'خطا در ساخت ساب هدیه';errEl.classList.add('show');return}}
+    window._rvgSplitUrl=data.public_url;
+    document.getElementById('split-result-url').textContent=data.public_url;
+    document.getElementById('split-result').classList.add('show');
+    toast('ساب هدیه ('+data.amount_fmt+') ساخته شد ✓','ok');
+    autoRefresh();
+  }}catch(e){{errTxt.textContent='خطا در ارتباط با سرور';errEl.classList.add('show')}}
+}}
+function copySplitUrl(){{
+  navigator.clipboard.writeText(window._rvgSplitUrl||'').then(()=>toast('لینک ساب هدیه کپی شد ✓','ok'));
 }}
 
 async function autoRefresh(){{
