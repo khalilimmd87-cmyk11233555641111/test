@@ -26,6 +26,7 @@ from state import (
     ensure_default_link,
     check_login_rate_limit, record_login_attempt,
     is_blocked_proxy_target,
+    parse_expiry_to_timedelta, sub_permissions,
 )
 
 # ✅ امنیت: به‌جای CORS باز (allow_origins=["*"] + allow_credentials=True که
@@ -196,7 +197,8 @@ async def subscription_all(_=Depends(require_auth)):
 MAX_CHILDREN_PER_LINK = 50
 MIN_SPLIT_BYTES = 1 * 1024 * 1024  # حداقل ۱ مگابایت، برای جلوگیری از هرزنامه/ساب‌های صفر-حجمی
 
-def _child_view(uid: str, d: dict, host: str) -> dict:
+def _child_view(uid: str, d: dict, host: str, perms: dict | None = None) -> dict:
+    perms = perms or {"client_can_delete": True, "client_can_disable": True}
     return {
         "uuid": uid,
         "label": d["label"],
@@ -206,8 +208,13 @@ def _child_view(uid: str, d: dict, host: str) -> dict:
         "limit_fmt": "∞" if not d.get("limit_bytes") else fmt_bytes(d["limit_bytes"]),
         "active": d.get("active", True),
         "expired": is_link_expired(d),
+        "expires_at": d.get("expires_at"),
         "created_at": d.get("created_at"),
         "sub_url": f"https://{host}/sub/{uid}",
+        # ✅ فیچر: پنل تشخیص می‌دهد آیا صاحب ساب اجازه دارد این کانفیگ هدیه‌ای
+        # را خودش حذف/غیرفعال کند یا این کنترل کاملاً دست ادمین است.
+        "client_can_delete": perms["client_can_delete"],
+        "client_can_disable": perms["client_can_disable"],
     }
 
 @app.post("/api/public/split/{uuid}")
@@ -216,6 +223,10 @@ async def create_split_child(uuid: str, request: Request):
     amount = float(body.get("amount") or 0)
     unit = body.get("unit") or "GB"
     label = (body.get("label") or "اشتراکی").strip()[:60]
+    # ✅ فیچر: کاربر می‌تواند برای کانفیگ هدیه‌ای که می‌سازد یک انقضای
+    # ساعتی/روزی هم تعیین کند (مثلاً «۶ ساعت» دسترسی مهمان).
+    exp_delta = parse_expiry_to_timedelta(float(body.get("expires_value") or 0), body.get("expires_unit") or "days")
+    child_expires_at = (datetime.now() + exp_delta).isoformat() if exp_delta else None
     if amount <= 0:
         raise HTTPException(status_code=400, detail="مقدار حجم نامعتبر است")
     amount_bytes = parse_size_to_bytes(amount, unit)
@@ -247,7 +258,7 @@ async def create_split_child(uuid: str, request: Request):
             "used_bytes": 0,
             "created_at": datetime.now().isoformat(),
             "active": True,
-            "expires_at": None,
+            "expires_at": child_expires_at,
             "note": "",
             "is_default": False,
             "sub_id": None,
@@ -256,8 +267,9 @@ async def create_split_child(uuid: str, request: Request):
             "white_label": True,
             "flag": parent.get("flag", "🇺🇸"),
         }
-        parent_view = _child_view(uuid, parent, host)
-        child_view = _child_view(child_uid, LINKS[child_uid], host)
+        perms = sub_permissions(parent.get("sub_id"))
+        parent_view = _child_view(uuid, parent, host, perms)
+        child_view = _child_view(child_uid, LINKS[child_uid], host, perms)
 
     await schedule_save()
     log_activity("link", f"سهمیه‌ی «{fmt_bytes(amount_bytes)}» از «{parent['label']}» جدا و ساب جدید «{label}» ساخته شد", "ok")
@@ -269,9 +281,11 @@ async def list_split_children(uuid: str):
     async with LINKS_LOCK:
         if uuid not in LINKS:
             raise HTTPException(status_code=404, detail="not found")
-        children = [_child_view(uid, d, host) for uid, d in LINKS.items() if d.get("parent_id") == uuid]
+        parent = LINKS[uuid]
+        perms = sub_permissions(parent.get("sub_id"))
+        children = [_child_view(uid, d, host, perms) for uid, d in LINKS.items() if d.get("parent_id") == uuid]
     children.sort(key=lambda x: x["created_at"] or "", reverse=True)
-    return {"children": children}
+    return {"children": children, "permissions": perms}
 
 @app.delete("/api/public/split/{uuid}/{child_uuid}")
 async def revoke_split_child(uuid: str, child_uuid: str):
@@ -281,6 +295,10 @@ async def revoke_split_child(uuid: str, child_uuid: str):
         child = LINKS.get(child_uuid)
         if not parent or not child or child.get("parent_id") != uuid:
             raise HTTPException(status_code=404, detail="not found")
+        # ✅ کنترل کامل ادمین: اگر ادمین برای گروه این کانفیگ، اجازه‌ی
+        # حذف را از مشتری گرفته باشد، این درخواست رد می‌شود.
+        if not sub_permissions(parent.get("sub_id"))["client_can_delete"]:
+            raise HTTPException(status_code=403, detail="حذف کانفیگ‌های هدیه‌ای توسط مدیر غیرفعال شده است")
         # سهمیه‌ی مصرف‌نشده‌ی ساب لغو‌شده، به سهمیه‌ی خودِ کاربر برمی‌گردد
         # (فقط اگر سهمیه‌ی parent محدود باشد؛ برای نامحدود چیزی برای برگرداندن نیست).
         if parent.get("limit_bytes", 0) > 0:
@@ -288,11 +306,32 @@ async def revoke_split_child(uuid: str, child_uuid: str):
             parent["limit_bytes"] += unused
         del LINKS[child_uuid]
         connections.pop(child_uuid, None)
-        parent_view = _child_view(uuid, parent, host)
+        parent_view = _child_view(uuid, parent, host, sub_permissions(parent.get("sub_id")))
 
     await schedule_save()
     log_activity("link", f"ساب «{child['label']}» لغو شد و سهمیه‌ی باقی‌مانده به «{parent['label']}» برگشت", "warn")
     return {"parent": parent_view}
+
+@app.post("/api/public/split/{uuid}/{child_uuid}/toggle")
+async def toggle_split_child(uuid: str, child_uuid: str, request: Request):
+    """صاحب کانفیگ اصلی، کانفیگ هدیه‌ای که خودش ساخته را فعال/غیرفعال
+    می‌کند — فقط اگر ادمین این اجازه (client_can_disable) را برای گروه
+    مربوطه بسته نباشد؛ در غیر این صورت این کنترل کاملاً دست ادمین می‌ماند."""
+    body = await request.json()
+    active = bool(body.get("active", True))
+    host = get_host()
+    async with LINKS_LOCK:
+        parent = LINKS.get(uuid)
+        child = LINKS.get(child_uuid)
+        if not parent or not child or child.get("parent_id") != uuid:
+            raise HTTPException(status_code=404, detail="not found")
+        if not sub_permissions(parent.get("sub_id"))["client_can_disable"]:
+            raise HTTPException(status_code=403, detail="فعال/غیرفعال‌کردن کانفیگ‌های هدیه‌ای توسط مدیر غیرفعال شده است")
+        child["active"] = active
+        child_view = _child_view(child_uuid, child, host, sub_permissions(parent.get("sub_id")))
+    await schedule_save()
+    log_activity("link", f"کانفیگ هدیه‌ای «{child['label']}» {'فعال' if active else 'غیرفعال'} شد", "ok" if active else "warn")
+    return {"child": child_view}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SUB GROUP endpoints
@@ -326,6 +365,12 @@ async def create_sub(request: Request, _=Depends(require_auth)):
             "parent_sub_id": None,
             "child_sub_ids": [],
             "white_label": False,
+            # ✅ فیچر: قفل گروهی (ادمین کل گروه را با یک کلیک فریز/باز می‌کند)
+            "locked": False,
+            # ✅ فیچر: کنترل کامل ادمین روی این‌که آیا مشتریِ این گروه
+            # می‌تواند کانفیگ‌های هدیه‌ای که خودش ساخته را حذف/غیرفعال کند
+            "client_can_delete": bool(body.get("client_can_delete", True)),
+            "client_can_disable": bool(body.get("client_can_disable", True)),
         }
     await schedule_save()
     log_activity("sub", f"گروه «{name}» ساخته شد", "ok")
@@ -392,8 +437,34 @@ async def update_sub(sub_id: str, request: Request, _=Depends(require_auth)):
             pool_unit = str(body.get("pool_unit") or "GB")
             s["pool_limit_bytes"] = parse_size_to_bytes(pool_value, pool_unit) if pool_value > 0 else 0
             s.setdefault("pool_allocated_bytes", 0)
+        # ✅ فیچر: ادمین از همین‌جا کنترل می‌کند که مشتریِ این گروه اجازه‌ی
+        # حذف/غیرفعال‌کردن کانفیگ‌های هدیه‌ای که خودش ساخته را دارد یا نه.
+        if "client_can_delete" in body:
+            s["client_can_delete"] = bool(body["client_can_delete"])
+        if "client_can_disable" in body:
+            s["client_can_disable"] = bool(body["client_can_disable"])
+        if "locked" in body:
+            s["locked"] = bool(body["locked"])
     await schedule_save()
     return {"ok": True}
+
+@app.post("/api/subs/{sub_id}/lock")
+async def toggle_sub_lock(sub_id: str, request: Request, _=Depends(require_auth)):
+    """قفل/باز کردن کل گروه با یک کلیک. وقتی قفل است، همه‌ی کانفیگ‌های عضو
+    این گروه (صرف‌نظر از وضعیت active تک‌تکشان) بلافاصله در سرویس (relay/xhttp)
+    و صفحات ساب/پابلیک غیرفعال نشان داده و رد می‌شوند؛ با باز کردن قفل، بدون
+    نیاز به تغییر جداگانه‌ی هیچ کانفیگی، همه دوباره طبق وضعیت واقعی خودشان
+    فعال می‌شوند."""
+    body = await request.json()
+    locked = bool(body.get("locked", True))
+    async with SUBS_LOCK:
+        if sub_id not in SUBS:
+            raise HTTPException(status_code=404, detail="sub not found")
+        SUBS[sub_id]["locked"] = locked
+        name = SUBS[sub_id].get("name", sub_id)
+    await schedule_save()
+    log_activity("sub", f"گروه «{name}» {'قفل' if locked else 'باز'} شد", "warn" if locked else "ok")
+    return {"ok": True, "locked": locked}
 
 @app.delete("/api/subs/{sub_id}")
 async def delete_sub(sub_id: str, _=Depends(require_auth)):
@@ -610,8 +681,15 @@ async def create_link(request: Request, _=Depends(require_auth)):
     lv = float(body.get("limit_value") or 0)
     lu = body.get("limit_unit") or "GB"
     limit_bytes = 0 if lv <= 0 else parse_size_to_bytes(lv, lu)
-    exp_days = int(body.get("expires_days") or 0)
-    expires_at = (datetime.now() + timedelta(days=exp_days)).isoformat() if exp_days > 0 else None
+    # ✅ فیچر: سهمیه‌ی زمانی ساعتی/روزی — اگر «expires_value»+«expires_unit»
+    # (unit=hours|days) بیاید همان استفاده می‌شود، وگرنه سازگاری با فرمت
+    # قدیمی «expires_days» حفظ شده.
+    if "expires_value" in body:
+        exp_delta = parse_expiry_to_timedelta(float(body.get("expires_value") or 0), body.get("expires_unit") or "days")
+    else:
+        exp_days = int(body.get("expires_days") or 0)
+        exp_delta = parse_expiry_to_timedelta(exp_days, "days")
+    expires_at = (datetime.now() + exp_delta).isoformat() if exp_delta else None
     note = (body.get("note") or "").strip()[:200]
     sub_id = body.get("sub_id") or None
     protocol = body.get("protocol") or DEFAULT_PROTOCOL
@@ -705,10 +783,16 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
             lv = float(body.get("limit_value") or 0)
             lu = body.get("limit_unit") or "GB"
             link["limit_bytes"] = 0 if lv <= 0 else parse_size_to_bytes(lv, lu)
-        if "expires_days" in body:
+        if "expires_value" in body:
+            exp_delta = parse_expiry_to_timedelta(float(body.get("expires_value") or 0), body.get("expires_unit") or "days")
+            if exp_delta:
+                link["expires_at"] = (datetime.now() + exp_delta).isoformat()
+        elif "expires_days" in body:
             ed = int(body["expires_days"] or 0)
-            link["expires_at"] = (datetime.now() + timedelta(days=ed)).isoformat() if ed > 0 else None
-        if any(k in body for k in ("label", "note", "limit_value", "expires_days")):
+            exp_delta = parse_expiry_to_timedelta(ed, "days")
+            if exp_delta:
+                link["expires_at"] = (datetime.now() + exp_delta).isoformat()
+        if any(k in body for k in ("label", "note", "limit_value", "expires_days", "expires_value")):
             log_activity("link", f"کانفیگ «{link['label']}» ویرایش شد", "info")
         new_sub = body.get("sub_id", "UNCHANGED")
         if new_sub != "UNCHANGED":
@@ -849,6 +933,8 @@ async def public_sub_data(uuid_key: str, request: Request):
     host = get_host()
     link_ids = sub.get("link_ids", [])
     white_label = bool(sub.get("white_label"))
+    perms = {"client_can_delete": sub.get("client_can_delete", True), "client_can_disable": sub.get("client_can_disable", True)}
+    locked = bool(sub.get("locked"))
     async with LINKS_LOCK:
         snap = dict(LINKS)
 
@@ -865,6 +951,11 @@ async def public_sub_data(uuid_key: str, request: Request):
         used_bytes = link.get("used_bytes", 0)
         limit_bytes = link.get("limit_bytes", 0)
         bundle = generate_all_vless_links(lid, host, link["label"], used_bytes, limit_bytes, brand=not white_label, flag=link.get("flag", ""))
+        # ✅ فیچر: مالکِ ساب اصلی، کانفیگ‌های هدیه‌ای که خودش (یا مشتری‌اش)
+        # از داخل این کانفیگ جدا کرده را هم همین‌جا می‌بیند و طبق اجازه‌ای
+        # که ادمین داده می‌تواند فعال/غیرفعال یا حذفشان کند.
+        children = [_child_view(cid, cd, host, perms) for cid, cd in snap.items() if cd.get("parent_id") == lid]
+        children.sort(key=lambda x: x["created_at"] or "", reverse=True)
         links_out.append({
             "uuid": lid,
             "label": link["label"],
@@ -880,6 +971,7 @@ async def public_sub_data(uuid_key: str, request: Request):
             "sub_url": f"https://{host}/sub/{lid}",
             "connections": conn_count,
             "flag": link.get("flag", ""),
+            "children": children,
         })
 
     total_used = sum(l["used_bytes"] for l in links_out)
@@ -895,6 +987,8 @@ async def public_sub_data(uuid_key: str, request: Request):
         "total_used_fmt": fmt_bytes(total_used),
         "links": links_out,
         "white_label": white_label,
+        "locked_by_admin": locked,
+        "permissions": perms,
         # ✅ فیچر «تقسیم سهمیه»: اگر ادمین برای این ساب یک سقف (pool) تعیین
         # کرده باشد، صاحب ساب می‌تواند از همین صفحه بخشی از باقی‌مانده‌ی
         # سقف را جدا کند و به‌عنوان یک ساب مستقل و کاملاً سفید-برند (بدون
