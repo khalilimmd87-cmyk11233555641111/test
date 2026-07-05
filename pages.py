@@ -464,6 +464,11 @@ a{color:inherit;text-decoration:none}
 .sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-bottom:18px}
 .sub-card{background:var(--card);border:1px solid var(--card-b);border-radius:20px;padding:0;overflow:hidden;transition:all .25s cubic-bezier(.4,0,.2,1);position:relative}
 .sub-card:hover{border-color:var(--card-bh);transform:translateY(-4px);box-shadow:0 16px 36px rgba(0,0,0,.24)}
+.sub-card-locked{border-color:rgba(239,68,68,.4);opacity:.86}
+.sub-card-locked-banner{background:rgba(239,68,68,.12);color:var(--red-t,#FCA5A5);font-size:11px;font-weight:700;padding:8px 14px;display:flex;align-items:center;gap:6px}
+.sub-card-perms{display:flex;flex-direction:column;gap:6px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--card-b)}
+.perm-toggle{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--t2);font-weight:600;cursor:pointer;user-select:none}
+.perm-toggle input{width:14px;height:14px;accent-color:#8b5cf6;cursor:pointer}
 .sub-card-top{background:linear-gradient(155deg,var(--purple-bg) 0%,transparent 65%);padding:20px 20px 16px;position:relative}
 .sub-card-top::before{content:'';position:absolute;top:-30px;left:-30px;width:130px;height:130px;background:radial-gradient(circle,rgba(139,92,246,.14),transparent 70%);pointer-events:none}
 .sub-card-head-v2{display:flex;align-items:flex-start;gap:13px;position:relative;z-index:1}
@@ -769,6 +774,18 @@ a{color:inherit;text-decoration:none}
         </div>
         <div class="cl" style="margin-top:8px"><i class="ti ti-info-circle"></i><span>اگر پر شود، صاحب این ساب می‌تواند خودش از داخل صفحه‌ی عمومی‌اش بخشی از این سقف را جدا کند و به‌عنوان یک ساب مستقل و بدون برند به کس دیگری بدهد.</span></div>
       </div>
+      <div class="modal-v2-field" style="margin-top:14px;margin-bottom:0">
+        <label><i class="ti ti-shield-lock"></i> کنترل کانفیگ‌های هدیه‌ای مشتری</label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);cursor:pointer;font-weight:600">
+            <input type="checkbox" id="ns-can-delete" checked style="width:16px;height:16px;accent-color:var(--accent, #7c5cff)"> مشتری اجازه دارد کانفیگ‌های هدیه‌ای‌اش را حذف کند
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);cursor:pointer;font-weight:600">
+            <input type="checkbox" id="ns-can-disable" checked style="width:16px;height:16px;accent-color:var(--accent, #7c5cff)"> مشتری اجازه دارد کانفیگ‌های هدیه‌ای‌اش را غیرفعال کند
+          </label>
+        </div>
+        <div class="cl" style="margin-top:8px"><i class="ti ti-info-circle"></i><span>اگر خاموش کنید، فقط خودِ مدیر می‌تواند این کانفیگ‌ها را حذف/غیرفعال کند؛ بعداً هم از داخل کارت گروه قابل تغییر است.</span></div>
+      </div>
       <div class="cl" style="margin-top:14px"><i class="ti ti-info-circle"></i><span>صفحه پابلیک این گروه با یک لینک منحصر‌به‌فرد در اینترنت در دسترس خواهد بود.</span></div>
       <div class="modal-v2-footer">
         <button class="btn btn-o" onclick="closeModal('modal-create-sub')" style="flex:.6">انصراف</button>
@@ -787,7 +804,10 @@ a{color:inherit;text-decoration:none}
       <div class="fg" style="flex:1"><label>سهمیه (0 = نامحدود)</label><input class="fi" id="el-val" type="number" min="0" step="0.1" style="width:100%"></div>
       <div class="fg"><label>واحد</label><select class="fs" id="el-unit"><option value="GB">GB</option><option value="MB">MB</option></select></div>
     </div>
-    <div class="fg" style="margin-bottom:13px"><label>انقضا (روز از الان، 0 = بدون تغییر/نامحدود)</label><input class="fi" id="el-exp" type="number" min="0" step="1" style="width:100%"></div>
+    <div class="form-row" style="margin-bottom:13px">
+      <div class="fg" style="flex:1"><label>انقضا از الان (0 = بدون تغییر)</label><input class="fi" id="el-exp" type="number" min="0" step="1" style="width:100%"></div>
+      <div class="fg"><label>واحد</label><select class="fs" id="el-exp-unit"><option value="hours">ساعت</option><option value="days" selected>روز</option></select></div>
+    </div>
     <div class="fg" style="margin-bottom:16px"><label>یادداشت</label><input class="fi" id="el-note" style="width:100%"></div>
     <div class="cl"><i class="ti ti-info-circle"></i><span>برای حفظ انقضای فعلی، فیلد انقضا را صفر بگذارید.</span></div>
     <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
@@ -927,13 +947,16 @@ a{color:inherit;text-decoration:none}
           <div class="cp-block-label"><i class="ti ti-folders"></i> گروه ساب و انقضا</div>
           <select class="cp-input-full fs" id="nl-sub"><option value="">— بدون گروه —</option></select>
           <div class="cp-mini-row">
-            <input class="cp-input-full" id="nl-exp" type="number" min="0" step="1" placeholder="انقضا (روز) · 0 = نامحدود">
+            <input class="cp-input-full" id="nl-exp" type="number" min="0" step="1" placeholder="انقضا · 0 = نامحدود" style="flex:1">
+            <select class="cp-input-full fs" id="nl-exp-unit" style="flex:.55"><option value="hours">ساعت</option><option value="days" selected>روز</option></select>
           </div>
           <div class="chip-row" id="exp-chips">
-            <span class="chip" onclick="setExpiry(0,this)">نامحدود</span>
-            <span class="chip" onclick="setExpiry(7,this)">۷ روز</span>
-            <span class="chip active" onclick="setExpiry(30,this)">۳۰ روز</span>
-            <span class="chip" onclick="setExpiry(90,this)">۹۰ روز</span>
+            <span class="chip" onclick="setExpiry(0,'days',this)">نامحدود</span>
+            <span class="chip" onclick="setExpiry(6,'hours',this)">۶ ساعت</span>
+            <span class="chip" onclick="setExpiry(24,'hours',this)">۲۴ ساعت</span>
+            <span class="chip" onclick="setExpiry(7,'days',this)">۷ روز</span>
+            <span class="chip active" onclick="setExpiry(30,'days',this)">۳۰ روز</span>
+            <span class="chip" onclick="setExpiry(90,'days',this)">۹۰ روز</span>
           </div>
         </div>
       </div>
@@ -1259,8 +1282,9 @@ function setQuota(val,unit,el){
   document.querySelectorAll('#quota-chips .chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
 }
-function setExpiry(days,el){
-  document.getElementById('nl-exp').value = days===0?'':days;
+function setExpiry(value,unit,el){
+  document.getElementById('nl-exp').value = value===0?'':value;
+  document.getElementById('nl-exp-unit').value = unit||'days';
   document.querySelectorAll('#exp-chips .chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
 }
@@ -1403,12 +1427,13 @@ async function createLink(){
   const val=document.getElementById('nl-val').value;
   const unit=document.getElementById('nl-unit').value;
   const exp=document.getElementById('nl-exp').value;
+  const expUnit=document.getElementById('nl-exp-unit').value||'days';
   const note=document.getElementById('nl-note').value.trim();
   const sub_id=document.getElementById('nl-sub').value||null;
   const protocol=document.getElementById('nl-proto').value||'vless-ws';
   const flag=document.getElementById('nl-flag').value||'🇺🇸';
   try{
-    const r=await authF('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,limit_value:val||0,limit_unit:unit,expires_days:exp||0,note,sub_id,protocol,flag})});
+    const r=await authF('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,limit_value:val||0,limit_unit:unit,expires_value:exp||0,expires_unit:expUnit,note,sub_id,protocol,flag})});
     if(!r.ok)throw new Error('failed');
     ['nl-label','nl-val','nl-exp','nl-note'].forEach(id=>document.getElementById(id).value='');
     toast('کانفیگ ساخته شد ✓','ok');loadLinks();
@@ -1423,6 +1448,7 @@ function openEditLink(uuid){
   if(l.limit_bytes===0){document.getElementById('el-val').value='';document.getElementById('el-unit').value='GB';}
   else{document.getElementById('el-val').value=(l.limit_bytes/1024/1024).toFixed(0);document.getElementById('el-unit').value='MB';}
   document.getElementById('el-exp').value='';
+  document.getElementById('el-exp-unit').value='days';
   openModal('modal-edit-link');
 }
 async function saveEditLink(){
@@ -1432,8 +1458,9 @@ async function saveEditLink(){
   const val=document.getElementById('el-val').value;
   const unit=document.getElementById('el-unit').value;
   const exp=document.getElementById('el-exp').value;
+  const expUnit=document.getElementById('el-exp-unit').value||'days';
   const body={label,note,limit_value:val||0,limit_unit:unit};
-  if(exp&&Number(exp)>0)body.expires_days=Number(exp);
+  if(exp&&Number(exp)>0){body.expires_value=Number(exp);body.expires_unit=expUnit;}
   try{
     const r=await authF('/api/links/'+uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok)throw new Error();
@@ -1507,7 +1534,8 @@ function renderSubsGrid(subs){
     return;
   }
   grid.innerHTML=subs.map(s=>`
-    <div class="sub-card">
+    <div class="sub-card${s.locked?' sub-card-locked':''}">
+      ${s.locked?'<div class="sub-card-locked-banner"><i class="ti ti-lock"></i> این گروه توسط مدیر قفل شده — همه‌ی کانفیگ‌هایش موقتاً غیرفعالند</div>':''}
       <div class="sub-card-top">
         <div class="sub-card-head-v2">
           <div class="sub-card-icon"><i class="ti ti-folder"></i></div>
@@ -1526,6 +1554,16 @@ function renderSubsGrid(subs){
         </div>
         ${s.pool_limit_bytes?`<div class="cl" style="margin-top:10px;background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.25)"><i class="ti ti-chart-pie" style="color:#a78bfa"></i><span>استخر تقسیم‌پذیر: <b>${esc(s.pool_available_fmt)}</b> باقی از <b>${esc(s.pool_limit_fmt)}</b>${s.child_sub_ids&&s.child_sub_ids.length?' · '+toFa(s.child_sub_ids.length)+' ساب هدیه‌داده‌شده':''}</span></div>`:''}
         ${s.parent_sub_id?`<div class="cl" style="margin-top:10px"><i class="ti ti-gift"></i><span>این یک ساب هدیه‌ست (سفید-برند، بدون لوگو)</span></div>`:''}
+        <div class="sub-card-perms">
+          <label class="perm-toggle" title="اجازه‌ی حذف کانفیگ هدیه‌ای توسط مشتری">
+            <input type="checkbox" ${s.client_can_delete?'checked':''} onchange="setSubPerm('${esc(s.sub_id)}','client_can_delete',this.checked)">
+            <i class="ti ti-trash"></i> حذف توسط مشتری
+          </label>
+          <label class="perm-toggle" title="اجازه‌ی غیرفعال‌کردن کانفیگ هدیه‌ای توسط مشتری">
+            <input type="checkbox" ${s.client_can_disable?'checked':''} onchange="setSubPerm('${esc(s.sub_id)}','client_can_disable',this.checked)">
+            <i class="ti ti-power"></i> غیرفعال توسط مشتری
+          </label>
+        </div>
       </div>
       <div class="sub-card-url-row">
         <span class="sub-card-url-text">${esc(s.public_url)}</span>
@@ -1536,6 +1574,7 @@ function renderSubsGrid(subs){
         <button class="btn btn-sm btn-g" onclick="openSubLinks('${esc(s.sub_id)}','${esc(s.name)}')"><i class="ti ti-link-plus"></i> کانفیگ‌ها</button>
         <button class="btn btn-sm btn-o" onclick="navigator.clipboard.writeText('${esc(s.sub_url)}').then(()=>toast('لینک ساب کپی شد','ok'))"><i class="ti ti-rss"></i> ساب</button>
         <button class="btn btn-sm btn-g btn-icon" onclick="showQR('${esc(s.sub_url)}')" title="QR"><i class="ti ti-qrcode"></i></button>
+        <button class="btn btn-sm ${s.locked?'btn-g':'btn-amber'} btn-icon" onclick="toggleSubLock('${esc(s.sub_id)}',${!s.locked})" title="${s.locked?'باز کردن قفل گروه':'قفل کردن کل گروه'}"><i class="ti ${s.locked?'ti-lock-open':'ti-lock'}"></i></button>
         <button class="btn btn-sm btn-d btn-icon" onclick="deleteSub('${esc(s.sub_id)}')" title="حذف"><i class="ti ti-trash"></i></button>
       </div>
     </div>
@@ -1552,10 +1591,13 @@ async function createSub(){
   const pw=document.getElementById('ns-pw').value;
   const pool_value=document.getElementById('ns-pool-val').value||0;
   const pool_unit=document.getElementById('ns-pool-unit').value;
+  const client_can_delete=document.getElementById('ns-can-delete').checked;
+  const client_can_disable=document.getElementById('ns-can-disable').checked;
   try{
-    const r=await authF('/api/subs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc,password:pw,pool_value,pool_unit})});
+    const r=await authF('/api/subs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc,password:pw,pool_value,pool_unit,client_can_delete,client_can_disable})});
     if(!r.ok)throw new Error('failed');
     ['ns-name','ns-desc','ns-pw','ns-pool-val'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('ns-can-delete').checked=true;document.getElementById('ns-can-disable').checked=true;
     closeModal('modal-create-sub');
     toast('گروه ساخته شد ✓','ok');loadSubs();
   }catch(e){toast('خطا در ساخت گروه','err')}
@@ -1563,6 +1605,21 @@ async function createSub(){
 async function deleteSub(sub_id){
   if(!confirm('حذف این گروه؟ کانفیگ‌ها حذف نمی‌شوند.'))return;
   try{const r=await authF('/api/subs/'+sub_id,{method:'DELETE'});if(!r.ok)throw new Error();toast('گروه حذف شد ✓','ok');loadSubs();loadLinks();}catch(e){toast('خطا','err')}
+}
+async function toggleSubLock(sub_id,locked){
+  try{
+    const r=await authF('/api/subs/'+sub_id+'/lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locked})});
+    if(!r.ok)throw new Error();
+    toast(locked?'گروه قفل شد ✓':'قفل گروه باز شد ✓','ok');
+    loadSubs();loadLinks();
+  }catch(e){toast('خطا','err')}
+}
+async function setSubPerm(sub_id,key,value){
+  try{
+    const r=await authF('/api/subs/'+sub_id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:value})});
+    if(!r.ok)throw new Error();
+    toast('ذخیره شد ✓','ok');
+  }catch(e){toast('خطا در ذخیره','err');loadSubs()}
 }
 let lmodalLinks=[],lmodalInSub=new Set(),lmodalOriginal=new Set();
 async function openSubLinks(sub_id,name){
@@ -2011,6 +2068,32 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .ubar-f{{height:100%;border-radius:4px;transition:width .5s ease}}
 .utxt{{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}}
 
+.cfg-timer{{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;
+  background:rgba(255,255,255,0.06);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.1);}}
+[data-theme="light"] .cfg-timer{{background:rgba(255,255,255,0.55);border-color:rgba(46,99,214,0.14);box-shadow:0 4px 14px rgba(20,40,90,0.06)}}
+.cfg-timer i{{font-size:14px;color:var(--accent2);flex-shrink:0}}
+.cfg-timer-grid{{display:flex;gap:9px;font-family:ui-monospace,monospace;flex:1}}
+.cfg-timer-seg{{display:flex;flex-direction:column;align-items:center;min-width:26px}}
+.cfg-timer-val{{font-size:12.5px;font-weight:800;color:var(--t1)}}
+.cfg-timer-lbl{{font-size:8px;color:var(--t3);font-weight:700}}
+.cfg-timer.expiring .cfg-timer-val{{color:var(--red-t)}}
+
+.locked-banner{{display:flex;align-items:center;gap:10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red-t);border-radius:16px;padding:14px 18px;margin-bottom:16px;font-size:12.5px;font-weight:700}}
+.locked-banner i{{font-size:18px;flex-shrink:0}}
+
+.children-box{{margin-top:13px;padding-top:12px;border-top:1px dashed var(--card-b)}}
+.children-title{{font-size:10.5px;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:5px}}
+.child-row{{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(255,255,255,.05);backdrop-filter:blur(8px);border:1px solid var(--card-b);border-radius:11px;padding:8px 11px;margin-bottom:6px}}
+[data-theme="light"] .child-row{{background:rgba(255,255,255,.6)}}
+.child-row-name{{font-size:11.5px;font-weight:700;color:var(--t1)}}
+.child-row-meta{{font-size:9.5px;color:var(--t3);margin-top:2px}}
+.child-row-actions{{display:flex;gap:5px;flex-shrink:0}}
+.child-btn{{width:26px;height:26px;border-radius:8px;border:none;background:var(--accent-d);color:var(--accent2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;transition:.15s}}
+.child-btn.danger{{background:var(--red-bg);color:var(--red-t)}}
+.child-btn:hover{{filter:brightness(1.15)}}
+.child-btn:disabled{{opacity:.35;cursor:not-allowed}}
+
 .cfg-tear{{position:relative;height:0;border-top:1.5px dashed var(--card-b);margin:0 19px}}
 .cfg-tear::before,.cfg-tear::after{{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--bg);transform:translateY(-50%);border:1px solid var(--card-b)}}
 .cfg-tear::before{{right:-28px}}
@@ -2212,12 +2295,15 @@ function renderContent(d){{
   window._rvgSubName = d.name;
   window._rvgPool    = {{limit_fmt:d.pool_limit_fmt, available_fmt:d.pool_available_fmt, available_bytes:d.pool_available_bytes, limit_bytes:d.pool_limit_bytes}};
   window._rvgLinks   = d.links.map(l => ({{
+    uuid  : l.uuid,
     vless : l.vless_link,
     sub   : l.sub_url + (savedPw ? '?pw=' + encodeURIComponent(savedPw) : ''),
     label : l.label,
   }}));
+  window._rvgPerms = d.permissions || {{client_can_delete:true, client_can_disable:true}};
 
   document.getElementById('root').innerHTML=`
+    ${{d.locked_by_admin ? `<div class="locked-banner"><i class="ti ti-lock"></i><span>این گروه توسط مدیر قفل شده — همه‌ی کانفیگ‌ها موقتاً از کار افتاده‌اند تا زمانی که مدیر قفل را باز کند.</span></div>` : ''}}
     <div class="sub-info">
       <div class="sub-eyebrow"><i class="ti ti-folders"></i> گروه دسترسی</div>
       <div class="sub-name">${{esc(d.name)}}</div>
@@ -2287,6 +2373,7 @@ function renderContent(d){{
                 <div class="ubar"><div class="ubar-f" style="width:${{pct}}%;background:${{bc}}"></div></div>
                 <div class="utxt"><span>${{esc(l.used_fmt)}} مصرف شده</span><span>سهمیه: ${{lim}}</span></div>
               </div>
+              ${{l.expires_at ? `<div class="cfg-timer" data-expires="${{l.expires_at}}"><i class="ti ti-hourglass-high"></i><div class="cfg-timer-grid"><div class="cfg-timer-seg"><div class="cfg-timer-val cd-d">--</div><div class="cfg-timer-lbl">روز</div></div><div class="cfg-timer-seg"><div class="cfg-timer-val cd-h">--</div><div class="cfg-timer-lbl">ساعت</div></div><div class="cfg-timer-seg"><div class="cfg-timer-val cd-m">--</div><div class="cfg-timer-lbl">دقیقه</div></div><div class="cfg-timer-seg"><div class="cfg-timer-val cd-s">--</div><div class="cfg-timer-lbl">ثانیه</div></div></div></div>` : ''}}
             </div>
             <div class="cfg-tear"></div>
             <div class="cfg-bottom">
@@ -2309,13 +2396,76 @@ function renderContent(d){{
                   <i class="ti ti-qrcode"></i> QR
                 </button>
               </div>
+              ${{renderChildrenBox(l)}}
             </div>
           </div>
         `;
       }}).join('')}}
     </div>
   `;
+  document.querySelectorAll('.cfg-timer').forEach(tickTimerEl);
+  if(window._rvgTimerInterval) clearInterval(window._rvgTimerInterval);
+  window._rvgTimerInterval = setInterval(()=>document.querySelectorAll('.cfg-timer').forEach(tickTimerEl), 1000);
   setTimeout(() => autoRefresh(), 30000);
+}}
+
+function tickTimerEl(el){{
+  const expires = el.getAttribute('data-expires');
+  if(!expires)return;
+  const diff = new Date(expires).getTime() - Date.now();
+  const clamp = n => Math.max(0,n);
+  const d = clamp(Math.floor(diff/86400000));
+  const h = clamp(Math.floor(diff%86400000/3600000));
+  const m = clamp(Math.floor(diff%3600000/60000));
+  const s = clamp(Math.floor(diff%60000/1000));
+  el.querySelector('.cd-d').textContent = toFa(d);
+  el.querySelector('.cd-h').textContent = toFa(h);
+  el.querySelector('.cd-m').textContent = toFa(m);
+  el.querySelector('.cd-s').textContent = toFa(s);
+  el.classList.toggle('expiring', diff <= 3600000);
+}}
+
+function renderChildrenBox(l){{
+  const kids = l.children || [];
+  if(!kids.length) return '';
+  const perms = window._rvgPerms || {{client_can_delete:true, client_can_disable:true}};
+  return `
+    <div class="children-box">
+      <div class="children-title"><i class="ti ti-users"></i> کاربرانی که از این کانفیگ سهم گرفته‌اند (${{toFa(kids.length)}})</div>
+      ${{kids.map(c => `
+        <div class="child-row">
+          <div>
+            <div class="child-row-name">${{esc(c.label)}}</div>
+            <div class="child-row-meta">${{esc(c.used_fmt)}} از ${{esc(c.limit_fmt)}} · ${{c.active && !c.expired ? 'فعال' : 'غیرفعال'}}</div>
+          </div>
+          <div class="child-row-actions">
+            <button class="child-btn" ${{perms.client_can_disable ? '' : 'disabled'}} title="${{perms.client_can_disable ? (c.active?'غیرفعال کردن':'فعال کردن') : 'این قابلیت توسط مدیر غیرفعال شده'}}"
+              onclick="toggleChildCfg('${{l.uuid}}','${{c.uuid}}',${{!c.active}})"><i class="ti ${{c.active?'ti-power':'ti-play'}}"></i></button>
+            <button class="child-btn danger" ${{perms.client_can_delete ? '' : 'disabled'}} title="${{perms.client_can_delete ? 'حذف' : 'این قابلیت توسط مدیر غیرفعال شده'}}"
+              onclick="deleteChildCfg('${{l.uuid}}','${{c.uuid}}')"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+      `).join('')}}
+    </div>
+  `;
+}}
+
+async function toggleChildCfg(parentUuid, childUuid, active){{
+  try{{
+    const r=await fetch('/api/public/split/'+parentUuid+'/'+childUuid+'/toggle',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{active}})}});
+    if(!r.ok){{const e=await r.json().catch(()=>({{}}));toast(e.detail||'خطا','');return}}
+    toast(active?'فعال شد ✓':'غیرفعال شد','ok');
+    autoRefresh();
+  }}catch(e){{toast('خطا در ارتباط با سرور','')}}
+}}
+async function deleteChildCfg(parentUuid, childUuid){{
+  if(!confirm('این کانفیگ حذف شود؟ حجم مصرف‌نشده‌اش برمی‌گردد.'))return;
+  try{{
+    const r=await fetch('/api/public/split/'+parentUuid+'/'+childUuid,{{method:'DELETE'}});
+    if(!r.ok){{const e=await r.json().catch(()=>({{}}));toast(e.detail||'خطا','');return}}
+    toast('حذف شد ✓','ok');
+    autoRefresh();
+  }}catch(e){{toast('خطا در ارتباط با سرور','')}}
 }}
 
 function copyAllConfigs(){{
@@ -2750,6 +2900,10 @@ html[data-skin="cyber"]{{--accent:#06B6D4;--accent-soft:#22D3EE;--bg-root:#07141
       <input id="split-val" type="number" min="0" step="0.1" placeholder="مقدار (مثلاً 5)">
       <select id="split-unit"><option value="GB">GB</option><option value="MB">MB</option></select>
     </div>
+    <div class="split-form" style="margin-top:8px">
+      <input id="split-exp" type="number" min="0" step="1" placeholder="انقضا (اختیاری، 0 = نامحدود)">
+      <select id="split-exp-unit"><option value="hours">ساعت</option><option value="days" selected>روز</option></select>
+    </div>
     <input id="split-label" style="margin-bottom:12px" placeholder="اسم کانفیگ هدیه (اختیاری)">
     <div class="split-err" id="split-err"><i class="ti ti-alert-circle"></i><span id="split-err-txt"></span></div>
     <button class="btn btn-ghost" style="width:100%;justify-content:center;background:rgba(157,123,240,.12);color:#c4b5fd;border-color:rgba(157,123,240,.25)" onclick="submitSplitLink()"><i class="ti ti-gift"></i> جدا کردن و ساخت کانفیگ هدیه</button>
@@ -2867,17 +3021,19 @@ async function submitSplitLink(){{
   const amount=document.getElementById('split-val').value;
   const unit=document.getElementById('split-unit').value;
   const label=document.getElementById('split-label').value.trim();
+  const expires_value=document.getElementById('split-exp').value||0;
+  const expires_unit=document.getElementById('split-exp-unit').value||'days';
   if(!amount||Number(amount)<=0){{errTxt.textContent='یک مقدار معتبر وارد کن';errEl.classList.add('show');return}}
   try{{
     const r=await fetch('/api/public/split/'+LINK_UUID,{{method:'POST',headers:{{'Content-Type':'application/json'}},
-      body:JSON.stringify({{amount,unit,label}})}});
+      body:JSON.stringify({{amount,unit,label,expires_value,expires_unit}})}});
     const data=await r.json();
     if(!r.ok){{errTxt.textContent=data.detail||'خطا در ساخت کانفیگ هدیه';errEl.classList.add('show');return}}
     window._rvgSplitUrl=data.child.sub_url;
     document.getElementById('split-result-url').textContent=data.child.sub_url;
     document.getElementById('split-result').classList.add('show');
     toast('کانفیگ هدیه ساخته شد ✓','ok');
-    document.getElementById('split-val').value='';document.getElementById('split-label').value='';
+    document.getElementById('split-val').value='';document.getElementById('split-label').value='';document.getElementById('split-exp').value='';
     loadChildren();
   }}catch(e){{errTxt.textContent='خطا در ارتباط با سرور';errEl.classList.add('show')}}
 }}
@@ -2887,7 +3043,8 @@ function copySplitLinkUrl(){{
 async function loadChildren(){{
   try{{
     const r=await fetch('/api/public/children/'+LINK_UUID);
-    const {{children=[]}}=await r.json();
+    const {{children=[],permissions={{}}}}=await r.json();
+    const perms = {{client_can_delete: permissions.client_can_delete!==false, client_can_disable: permissions.client_can_disable!==false}};
     const box=document.getElementById('children-list');
     if(!children.length){{box.innerHTML='';return}}
     box.innerHTML='<div class="children-title">کانفیگ‌های هدیه‌داده‌شده ('+children.length+')</div>'+
@@ -2897,16 +3054,31 @@ async function loadChildren(){{
             <div class="child-item-name">${{esc(c.label)}}</div>
             <div class="child-item-meta">${{esc(c.used_fmt)}} از ${{esc(c.limit_fmt)}} · ${{c.active&&!c.expired?'فعال':'غیرفعال'}}</div>
           </div>
-          <button class="child-revoke" onclick="revokeChild('${{c.uuid}}')"><i class="ti ti-trash"></i> لغو</button>
+          <div style="display:flex;gap:6px">
+            <button class="child-revoke" ${{perms.client_can_disable?'':'disabled title="این قابلیت توسط مدیر غیرفعال شده"'}}
+              onclick="toggleChild('${{c.uuid}}',${{!c.active}})" style="${{perms.client_can_disable?'':'opacity:.4;cursor:not-allowed'}}"><i class="ti ${{c.active?'ti-power':'ti-play'}}"></i></button>
+            <button class="child-revoke" ${{perms.client_can_delete?'':'disabled title="این قابلیت توسط مدیر غیرفعال شده"'}}
+              onclick="revokeChild('${{c.uuid}}')" style="${{perms.client_can_delete?'':'opacity:.4;cursor:not-allowed'}}"><i class="ti ti-trash"></i> لغو</button>
+          </div>
         </div>
       `).join('');
   }}catch(e){{}}
+}}
+async function toggleChild(childUuid,active){{
+  try{{
+    const r=await fetch('/api/public/split/'+LINK_UUID+'/'+childUuid+'/toggle',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{active}})}});
+    const data=await r.json().catch(()=>({{}}));
+    if(!r.ok){{toast(data.detail||'خطا','');return}}
+    toast(active?'فعال شد ✓':'غیرفعال شد','ok');
+    loadChildren();
+  }}catch(e){{toast('خطا در ارتباط با سرور','')}}
 }}
 async function revokeChild(childUuid){{
   if(!confirm('این کانفیگ هدیه لغو شود؟ حجم مصرف‌نشده‌اش به خودت برمی‌گردد.'))return;
   try{{
     const r=await fetch('/api/public/split/'+LINK_UUID+'/'+childUuid,{{method:'DELETE'}});
-    if(!r.ok)throw new Error();
+    const data=await r.json().catch(()=>({{}}));
+    if(!r.ok){{toast(data.detail||'خطا در لغو','');return}}
     toast('لغو شد، حجم برگشت ✓','ok');
     loadChildren();
     setTimeout(()=>location.reload(),1200);
