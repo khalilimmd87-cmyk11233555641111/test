@@ -147,7 +147,7 @@ async def subscription_single(uuid: str, request: Request):
     # ✅ فیچر: به‌جای یک کانفیگ تک‌پروتکلی، ساب حالا هر سه پروتکل کارکردی
     # (WS + دو مد XHTTP) را با هم می‌دهد — اگر یکی فیلتر شد، بقیه در کلاینت
     # موجودند؛ هر سه روی همان uuid/سهمیه کار می‌کنند.
-    bundle = generate_all_vless_links(uuid, host, link["label"], used_bytes, limit_bytes, brand=not white_label)
+    bundle = generate_all_vless_links(uuid, host, link["label"], used_bytes, limit_bytes, brand=not white_label, flag=link.get("flag", ""))
     vless = next((b["vless_link"] for b in bundle if b["protocol"] == proto), bundle[0]["vless_link"])
     sub_url = f"https://{host}/sub/{uuid}"
 
@@ -182,7 +182,7 @@ async def subscription_all(_=Depends(require_auth)):
         lines = []
         for uid, d in LINKS.items():
             if is_link_allowed(d):
-                bundle = generate_all_vless_links(uid, host, d["label"], d.get("used_bytes", 0), d.get("limit_bytes", 0))
+                bundle = generate_all_vless_links(uid, host, d["label"], d.get("used_bytes", 0), d.get("limit_bytes", 0), flag=d.get("flag", ""))
                 lines.extend(b["vless_link"] for b in bundle)
     content = base64.b64encode("\n".join(lines).encode()).decode()
     return Response(content=content, media_type="text/plain")
@@ -254,6 +254,7 @@ async def create_split_child(uuid: str, request: Request):
             "protocol": parent.get("protocol", DEFAULT_PROTOCOL),
             "parent_id": uuid,
             "white_label": True,
+            "flag": parent.get("flag", "🇺🇸"),
         }
         parent_view = _child_view(uuid, parent, host)
         child_view = _child_view(child_uid, LINKS[child_uid], host)
@@ -453,7 +454,7 @@ async def sub_group_subscription(uuid_key: str, request: Request):
         for lid in link_ids:
             link = LINKS.get(lid)
             if link and is_link_allowed(link):
-                bundle = generate_all_vless_links(lid, host, link["label"], link.get("used_bytes", 0), link.get("limit_bytes", 0), brand=not white_label)
+                bundle = generate_all_vless_links(lid, host, link["label"], link.get("used_bytes", 0), link.get("limit_bytes", 0), brand=not white_label, flag=link.get("flag", ""))
                 lines.extend(b["vless_link"] for b in bundle)
 
     content = base64.b64encode("\n".join(lines).encode()).decode()
@@ -616,6 +617,7 @@ async def create_link(request: Request, _=Depends(require_auth)):
     protocol = body.get("protocol") or DEFAULT_PROTOCOL
     if protocol not in PROTOCOLS:
         protocol = DEFAULT_PROTOCOL
+    flag = str(body.get("flag") or "🇺🇸").strip()[:8]
 
     uid = generate_uuid()
     async with LINKS_LOCK:
@@ -632,6 +634,7 @@ async def create_link(request: Request, _=Depends(require_auth)):
             "protocol": protocol,
             "parent_id": None,
             "white_label": False,
+            "flag": flag,
         }
 
     if sub_id:
@@ -666,7 +669,7 @@ async def list_links(_=Depends(require_auth)):
         # قبلاً فقط generate_vless_link (تک‌پروتکلی) صدا زده می‌شد و پنل هیچ
         # دسترسی‌ای به بسته‌ی کامل نداشت، برای همین دکمه‌ی کپی/QR توی خودِ
         # پنل هم فقط یک پروتکل را نشان می‌داد.
-        bundle = generate_all_vless_links(uid, host, d["label"], used_bytes, limit_bytes)
+        bundle = generate_all_vless_links(uid, host, d["label"], used_bytes, limit_bytes, flag=d.get("flag", ""))
         result.append({
             "uuid": uid,
             **d,
@@ -861,7 +864,7 @@ async def public_sub_data(uuid_key: str, request: Request):
         proto = link.get("protocol", DEFAULT_PROTOCOL)
         used_bytes = link.get("used_bytes", 0)
         limit_bytes = link.get("limit_bytes", 0)
-        bundle = generate_all_vless_links(lid, host, link["label"], used_bytes, limit_bytes, brand=not white_label)
+        bundle = generate_all_vless_links(lid, host, link["label"], used_bytes, limit_bytes, brand=not white_label, flag=link.get("flag", ""))
         links_out.append({
             "uuid": lid,
             "label": link["label"],
@@ -876,6 +879,7 @@ async def public_sub_data(uuid_key: str, request: Request):
             "vless_links": bundle,
             "sub_url": f"https://{host}/sub/{lid}",
             "connections": conn_count,
+            "flag": link.get("flag", ""),
         })
 
     total_used = sum(l["used_bytes"] for l in links_out)
