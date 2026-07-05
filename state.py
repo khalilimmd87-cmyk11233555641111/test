@@ -316,6 +316,22 @@ def parse_size_to_bytes(value: float, unit: str) -> int:
     if unit == "KB": return int(value * 1024)
     return int(value)
 
+# ✅ فیچر: سهمیه‌ی زمانی (ساعتی/روزی) — قبلاً انقضا فقط با «روز» قابل تنظیم
+# بود؛ حالا هر جایی که انقضا ست می‌شود، واحد «ساعت» هم پشتیبانی می‌شود تا
+# بشود مثلاً «۶ ساعت» یا «۱۲ ساعت» به‌جای حداقل «۱ روز» به یک کانفیگ داد.
+def parse_expiry_to_timedelta(value: float, unit: str):
+    from datetime import timedelta as _td
+    unit = (unit or "days").lower()
+    if value is None or value <= 0:
+        return None
+    if unit in ("hour", "hours", "h", "ساعت"):
+        return _td(hours=value)
+    if unit in ("day", "days", "d", "روز"):
+        return _td(days=value)
+    if unit in ("minute", "minutes", "m", "دقیقه"):
+        return _td(minutes=value)
+    return _td(days=value)
+
 def is_link_expired(link: dict) -> bool:
     exp = link.get("expires_at")
     if not exp:
@@ -335,7 +351,30 @@ def is_link_allowed(link: dict | None) -> bool:
     lb = link.get("limit_bytes", 0)
     if lb > 0 and link.get("used_bytes", 0) >= lb:
         return False
+    # ✅ فیچر «قفل گروهی»: اگر این کانفیگ عضو یک گروه (sub) قفل‌شده توسط
+    # ادمین باشد، صرف‌نظر از وضعیت active خودش، غیرفعال حساب می‌شود. با
+    # باز کردن قفل گروه، همه‌ی کانفیگ‌های عضو بلافاصله دوباره فعال می‌شوند
+    # بدون این‌که لازم باشد وضعیت active تک‌تکشان دستکاری/ذخیره شود.
+    sub_id = link.get("sub_id")
+    if sub_id:
+        sub = SUBS.get(sub_id)
+        if sub and sub.get("locked"):
+            return False
     return True
+
+def sub_permissions(sub_id: str | None) -> dict:
+    """اجازه‌های پیش‌فرض: True (رفتار قبلی حفظ می‌شود) مگر ادمین صریحاً
+    برای این گروه محدودش کرده باشد. اگر کانفیگ اصلاً عضو هیچ گروهی نباشد
+    (مثلاً لینک پیش‌فرض/شخصی خودِ ادمین)، محدودیتی اعمال نمی‌شود."""
+    if not sub_id:
+        return {"client_can_delete": True, "client_can_disable": True}
+    sub = SUBS.get(sub_id)
+    if not sub:
+        return {"client_can_delete": True, "client_can_disable": True}
+    return {
+        "client_can_delete": sub.get("client_can_delete", True),
+        "client_can_disable": sub.get("client_can_disable", True),
+    }
 
 def client_ip(conn) -> str:
     """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه.
