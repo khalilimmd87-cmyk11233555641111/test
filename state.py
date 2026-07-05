@@ -288,20 +288,21 @@ def quota_suffix(used_bytes: int, limit_bytes: int) -> str:
     limit = "∞" if not limit_bytes else fmt_bytes(limit_bytes).replace(" ", "")
     return f"{used}/{limit}"
 
-def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int = 0, limit_bytes: int = 0, brand: bool = True) -> list[dict]:
+def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int = 0, limit_bytes: int = 0, brand: bool = True, flag: str = "") -> list[dict]:
     """برای یک لینک، هر سه پروتکل کارکردی (WS + دو مد XHTTP) را با remark
     یکسان (شامل حجم دقیق مصرف/سهمیه) می‌سازد — همان چیزی که در ساب باندل
     می‌شود تا کلاینت هر سه را همزمان ببیند و اگر یکی فیلتر شد، بقیه در دسترس
     باشند.
 
-    brand=False → بدون پیشوند «تیم‌آزادی-» در remark؛ برای ساب‌های سفید-برند
-    (تقسیم‌شده و هدیه‌داده‌شده به دیگران) که نباید هیچ نشانی از برند اصلی
-    حتی داخل خودِ اسم کانفیگ توی اپ کلاینت داشته باشند."""
+    brand=False → بدون پیشوند «تیم‌آزادی-» در remark؛ برای ساب‌های سفید-برند.
+    flag → پرچم کشور سرور (مثلاً 🇺🇸) که ابتدای remark اضافه می‌شود تا داخل
+    اپ کلاینت هم مشخص باشد کانفیگ مربوط به کدام کشور است."""
     quota = quota_suffix(used_bytes, limit_bytes)
     prefix = "تیم‌آزادی-" if brand else ""
+    flag_prefix = f"{flag}-" if flag else ""
     out = []
     for proto in ACTIVE_PROTOCOLS:
-        remark = f"{prefix}{label}-{_PROTOCOL_TAG[proto]}-{quota}"
+        remark = f"{flag_prefix}{prefix}{label}-{_PROTOCOL_TAG[proto]}-{quota}"
         out.append({
             "protocol": proto,
             "vless_link": generate_vless_link(uuid, host, remark=remark, protocol=proto),
@@ -431,6 +432,7 @@ async def ensure_default_link():
                     "protocol": DEFAULT_PROTOCOL,
                     "parent_id": None,
                     "white_label": False,
+                    "flag": "🇺🇸",
                 }
                 asyncio.create_task(save_state())
         _default_link_created = True
