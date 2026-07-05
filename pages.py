@@ -2411,6 +2411,7 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     expired = link_data.get("expired", False)
     created_at = link_data.get("created_at", "")
     protocol = link_data.get("protocol", "vless-ws")
+    white_label = bool(link_data.get("white_label"))
     
     # نمایش پروتکل به فارسی
     proto_names = {
@@ -2424,11 +2425,20 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     pct = 0 if limit_bytes == 0 else min(100, used_bytes / limit_bytes * 100)
     bar_color = "var(--red)" if pct > 90 else ("var(--amber)" if pct > 70 else "var(--green)")
 
+    page_title = label if white_label else f"{label} · تیم آزادی"
+    header_brand_html = "" if white_label else f"""
+    <div class="brand">
+      <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
+      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
+    </div>"""
+    header_tg_html = "" if white_label else '<a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-soft);font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>'
+    footer_html = "" if white_label else '<div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · تیم آزادی Gateway v10.0</div>'
+
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{label} · تیم آزادی</title>
+<title>{page_title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -2561,6 +2571,24 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 .proto-tab.on{{background:var(--accent);color:#fff;border-color:var(--accent)}}
 .footer{{text-align:center;padding-top:30px;font-size:11px;color:var(--text-muted)}}
 .footer a{{color:var(--accent-soft);font-weight:600}}
+.split-card{{background:linear-gradient(135deg,rgba(157,123,240,.10),rgba(59,130,246,.04));border:1px solid rgba(157,123,240,.22);border-radius:20px;padding:22px;margin-bottom:20px}}
+.split-head{{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px;font-weight:700}}
+.split-head i{{color:#c4b5fd;font-size:17px}}
+.split-sub-note{{font-size:11.5px;color:var(--text-muted);line-height:1.8;margin-bottom:14px}}
+.split-form{{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:10px}}
+.split-form input,.split-form select,#split-label{{font-family:inherit;font-size:12.5px;padding:10px 12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,.18);color:var(--text-primary);outline:none;width:100%}}
+.split-form input:focus,.split-form select:focus,#split-label:focus{{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(157,123,240,.15)}}
+.split-err{{color:#fca5a5;font-size:11px;margin-bottom:10px;display:none;align-items:center;gap:5px}}
+.split-err.show{{display:flex}}
+.split-result{{background:var(--green-bg);border:1px solid rgba(16,185,129,.3);border-radius:14px;padding:14px 16px;margin-top:14px;display:none}}
+.split-result.show{{display:block}}
+.split-result-title{{font-size:12px;font-weight:700;color:#34D399;display:flex;align-items:center;gap:6px;margin-bottom:9px}}
+.split-result-url{{font-family:ui-monospace,monospace;font-size:10px;color:var(--text-secondary);word-break:break-all;background:rgba(0,0,0,.15);border-radius:9px;padding:9px 11px;margin-bottom:9px}}
+.child-item{{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(0,0,0,.14);border-radius:11px;padding:10px 13px;margin-top:9px;font-size:11.5px}}
+.child-item-name{{font-weight:700}}
+.child-item-meta{{color:var(--text-muted);font-size:10.5px;margin-top:2px}}
+.child-revoke{{background:var(--red-bg);color:#fca5a5;border:none;border-radius:8px;padding:6px 10px;font-size:10.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px}}
+.children-title{{font-size:11px;font-weight:700;color:var(--text-muted);margin-top:16px;margin-bottom:4px}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
 </style>
 </head>
@@ -2576,11 +2604,8 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
 </div>
 <div class="wrap">
   <div class="top">
-    <div class="brand">
-      <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
-      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
-    </div>
-    <a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-soft);font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>
+    {header_brand_html}
+    {header_tg_html}
   </div>
 
   <div class="hero">
@@ -2612,10 +2637,32 @@ html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',san
     </div>
   </div>
 
-  <div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · تیم آزادی Gateway v10.0</div>
+  <div class="split-card">
+    <div class="split-head"><i class="ti ti-gift"></i><span>جدا کردن حجم و ساخت کانفیگ هدیه</span></div>
+    <div class="split-sub-note">می‌تونی بخشی از سهمیه‌ی همین کانفیگ رو جدا کنی و به یک کانفیگ کاملاً مستقل و بدون هیچ برند/لوگویی تبدیل کنی تا به هرکسی بدی. حجم جداشده از سهمیه‌ی خودت کم می‌شه.</div>
+    <div class="split-form">
+      <input id="split-val" type="number" min="0" step="0.1" placeholder="مقدار (مثلاً 5)">
+      <select id="split-unit"><option value="GB">GB</option><option value="MB">MB</option></select>
+    </div>
+    <input id="split-label" style="margin-bottom:12px" placeholder="اسم کانفیگ هدیه (اختیاری)">
+    <div class="split-err" id="split-err"><i class="ti ti-alert-circle"></i><span id="split-err-txt"></span></div>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center;background:rgba(157,123,240,.12);color:#c4b5fd;border-color:rgba(157,123,240,.25)" onclick="submitSplitLink()"><i class="ti ti-gift"></i> جدا کردن و ساخت کانفیگ هدیه</button>
+    <div class="split-result" id="split-result">
+      <div class="split-result-title"><i class="ti ti-circle-check"></i> کانفیگ هدیه ساخته شد ✓ (بدون هیچ لوگو/نامی)</div>
+      <div class="split-result-url" id="split-result-url"></div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="copySplitLinkUrl()"><i class="ti ti-copy"></i> کپی لینک</button>
+        <button class="btn btn-ghost" onclick="window.open(window._rvgSplitUrl,'_blank')"><i class="ti ti-external-link"></i> باز کردن</button>
+      </div>
+    </div>
+    <div id="children-list"></div>
+  </div>
+
+  {footer_html}
 </div>
 
 <script>
+const LINK_UUID='{uuid}';
 const VLESS_BUNDLE = {vless_links_json};
 const PROTO_TAG={{'vless-ws':'VLESS · WS','xhttp-packet-up':'XHTTP · packet-up','xhttp-stream-up':'XHTTP · stream-up','xhttp-stream-one':'XHTTP ULTRA'}};
 let curProtoIdx = Math.max(0, VLESS_BUNDLE.findIndex(b=>b.protocol==={protocol!r}));
@@ -2644,5 +2691,61 @@ function showQR(){{
   document.getElementById('qr-modal').classList.add('open');
 }}
 renderProtoTabs();
+
+function fmtB(b){{if(!b||b===0)return '0 B';if(b<1024)return b+' B';if(b<1024**2)return (b/1024).toFixed(1)+' KB';if(b<1024**3)return (b/1024**2).toFixed(2)+' MB';return (b/1024**3).toFixed(2)+' GB'}}
+function esc(s){{return String(s||'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
+
+async function submitSplitLink(){{
+  const errEl=document.getElementById('split-err'), errTxt=document.getElementById('split-err-txt');
+  errEl.classList.remove('show');
+  const amount=document.getElementById('split-val').value;
+  const unit=document.getElementById('split-unit').value;
+  const label=document.getElementById('split-label').value.trim();
+  if(!amount||Number(amount)<=0){{errTxt.textContent='یک مقدار معتبر وارد کن';errEl.classList.add('show');return}}
+  try{{
+    const r=await fetch('/api/public/split/'+LINK_UUID,{{method:'POST',headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{amount,unit,label}})}});
+    const data=await r.json();
+    if(!r.ok){{errTxt.textContent=data.detail||'خطا در ساخت کانفیگ هدیه';errEl.classList.add('show');return}}
+    window._rvgSplitUrl=data.child.sub_url;
+    document.getElementById('split-result-url').textContent=data.child.sub_url;
+    document.getElementById('split-result').classList.add('show');
+    toast('کانفیگ هدیه ساخته شد ✓','ok');
+    document.getElementById('split-val').value='';document.getElementById('split-label').value='';
+    loadChildren();
+  }}catch(e){{errTxt.textContent='خطا در ارتباط با سرور';errEl.classList.add('show')}}
+}}
+function copySplitLinkUrl(){{
+  navigator.clipboard.writeText(window._rvgSplitUrl||'').then(()=>toast('لینک کپی شد ✓','ok'));
+}}
+async function loadChildren(){{
+  try{{
+    const r=await fetch('/api/public/children/'+LINK_UUID);
+    const {{children=[]}}=await r.json();
+    const box=document.getElementById('children-list');
+    if(!children.length){{box.innerHTML='';return}}
+    box.innerHTML='<div class="children-title">کانفیگ‌های هدیه‌داده‌شده ('+children.length+')</div>'+
+      children.map(c=>`
+        <div class="child-item">
+          <div>
+            <div class="child-item-name">${{esc(c.label)}}</div>
+            <div class="child-item-meta">${{esc(c.used_fmt)}} از ${{esc(c.limit_fmt)}} · ${{c.active&&!c.expired?'فعال':'غیرفعال'}}</div>
+          </div>
+          <button class="child-revoke" onclick="revokeChild('${{c.uuid}}')"><i class="ti ti-trash"></i> لغو</button>
+        </div>
+      `).join('');
+  }}catch(e){{}}
+}}
+async function revokeChild(childUuid){{
+  if(!confirm('این کانفیگ هدیه لغو شود؟ حجم مصرف‌نشده‌اش به خودت برمی‌گردد.'))return;
+  try{{
+    const r=await fetch('/api/public/split/'+LINK_UUID+'/'+childUuid,{{method:'DELETE'}});
+    if(!r.ok)throw new Error();
+    toast('لغو شد، حجم برگشت ✓','ok');
+    loadChildren();
+    setTimeout(()=>location.reload(),1200);
+  }}catch(e){{toast('خطا در لغو','')}}
+}}
+loadChildren();
 </script>
 </body></html>"""
