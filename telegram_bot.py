@@ -15,11 +15,9 @@ from state import (
     is_link_allowed, is_link_expired, fmt_bytes, parse_size_to_bytes,
     parse_expiry_to_timedelta, get_host, log_activity, logger,
     DEFAULT_PROTOCOL, uptime,
-    # ✅ اضافه شده برای رفرال
     REFERRAL_SETTINGS, REFERRALS, REFERRALS_LOCK,
     USER_LINKS, generate_referral_code,
     check_channel_membership, create_link_from_referral,
-    get_referral_settings, update_referral_settings,
 )
 
 PAGE_SIZE = 6
@@ -94,7 +92,6 @@ async def _answer_cb(cb_id, text=None):
     await _api("answerCallbackQuery", payload)
 
 
-# ── قالب‌های نمایش ──────────────────────────────────────────────────────────────
 def _link_line(uid: str, d: dict) -> str:
     ok = is_link_allowed(d)
     dot = "🟢" if ok else "🔴"
@@ -110,7 +107,6 @@ def _main_menu_kb():
         [{"text": "📂 گروه‌های ساب", "callback_data": "m:subs:0"}],
     ]
     
-    # ✅ اگر سیستم رفرال فعال باشه، دکمه رفرال رو اضافه کن
     if REFERRAL_SETTINGS.get("enabled", False):
         kb.append([{"text": "🎁 دریافت کانفیگ رفرال", "callback_data": "m:referral"}])
     
@@ -126,7 +122,6 @@ async def _show_main_menu(chat_id, message_id=None):
         await _send(chat_id, text, kb)
 
 
-# ── لیست کانفیگ‌ها ──────────────────────────────────────────────────────────────
 async def _show_list(chat_id, message_id, page: int):
     async with LINKS_LOCK:
         items = sorted(LINKS.items(), key=lambda kv: kv[1].get("created_at", ""), reverse=True)
@@ -189,9 +184,7 @@ async def _show_link_detail(chat_id, message_id, uid: str):
     await _edit(chat_id, message_id, text, kb)
 
 
-# ── تابع: فقط لینک ساب ────────────────────────────────────────────────────────
 async def _send_link_and_qr(chat_id, uid: str):
-    """ارسال لینک ساب (فقط ساب، بدون QR و بدون VLESS link)"""
     try:
         async with LINKS_LOCK:
             d = LINKS.get(uid)
@@ -215,7 +208,6 @@ async def _send_link_and_qr(chat_id, uid: str):
         await _send(chat_id, "❌ خطا در دریافت لینک. لطفاً دوباره تلاش کنید.")
 
 
-# ── ساخت کانفیگ جدید (ویزارد) ───────────────────────────────────────────────────
 QUOTA_OPTIONS = [("1GB", 1), ("5GB", 5), ("10GB", 10), ("20GB", 20), ("50GB", 50), ("100GB", 100), ("∞ نامحدود", 0)]
 EXPIRY_OPTIONS = [("بدون انقضا", None), ("۱ روز", 1), ("۷ روز", 7), ("۳۰ روز", 30)]
 
@@ -285,7 +277,6 @@ async def _wizard_finish(chat_id, message_id=None):
         await _send(chat_id, text, kb)
 
 
-# ── stats و جستجو ───────────────────────────────────────────────────────────────
 async def _show_stats(chat_id, message_id):
     async with LINKS_LOCK:
         total = len(LINKS)
@@ -302,12 +293,9 @@ async def _show_stats(chat_id, message_id):
     await _edit(chat_id, message_id, text, [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]])
 
 
-# ── تابع نمایش منوی رفرال ─────────────────────────────────────────────────────
 async def _show_referral_menu(chat_id, message_id=None):
-    """نمایش منوی رفرال برای کاربر"""
     user_id = str(chat_id)
     
-    # بررسی عضویت در کانال
     if REFERRAL_SETTINGS.get("channel_required", True):
         is_member = await check_channel_membership(user_id)
         if not is_member:
@@ -325,7 +313,6 @@ async def _show_referral_menu(chat_id, message_id=None):
                 await _send(chat_id, text, kb)
             return
     
-    # بررسی تعداد کانفیگ‌های کاربر
     user_links = USER_LINKS.get(user_id, [])
     max_links = REFERRAL_SETTINGS.get("max_links_per_user", 3)
     remaining = max(0, max_links - len(user_links))
@@ -344,7 +331,6 @@ async def _show_referral_menu(chat_id, message_id=None):
             await _send(chat_id, text, kb)
         return
     
-    # تولید یا دریافت کد رفرال
     async with REFERRALS_LOCK:
         existing_code = None
         for code, data in REFERRALS.items():
@@ -361,7 +347,6 @@ async def _show_referral_menu(chat_id, message_id=None):
             }
             await schedule_save()
     
-    # تعداد رفرال‌های استفاده‌شده
     used_count = len(REFERRALS.get(existing_code, {}).get("used_by", []))
     referral_limit = REFERRAL_SETTINGS.get("referral_limit", 5)
     
@@ -402,9 +387,7 @@ https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"""
         await _send(chat_id, text, kb)
 
 
-# ── پردازش رفرال هنگام استارت ────────────────────────────────────────────────
 async def _handle_referral_start(chat_id, ref_code: str):
-    """پردازش رفرال هنگام استارت بات با کد رفرال"""
     user_id = str(chat_id)
     
     async with REFERRALS_LOCK:
@@ -414,23 +397,19 @@ async def _handle_referral_start(chat_id, ref_code: str):
             await _show_main_menu(chat_id)
             return
         
-        # بررسی اینکه آیا کاربر قبلاً از این کد استفاده کرده
         if user_id in ref_data.get("used_by", []):
             await _send(chat_id, "⚠️ شما قبلاً با این لینک رفرال ثبت‌نام کرده‌اید.")
             await _show_main_menu(chat_id)
             return
         
-        # بررسی محدودیت رفرال
         if len(ref_data.get("used_by", [])) >= REFERRAL_SETTINGS.get("referral_limit", 5):
             await _send(chat_id, "❌ این لینک رفرال به حداکثر تعداد خود رسیده است.")
             await _show_main_menu(chat_id)
             return
         
-        # ثبت رفرال
         ref_data.setdefault("used_by", []).append(user_id)
         await schedule_save()
     
-    # بررسی عضویت در کانال
     if REFERRAL_SETTINGS.get("channel_required", True):
         is_member = await check_channel_membership(user_id)
         if not is_member:
@@ -449,7 +428,6 @@ async def _handle_referral_start(chat_id, ref_code: str):
             await _send(chat_id, text, kb)
             return
     
-    # ساخت کانفیگ برای کاربر
     uid = await create_link_from_referral(user_id)
     if uid:
         host = get_host()
@@ -481,12 +459,10 @@ https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"""
         await _send(chat_id, "❌ خطا در ساخت کانفیگ. لطفاً دوباره تلاش کنید.")
 
 
-# ── مسیریابی پیام‌های متنی ──────────────────────────────────────────────────────
 async def _handle_text(chat_id, text):
     w = _wizard.get(str(chat_id))
     text = (text or "").strip()
     
-    # ✅ بررسی رفرال در دستور /start
     if text.startswith("/start"):
         parts = text.split()
         if len(parts) > 1:
@@ -495,7 +471,6 @@ async def _handle_text(chat_id, text):
                 await _handle_referral_start(chat_id, ref_code)
                 return
         
-        # /start معمولی
         await _show_main_menu(chat_id)
         return
 
@@ -555,7 +530,6 @@ async def _handle_text(chat_id, text):
         await _send(chat_id, f"✅ {extra_gb}GB اضافه شد.", [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]])
 
 
-# ── مسیریابی دکمه‌های اینلاین ────────────────────────────────────────────────────
 async def _handle_callback(chat_id, message_id, cb_id, data):
     await _answer_cb(cb_id)
     if data == "noop":
@@ -575,11 +549,8 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
         await _edit(chat_id, message_id, "🔍 بخشی از اسم کانفیگ رو بفرست:", [[{"text": "❌ انصراف", "callback_data": "m:main"}]])
     elif data.startswith("m:subs:"):
         await _show_subs(chat_id, message_id, int(data.split(":")[2]))
-
-    # ✅ دکمه‌های رفرال
     elif data == "m:referral":
         await _show_referral_menu(chat_id, message_id)
-        
     elif data == "m:referral_check":
         user_id = str(chat_id)
         is_member = await check_channel_membership(user_id)
@@ -588,18 +559,15 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
         else:
             channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
             await _edit(chat_id, message_id, f"❌ شما هنوز در کانال تیم آزادی عضو نشده‌اید.\n\n📢 لطفاً عضو شوید:\nhttps://t.me/{channel}", [[{"text": "🔄 بررسی مجدد", "callback_data": "m:referral_check"}]])
-
     elif data.startswith("m:referral_copy:"):
         code = data.split(":", 2)[2]
         bot_username = TELEGRAM_SETTINGS.get("bot_username", "bot")
         await _send(chat_id, f"🔗 لینک رفرال شما کپی شد!\n\n<code>https://t.me/{bot_username}?start=ref_{code}</code>")
         await _show_referral_menu(chat_id, message_id)
-
     elif data.startswith("m:referral_claim:"):
         ref_code = data.split(":", 2)[2]
         user_id = str(chat_id)
         
-        # بررسی عضویت
         if REFERRAL_SETTINGS.get("channel_required", True):
             is_member = await check_channel_membership(user_id)
             if not is_member:
@@ -607,7 +575,6 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
                 await _edit(chat_id, message_id, f"❌ شما هنوز در کانال عضو نشده‌اید.\n\n📢 لطفاً عضو شوید:\nhttps://t.me/{channel}", [[{"text": "🔄 بررسی مجدد", "callback_data": f"m:referral_claim:{ref_code}"}]])
                 return
         
-        # ساخت کانفیگ
         uid = await create_link_from_referral(user_id)
         if uid:
             host = get_host()
@@ -633,15 +600,12 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
             await _edit(chat_id, message_id, text, kb)
         else:
             await _edit(chat_id, message_id, "❌ خطا در ساخت کانفیگ. لطفاً دوباره تلاش کنید.", [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]])
-
     elif data.startswith("m:copy:"):
         uid = data.split(":", 2)[2]
         host = get_host()
         if not host or host == "localhost":
             host = "mmd-mimi-mikham.up.railway.app"
         await _send(chat_id, f"✅ لینک ساب کپی شد!\n\n<code>https://{host}/sub/{uid}</code>")
-
-    # ── دکمه‌های قدیمی ──────────────────────────────────────────────────────────
     elif data.startswith("q:"):
         val = data[2:]
         w = _wizard.get(str(chat_id))
@@ -654,7 +618,6 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
             w["data"]["quota_gb"] = float(val)
             w["step"] = "expiry"
             await _wizard_ask_expiry(chat_id, message_id)
-
     elif data.startswith("e:"):
         val = data[2:]
         w = _wizard.get(str(chat_id))
@@ -666,7 +629,6 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
         else:
             w["data"]["expiry_days"] = float(val) if val != "0" else None
             await _wizard_finish(chat_id, message_id)
-
     elif data.startswith("l:"):
         await _show_link_detail(chat_id, message_id, data[2:])
     elif data.startswith("lt:"):
@@ -755,7 +717,6 @@ async def _toggle_sub_lock(chat_id, message_id, sub_id):
     await _show_subs(chat_id, message_id, 0)
 
 
-# ── حلقه‌ی اصلی long-polling ─────────────────────────────────────────────────────
 async def _process_update(update: dict):
     try:
         if "callback_query" in update:
