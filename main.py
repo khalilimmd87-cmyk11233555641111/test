@@ -31,6 +31,10 @@ from state import (
     is_device_allowed, TELEGRAM_SETTINGS, daily_traffic, link_daily_traffic,
 )
 
+# ایمپورت ربات تلگرام
+from telegram_bot import router as telegram_router
+import telegram_bot
+
 # ✅ امنیت: به‌جای CORS باز (allow_origins=["*"] + allow_credentials=True که
 # ترکیب خطرناکی‌ست و می‌تواند کوکی سشن را در معرض هر سایتی بگذارد)، فقط
 # دامنه‌ی واقعی سرویس (و هر چیزی که صریحاً در ALLOWED_ORIGINS ست شود) مجاز است.
@@ -62,6 +66,9 @@ async def schedule_save():
     _save_task = asyncio.create_task(save_state())
 
 app = FastAPI(title="تیم آزادی Gateway", docs_url=None, redoc_url=None)
+
+# اضافه کردن روت‌های تلگرام
+app.include_router(telegram_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -182,8 +189,10 @@ async def startup():
         logger.warning("⚠️  ADMIN_PASSWORD در env تنظیم نشده؛ رمز پیش‌فرض در حال استفاده است. برای امنیت، آن را در متغیرهای محیطی ست کنید و/یا از پنل تغییر بدهید.")
     log_activity("system", "سرور راه‌اندازی شد", "ok")
     asyncio.create_task(telegram_notifier_loop())
-    import telegram_bot
-    asyncio.create_task(telegram_bot.polling_loop())
+    
+    # تنظیم Webhook تلگرام به جای polling
+    asyncio.create_task(telegram_bot.set_webhook())
+    
     logger.info(f"تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
