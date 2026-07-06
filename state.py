@@ -17,7 +17,7 @@ import secrets
 import time
 import aiofiles
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 from collections import deque, defaultdict
@@ -48,8 +48,6 @@ def _load_or_create_secret() -> str:
         secret_file.write_text(new_secret, encoding="utf-8")
         return new_secret
     except Exception:
-        # اگر دیسک در دسترس نبود (مثلاً محیط فقط-خواندنی)، حداقل برای طول عمر
-        # همین پردازه یک مقدار ثابت داشته باشیم.
         return secrets.token_urlsafe(32)
 
 CONFIG = {
@@ -74,8 +72,6 @@ stats = {
 error_logs: deque = deque(maxlen=50)
 activity_logs: deque = deque(maxlen=200)
 hourly_traffic: dict = defaultdict(int)
-# ✅ فیچر: مصرف روزانه — هم مجموع کل (برای نمودار کلی) و هم به تفکیک هر
-# کانفیگ (uid) تا بشه نمودار مصرف روزانه‌ی هر کانفیگ رو جدا رسم کرد.
 daily_traffic: dict = defaultdict(int)
 link_daily_traffic: dict = defaultdict(lambda: defaultdict(int))
 LINKS: dict = {}
@@ -83,34 +79,50 @@ LINKS_LOCK = asyncio.Lock()
 SUBS: dict = {}
 SUBS_LOCK = asyncio.Lock()
 
-# ✅ فیچر: نوتیفیکیشن تلگرام به مدیر — وقتی حجم/زمان یک کانفیگ داره تموم
-# می‌شه. توکن/چت‌آیدی از پنل تنظیم می‌شه، چیزی هاردکد نیست.
+# ── Telegram Settings ─────────────────────────────────────────────────────────
 TELEGRAM_SETTINGS = {
     "enabled": False,
     "bot_token": "",
     "chat_id": "",
-    "notify_quota_pct": 90,      # هشدار وقتی مصرف به این درصد از سقف رسید
-    "notify_expiry_hours": 24,   # هشدار وقتی این‌قدر ساعت به انقضا مونده
-    # ✅ فیچر: اگر DNS دامنه‌ی api.telegram.org روی سرور فیلتر/بلاک باشه
-    # (نه خودِ IP)، ادمین می‌تونه یک IP دستی بده تا مستقیم بهش وصل بشیم و
-    # فقط از دامنه برای SNI/Host (تطبیق گواهی TLS) استفاده کنیم.
+    "notify_quota_pct": 90,
+    "notify_expiry_hours": 24,
     "api_ip": "",
+    "bot_username": "",  # ✅ اضافه شد: نام کاربری بات برای لینک رفرال
 }
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ✅ تنظیمات جدید: سیستم رفرال و عضویت اجباری در کانال
+# ══════════════════════════════════════════════════════════════════════════════
+
+REFERRAL_SETTINGS = {
+    "enabled": False,                    # فعال/غیرفعال بودن سیستم رفرال
+    "channel_username": "TimAzadi",      # نام کاربری کانال اجباری (بدون @)
+    "channel_required": True,            # آیا عضویت در کانال اجباری است؟
+    "referral_reward_gb": 1,             # حجم جایزه به گیگابایت به ازای هر رفرال
+    "referral_reward_days": 7,           # مدت اعتبار کانفیگ به روز
+    "referral_limit": 5,                 # حداکثر تعداد رفرال برای هر کاربر
+    "max_links_per_user": 3,             # حداکثر تعداد کانفیگ برای هر کاربر
+    "bot_token": "",                     # توکن بات برای چک کردن عضویت (جدا از توکن اصلی)
+}
+
+# دیکشنری برای ذخیره رفرال‌ها
+REFERRALS: dict = {}  # {"referral_code": {"user_id": "xxx", "used_by": [], "created_at": ""}}
+REFERRALS_LOCK = asyncio.Lock()
+
+# دیکشنری برای ذخیره کاربران و کانفیگ‌های ساخته‌شده
+USER_LINKS: dict = {}  # {"user_id": ["link_uuid1", "link_uuid2"]}
+
+# ══════════════════════════════════════════════════════════════════════════════
+
 def record_traffic(uid: str, n: int):
-    """هم ترافیک ساعتی/کلی قبلی و هم ترافیک روزانه (کلی + به‌ازای هر کانفیگ)
-    را به‌روزرسانی می‌کند. صدا زدنش از داخل قفل LINKS_LOCK بی‌خطر است چون
-    فقط دیکشنری‌های درون‌حافظه‌ای را دستکاری می‌کند."""
     day_key = now_ir().strftime("%Y-%m-%d")
     daily_traffic[day_key] += n
     link_daily_traffic[uid][day_key] += n
 
-# پروتکل‌های پشتیبانی‌شده برای هر کانفیگ
 PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one", "trojan-ws")
 DEFAULT_PROTOCOL = "vless-ws"
 
 def log_activity(kind: str, message: str, level: str = "info"):
-    """ثبت یک رخداد در لاگ فعالیت‌ها (ساخت/حذف/ویرایش کانفیگ، ورود، و...)."""
     activity_logs.append({
         "kind": kind,
         "level": level,
@@ -121,14 +133,6 @@ def log_activity(kind: str, message: str, level: str = "info"):
 # ── Auth ──────────────────────────────────────────────────────────────────────
 SESSION_COOKIE = "rvg_session"
 SESSION_TTL = 60 * 60 * 24 * 7
-
-# ✅ امنیت: هش رمز از SHA256 ساده (سریع و در برابر brute-force ضعیف) به
-# PBKDF2-HMAC-SHA256 با salt تصادفی و ۲۶۰٬۰۰۰ round تغییر کرد. فرمت ذخیره:
-#   pbkdf2$<iterations>$<salt-hex>$<hash-hex>
-# سازگاری با نصب‌های قبلی حفظ شده: اگر هش ذخیره‌شده فرمت قدیمی
-# (sha256(pw+secret)) باشد، verify_password آن را هم قبول می‌کند و طبق کد
-# لاگین در main.py، بعد از اولین ورود موفق به‌صورت خودکار به فرمت جدید
-# ارتقا (migrate) پیدا می‌کند.
 PBKDF2_ITERATIONS = 260_000
 
 def hash_password(pw: str, salt: bytes | None = None) -> str:
@@ -138,7 +142,6 @@ def hash_password(pw: str, salt: bytes | None = None) -> str:
     return f"pbkdf2${PBKDF2_ITERATIONS}${salt.hex()}${dk.hex()}"
 
 def _hash_password_legacy(pw: str) -> str:
-    """فرمت قدیمی، فقط برای سازگاری با نصب‌های قبلی نگه داشته شده."""
     return hashlib.sha256(f"{pw}{CONFIG['secret']}".encode()).hexdigest()
 
 def verify_password(pw: str, stored: str | None) -> bool:
@@ -152,7 +155,6 @@ def verify_password(pw: str, stored: str | None) -> bool:
             return hmac.compare_digest(dk.hex(), hash_hex)
         except Exception:
             return False
-    # فرمت قدیمی (legacy) — sha256(pw + secret)
     return hmac.compare_digest(_hash_password_legacy(pw), stored)
 
 def is_legacy_hash(stored: str | None) -> bool:
@@ -163,15 +165,12 @@ SESSIONS: dict = {}
 SESSIONS_LOCK = asyncio.Lock()
 
 # ── Login rate limiting ───────────────────────────────────────────────────────
-# ✅ امنیت: محدودیت تلاش ورود بر اساس IP، برای مقابله با brute-force روی
-# رمز پنل (به‌خصوص وقتی رمز پیش‌فرض عوض نشده باشد).
 LOGIN_MAX_ATTEMPTS = 5
-LOGIN_WINDOW_SECONDS = 300  # ۵ دقیقه
+LOGIN_WINDOW_SECONDS = 300
 LOGIN_ATTEMPTS: dict = defaultdict(deque)
 LOGIN_RATE_LOCK = asyncio.Lock()
 
 async def check_login_rate_limit(ip: str) -> bool:
-    """True = هنوز اجازه‌ی تلاش دارد. تلاش‌های قدیمی‌تر از پنجره‌ی زمانی پاک می‌شوند."""
     now = time.time()
     async with LOGIN_RATE_LOCK:
         dq = LOGIN_ATTEMPTS[ip]
@@ -215,7 +214,7 @@ async def require_auth(request: Request):
 
 # ── Persistence I/O ───────────────────────────────────────────────────────────
 async def load_state():
-    global LINKS, AUTH, SUBS
+    global LINKS, AUTH, SUBS, REFERRALS, USER_LINKS, REFERRAL_SETTINGS
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -228,7 +227,14 @@ async def load_state():
                 AUTH["password_hash"] = data["password_hash"]
             if "telegram_settings" in data:
                 TELEGRAM_SETTINGS.update(data["telegram_settings"])
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs")
+            # ✅ بارگذاری تنظیمات رفرال
+            if "referral_settings" in data:
+                REFERRAL_SETTINGS.update(data["referral_settings"])
+            if "referrals" in data:
+                REFERRALS.update(data["referrals"])
+            if "user_links" in data:
+                USER_LINKS.update(data["user_links"])
+            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(REFERRALS)} referrals")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
 
@@ -241,6 +247,9 @@ async def save_state():
                 "subs": dict(SUBS),
                 "password_hash": AUTH["password_hash"],
                 "telegram_settings": TELEGRAM_SETTINGS,
+                "referral_settings": REFERRAL_SETTINGS,
+                "referrals": REFERRALS,
+                "user_links": USER_LINKS,
                 "saved_at": datetime.now().isoformat(),
             }
             tmp = DATA_FILE.with_suffix(".tmp")
@@ -262,12 +271,8 @@ def now_ir() -> datetime:
     return datetime.now(IRAN_TZ)
 
 def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی", protocol: str = DEFAULT_PROTOCOL) -> str:
-    """می‌سازد VLESS/Trojan share-link متناسب با پروتکل انتخاب‌شده (WS کلاسیک،
-    یکی از مدهای XHTTP، یا Trojan روی WS)."""
     from urllib.parse import quote
     if protocol == "trojan-ws":
-        # ✅ فیچر: کانفیگ Trojan — پسورد همان UUID کانفیگ است (روی سیم به‌صورت
-        # SHA224-hex فرستاده می‌شود، خودِ کلاینت این هش را انجام می‌دهد).
         path = f"/ws/{uuid}"
         params = {
             "security": "tls",
@@ -293,8 +298,7 @@ def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی",
             "alpn": "http/1.1",
         }
     else:
-        # xhttp-packet-up / xhttp-stream-up / xhttp-stream-one
-        mode = protocol.replace("xhttp-", "")  # packet-up | stream-up | stream-one
+        mode = protocol.replace("xhttp-", "")
         path = f"/xhttp-siz10/{mode}/{uuid}"
         params = {
             "encryption": "none",
@@ -321,29 +325,17 @@ def fmt_bytes(b: int) -> str:
     if b < 1024**3: return f"{b/1024**2:.2f} MB"
     return f"{b/1024**3:.2f} GB"
 
-# پروتکل‌هایی که واقعاً روی این استک کار می‌کنند (xhttp-stream-one در PROTOCOLS
-# نگه داشته شده برای سازگاری با نصب‌های قبلی، ولی route ندارد و همیشه 404
-# می‌دهد — عمداً از باندل خودکار ساب کنار گذاشته شده تا کانفیگ خراب پخش نشود).
 ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "trojan-ws")
 _PROTOCOL_TAG = {"vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S", "trojan-ws": "TROJAN"}
 
 def quota_suffix(used_bytes: int, limit_bytes: int) -> str:
-    """رشته‌ی حجم دقیق برای نمایش در remark لینک/QR، مثلاً «12.3GB/100GB» یا «12.3GB/∞»."""
     used = fmt_bytes(used_bytes).replace(" ", "")
     limit = "∞" if not limit_bytes else fmt_bytes(limit_bytes).replace(" ", "")
     return f"{used}/{limit}"
 
 def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int = 0, limit_bytes: int = 0, brand: bool = True, flag: str = "") -> list[dict]:
-    """برای یک لینک، هر سه پروتکل کارکردی (WS + دو مد XHTTP) را با remark
-    یکسان (شامل حجم دقیق مصرف/سهمیه) می‌سازد — همان چیزی که در ساب باندل
-    می‌شود تا کلاینت هر سه را همزمان ببیند و اگر یکی فیلتر شد، بقیه در دسترس
-    باشند.
-
-    brand=False → بدون پیشوند «تیم‌آزادی-» در remark؛ برای ساب‌های سفید-برند.
-    flag → پرچم کشور سرور (مثلاً 🇺🇸) که ابتدای remark اضافه می‌شود تا داخل
-    اپ کلاینت هم مشخص باشد کانفیگ مربوط به کدام کشور است."""
     quota = quota_suffix(used_bytes, limit_bytes)
-    prefix = "تیم‌آزادی-" if brand else ""
+    prefix = "تیم-آزادی-" if brand else ""
     flag_prefix = f"{flag}-" if flag else ""
     out = []
     for proto in ACTIVE_PROTOCOLS:
@@ -361,9 +353,6 @@ def parse_size_to_bytes(value: float, unit: str) -> int:
     if unit == "KB": return int(value * 1024)
     return int(value)
 
-# ✅ فیچر: سهمیه‌ی زمانی (ساعتی/روزی) — قبلاً انقضا فقط با «روز» قابل تنظیم
-# بود؛ حالا هر جایی که انقضا ست می‌شود، واحد «ساعت» هم پشتیبانی می‌شود تا
-# بشود مثلاً «۶ ساعت» یا «۱۲ ساعت» به‌جای حداقل «۱ روز» به یک کانفیگ داد.
 def parse_expiry_to_timedelta(value: float, unit: str):
     from datetime import timedelta as _td
     unit = (unit or "days").lower()
@@ -396,10 +385,6 @@ def is_link_allowed(link: dict | None) -> bool:
     lb = link.get("limit_bytes", 0)
     if lb > 0 and link.get("used_bytes", 0) >= lb:
         return False
-    # ✅ فیچر «قفل گروهی»: اگر این کانفیگ عضو یک گروه (sub) قفل‌شده توسط
-    # ادمین باشد، صرف‌نظر از وضعیت active خودش، غیرفعال حساب می‌شود. با
-    # باز کردن قفل گروه، همه‌ی کانفیگ‌های عضو بلافاصله دوباره فعال می‌شوند
-    # بدون این‌که لازم باشد وضعیت active تک‌تکشان دستکاری/ذخیره شود.
     sub_id = link.get("sub_id")
     if sub_id:
         sub = SUBS.get(sub_id)
@@ -408,12 +393,6 @@ def is_link_allowed(link: dict | None) -> bool:
     return True
 
 def is_device_allowed(uid: str, ip: str) -> bool:
-    """✅ فیچر: محدودیت تعداد دستگاه/IP هم‌زمان روی هر کانفیگ. ادمین از پنل
-    برای هر کانفیگ یک عدد «حداکثر دستگاه» (max_devices) ست می‌کند؛ ۰ یعنی
-    نامحدود (رفتار قبلی، بدون تغییر). واحد شمارش، تعداد IPهای یکتای در حال
-    حاضر متصل است، نه تعداد اتصالات خام — چون یک کلاینت VLESS معمولاً چند
-    سوکت هم‌زمان برای همون یک دستگاه باز می‌کند و شمردن آن‌ها به‌عنوان
-    «دستگاه‌های جدا» غیرمنصفانه بود."""
     link = LINKS.get(uid)
     if not link:
         return False
@@ -426,9 +405,6 @@ def is_device_allowed(uid: str, ip: str) -> bool:
     return len(current_ips) < max_devices
 
 def sub_permissions(sub_id: str | None) -> dict:
-    """اجازه‌های پیش‌فرض: True (رفتار قبلی حفظ می‌شود) مگر ادمین صریحاً
-    برای این گروه محدودش کرده باشد. اگر کانفیگ اصلاً عضو هیچ گروهی نباشد
-    (مثلاً لینک پیش‌فرض/شخصی خودِ ادمین)، محدودیتی اعمال نمی‌شود."""
     if not sub_id:
         return {"client_can_delete": True, "client_can_disable": True}
     sub = SUBS.get(sub_id)
@@ -440,20 +416,6 @@ def sub_permissions(sub_id: str | None) -> dict:
     }
 
 def client_ip(conn) -> str:
-    """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه.
-    ✅ یکی‌سازی شد: قبلاً این منطق در main.py/state.py، relay_vless.py و
-    xhttp_siz10.py سه بار جدا تکرار شده بود. هم برای fastapi.Request و هم
-    برای fastapi.WebSocket کار می‌کند (هر دو .headers و .client دارند).
-
-    🐛 باگ امنیتی رفع‌شده: قبلاً اولین مقدار X-Forwarded-For (`split(",")[0]`)
-    برداشته می‌شد. در یک زنجیره‌ی X-Forwarded-For، اولین مقدار همان چیزی است
-    که خودِ کلاینت (یا هر پراکسی قبلی) اعلام کرده و کاملاً قابل جعل است —
-    مثلاً با curl -H "X-Forwarded-For: 1.2.3.4" هرکسی می‌توانست IP دلخواه
-    نشان‌داده‌شده در داشبورد را تغییر بدهد و مهم‌تر از آن، rate-limit ورود به
-    پنل (که بر اساس IP است) را با چرخوندن این هدر در هر تلاش، کاملاً دور بزند.
-    فقط یک پراکسی مورد اعتماد (لبه‌ی Railway/Cloudflare) بین کلاینت و این
-    سرویس وجود دارد و آن پراکسی IP واقعی را به‌عنوان آخرین مقدار زنجیره
-    اضافه می‌کند؛ پس آخرین مقدار قابل‌اعتماد است، نه اولین."""
     fwd = conn.headers.get("x-forwarded-for")
     if fwd:
         parts = [p.strip() for p in fwd.split(",") if p.strip()]
@@ -465,10 +427,7 @@ def client_ip(conn) -> str:
     client = getattr(conn, "client", None)
     return client.host if client else "نامشخص"
 
-# ── SSRF protection برای /proxy ────────────────────────────────────────────────
-# ✅ امنیت: قبلاً /proxy/{target_url} با هر URL دلخواه (حتی IPهای داخلی/متادیتای
-# کلود مثل 169.254.169.254) کار می‌کرد. این تابع IPهای خصوصی/لوکال/متادیتا رو
-# چه به‌صورت literal و چه بعد از DNS resolve مسدود می‌کند.
+# ── SSRF protection ────────────────────────────────────────────────────────────
 _BLOCKED_PROXY_HOSTNAMES = {
     "metadata.google.internal", "metadata", "metadata.azure.com",
     "instance-data", "localhost",
@@ -493,7 +452,7 @@ async def is_blocked_proxy_target(url: str) -> bool:
         ip = ipaddress.ip_address(host)
         return _is_blocked_ip(ip)
     except ValueError:
-        pass  # هاست‌نیم است نه IP لیترال؛ باید resolve کنیم (محافظت در برابر DNS rebinding)
+        pass
     try:
         loop = asyncio.get_event_loop()
         infos = await loop.getaddrinfo(host, None)
@@ -506,7 +465,6 @@ async def is_blocked_proxy_target(url: str) -> bool:
                 continue
         return False
     except Exception:
-        # اگر resolve نشد، برای احتیاط مسدودش کن
         return True
 
 # ── Default link ──────────────────────────────────────────────────────────────
@@ -538,3 +496,110 @@ async def ensure_default_link():
                 }
                 asyncio.create_task(save_state())
         _default_link_created = True
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ✅ توابع سیستم رفرال و عضویت در کانال
+# ══════════════════════════════════════════════════════════════════════════════
+
+def generate_referral_code(user_id: str) -> str:
+    """تولید کد رفرال یکتا برای هر کاربر"""
+    return secrets.token_urlsafe(8)
+
+def get_referral_settings() -> dict:
+    """دریافت تنظیمات رفرال"""
+    return dict(REFERRAL_SETTINGS)
+
+def update_referral_settings(data: dict):
+    """بروزرسانی تنظیمات رفرال"""
+    for key, value in data.items():
+        if key in REFERRAL_SETTINGS:
+            if isinstance(REFERRAL_SETTINGS[key], bool):
+                REFERRAL_SETTINGS[key] = bool(value)
+            elif isinstance(REFERRAL_SETTINGS[key], int):
+                REFERRAL_SETTINGS[key] = int(value)
+            else:
+                REFERRAL_SETTINGS[key] = str(value).strip()
+
+async def check_channel_membership(user_id: str) -> bool:
+    """
+    بررسی عضویت کاربر در کانال تیم آزادی
+    نیاز به توکن بات برای فراخوانی API تلگرام
+    """
+    if not REFERRAL_SETTINGS.get("channel_required", True):
+        return True
+    
+    bot_token = REFERRAL_SETTINGS.get("bot_token", "")
+    channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
+    
+    if not bot_token:
+        return True  # اگر توکن نباشه، چک نمیکنه
+    
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            url = f"https://api.telegram.org/bot{bot_token}/getChatMember"
+            resp = await client.post(url, json={
+                "chat_id": f"@{channel}",
+                "user_id": int(user_id)
+            }, timeout=10.0)
+            
+            data = resp.json()
+            if data.get("ok"):
+                status = data.get("result", {}).get("status")
+                return status in ["member", "administrator", "creator"]
+            return False
+    except Exception:
+        return True  # در صورت خطا، اجازه بده
+
+async def create_link_from_referral(user_id: str, label: str = None) -> str | None:
+    """
+    ساخت کانفیگ جدید برای کاربر بر اساس تنظیمات رفرال
+    """
+    if not REFERRAL_SETTINGS.get("enabled", False):
+        return None
+    
+    # بررسی تعداد کانفیگ‌های ساخته‌شده برای این کاربر
+    user_links = USER_LINKS.get(user_id, [])
+    max_links = REFERRAL_SETTINGS.get("max_links_per_user", 3)
+    if len(user_links) >= max_links:
+        return None
+    
+    # تولید UUID جدید
+    uid = generate_uuid()
+    
+    # محاسبه حجم و مدت
+    reward_gb = REFERRAL_SETTINGS.get("referral_reward_gb", 1)
+    reward_days = REFERRAL_SETTINGS.get("referral_reward_days", 7)
+    
+    limit_bytes = reward_gb * 1024 * 1024 * 1024
+    expires_at = (datetime.now() + timedelta(days=reward_days)).isoformat()
+    
+    # ذخیره کانفیگ
+    async with LINKS_LOCK:
+        LINKS[uid] = {
+            "label": label or f"کانفیگ رفرال {user_id[:8]}",
+            "limit_bytes": limit_bytes,
+            "used_bytes": 0,
+            "created_at": datetime.now().isoformat(),
+            "active": True,
+            "expires_at": expires_at,
+            "note": f"ساخته‌شده از طریق رفرال - کاربر {user_id}",
+            "is_default": False,
+            "sub_id": None,
+            "protocol": DEFAULT_PROTOCOL,
+            "parent_id": None,
+            "white_label": False,
+            "flag": "🇺🇸",
+            "max_devices": 1,
+            "quota_notified": False,
+            "expiry_notified": False,
+            "referral_user": user_id,  # نشانه‌گذاری که این کانفیگ از رفرال ساخته شده
+        }
+    
+    # ثبت در USER_LINKS
+    if user_id not in USER_LINKS:
+        USER_LINKS[user_id] = []
+    USER_LINKS[user_id].append(uid)
+    
+    await save_state()
+    return uid
