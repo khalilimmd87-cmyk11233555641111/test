@@ -29,11 +29,13 @@ from state import (
     is_blocked_proxy_target,
     parse_expiry_to_timedelta, sub_permissions,
     is_device_allowed, TELEGRAM_SETTINGS, daily_traffic, link_daily_traffic,
+    # ✅ اضافه شده برای رفرال
+    REFERRAL_SETTINGS, REFERRALS, USER_LINKS,
+    get_referral_settings, update_referral_settings,
+    generate_referral_code, create_link_from_referral,
+    check_channel_membership,
 )
 
-# ✅ امنیت: به‌جای CORS باز (allow_origins=["*"] + allow_credentials=True که
-# ترکیب خطرناکی‌ست و می‌تواند کوکی سشن را در معرض هر سایتی بگذارد)، فقط
-# دامنه‌ی واقعی سرویس (و هر چیزی که صریحاً در ALLOWED_ORIGINS ست شود) مجاز است.
 _public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
 _extra_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 ALLOWED_ORIGINS = list({
@@ -156,7 +158,6 @@ async def startup():
     log_activity("system", "سرور راه‌اندازی شد", "ok")
     asyncio.create_task(telegram_notifier_loop())
     
-    # ✅ استفاده از polling (نه webhook)
     import telegram_bot
     asyncio.create_task(telegram_bot.polling_loop())
     
@@ -896,6 +897,7 @@ async def link_daily_usage(uid: str, days: int = 14, _=Depends(require_auth)):
         out.append({"date": key, "bytes": hist.get(key, 0), "fmt": fmt_bytes(hist.get(key, 0))})
     return {"days": out}
 
+# ✅ API: تنظیمات تلگرام
 @app.get("/api/settings/telegram")
 async def get_telegram_settings(_=Depends(require_auth)):
     s = dict(TELEGRAM_SETTINGS)
@@ -918,6 +920,8 @@ async def set_telegram_settings(request: Request, _=Depends(require_auth)):
         TELEGRAM_SETTINGS["notify_expiry_hours"] = max(1, int(body["notify_expiry_hours"]))
     if "api_ip" in body:
         TELEGRAM_SETTINGS["api_ip"] = str(body["api_ip"] or "").strip()
+    if "bot_username" in body and body["bot_username"]:
+        TELEGRAM_SETTINGS["bot_username"] = str(body["bot_username"]).strip()
     await schedule_save()
     log_activity("system", "تنظیمات نوتیفیکیشن تلگرام بروزرسانی شد", "ok")
     return {"ok": True}
@@ -938,6 +942,62 @@ async def test_telegram(_=Depends(require_auth)):
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
     return {"ok": True}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ✅ API جدید: تنظیمات رفرال و عضویت در کانال
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/settings/referral")
+async def get_referral_settings_api(_=Depends(require_auth)):
+    s = dict(REFERRAL_SETTINGS)
+    if s.get("bot_token"):
+        s["bot_token_masked"] = s["bot_token"][:6] + "…" + s["bot_token"][-4:]
+    return s
+
+@app.post("/api/settings/referral")
+async def set_referral_settings_api(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    
+    for key, value in body.items():
+        if key in REFERRAL_SETTINGS:
+            if isinstance(REFERRAL_SETTINGS[key], bool):
+                REFERRAL_SETTINGS[key] = bool(value)
+            elif isinstance(REFERRAL_SETTINGS[key], int):
+                REFERRAL_SETTINGS[key] = int(value)
+            else:
+                REFERRAL_SETTINGS[key] = str(value).strip()
+    
+    await schedule_save()
+    log_activity("system", "تنظیمات سیستم رفرال بروزرسانی شد", "ok")
+    return {"ok": True}
+
+@app.get("/api/referrals/stats")
+async def get_referral_stats(_=Depends(require_auth)):
+    total_codes = len(REFERRALS)
+    total_used = sum(len(data.get("used_by", [])) for data in REFERRALS.values())
+    total_users = len(USER_LINKS)
+    total_links = sum(len(links) for links in USER_LINKS.values())
+    
+    return {
+        "total_codes": total_codes,
+        "total_used": total_used,
+        "total_users": total_users,
+        "total_links": total_links,
+        "referrals": REFERRALS,
+    }
+
+@app.get("/api/referrals/user/{user_id}")
+async def get_user_referral_links(user_id: str, _=Depends(require_auth)):
+    links = USER_LINKS.get(user_id, [])
+    result = []
+    async with LINKS_LOCK:
+        for uid in links:
+            if uid in LINKS:
+                result.append({
+                    "uuid": uid,
+                    **LINKS[uid]
+                })
+    return {"user_id": user_id, "links": result}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # VLESS Relay
