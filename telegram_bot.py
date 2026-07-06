@@ -274,6 +274,11 @@ async def _wizard_finish(chat_id, message_id=None):
     else:
         await _send(chat_id, text, kb)
 
+    # ✅ فیکس: قبلاً کاربر باید دستی رو دکمه «دریافت لینک/QR» می‌زد تا کانفیگ
+    # واقعی رو ببینه. حالا بلافاصله بعد از ساخت، لینک + QR خودکار فرستاده
+    # می‌شود تا چیزی گم نشود.
+    await _send_link_and_qr(chat_id, uid)
+
 
 # ── stats و جستجو ───────────────────────────────────────────────────────────────
 async def _show_stats(chat_id, message_id):
