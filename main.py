@@ -39,26 +39,20 @@ _extra_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split
 ALLOWED_ORIGINS = list({
     *( [f"https://{_public_domain}"] if _public_domain else [] ),
     *_extra_origins,
-}) or ["http://localhost:8000"]  # دست‌کم یک مقدار امن برای اجرای لوکال
+}) or ["http://localhost:8000"]
 
-# کوکی سشن روی HTTPS واقعی (Railway) باید secure باشد؛ فقط برای اجرای لوکال
-# روی http://localhost می‌توان با متغیر محیطی خاموشش کرد.
 SECURE_COOKIES = os.environ.get("DISABLE_SECURE_COOKIE", "0") != "1"
 
-# ── متغیر سراسری برای مدیریت تسک ذخیره‌سازی ──
 _save_task = None
 
 async def schedule_save():
-    """ذخیره‌سازی state رو با اولویت پایین و بدون تداخل انجام بده"""
     global _save_task
-    # اگر تسک قبلی هنوز در حال اجراست، اون رو کنسل کن
     if _save_task and not _save_task.done():
         _save_task.cancel()
         try:
             await _save_task
         except asyncio.CancelledError:
             pass
-    # تسک جدید رو شروع کن
     _save_task = asyncio.create_task(save_state())
 
 app = FastAPI(title="تیم آزادی Gateway", docs_url=None, redoc_url=None)
@@ -73,11 +67,6 @@ app.add_middleware(
 
 http_client: httpx.AsyncClient | None = None
 
-# ✅ ضد-پروبینگ/سخت‌سازی: uvicorn به‌صورت پیش‌فرض هدر "server: uvicorn" را روی
-# هر پاسخ می‌گذارد که یک نشانه‌ی رایگان برای شناسایی این‌که پشت این دامنه یک
-# اپ پایتونی/uvicorn است (به‌جای مثلاً یک وب‌سرور معمولی) به هر پروب فعال
-# می‌دهد. این middleware آن را حذف/جایگزین می‌کند و چند هدر امنیتی استاندارد
-# هم اضافه می‌کند که تفاوتش با یک سایت معمولی را کمتر می‌کند.
 @app.middleware("http")
 async def _harden_headers(request: Request, call_next):
     response = await call_next(request)
@@ -87,19 +76,7 @@ async def _harden_headers(request: Request, call_next):
     response.headers.setdefault("x-frame-options", "SAMEORIGIN")
     return response
 
-# ── Startup / Shutdown ────────────────────────────────────────────────────────
 async def send_telegram_message(text: str) -> tuple[bool, str]:
-    """پیام را با httpx (همون http_client مشترک) به بات تلگرام می‌فرستد.
-    اگر توکن/چت‌آیدی ست نشده باشه یا خطایی رخ بده، (False, پیام‌خطا)
-    برمی‌گردونه تا هم لاگ بشه و هم بشه از پنل «تست» نتیجه رو دید.
-
-    ✅ فیچر: اگر ادمین یک IP دستی برای api.telegram.org ست کرده باشد
-    (مثلاً چون DNS این دامنه روی سرور فیلتر/بلاک است)، درخواست مستقیماً
-    به همان IP وصل می‌شود؛ SNI و هدر Host همچنان api.telegram.org
-    می‌مانند تا هم هندشیک TLS با گواهی واقعی تلگرام معتبر باشد و هم
-    خودِ سرویس تلگرام درخواست را برای همان دامنه تشخیص بدهد. اگر فیلترینگ
-    در سطح IP باشد (نه فقط DNS)، این ترفند کمکی نمی‌کند — آن یک محدودیت
-    شبکه‌ای است، نه چیزی که با کد قابل دورزدن باشد."""
     token = TELEGRAM_SETTINGS.get("bot_token")
     chat_id = TELEGRAM_SETTINGS.get("chat_id")
     if not token or not chat_id:
@@ -130,10 +107,6 @@ async def send_telegram_message(text: str) -> tuple[bool, str]:
         return False, f"خطا در اتصال به تلگرام{' (IP دستی: ' + api_ip + ')' if api_ip else ''}: {e}"
 
 async def telegram_notifier_loop():
-    """✅ فیچر: هشدار خودکار — هر چند دقیقه یک‌بار همه‌ی کانفیگ‌ها را چک
-    می‌کند و اگر مصرف از درصد ست‌شده رد شده یا انقضا نزدیک شده، یک پیام
-    تلگرامی به مدیر می‌فرستد (فقط یک‌بار به ازای هر رویداد، تا اسپم نشه؛
-    با ریست‌کردن مصرف/تمدید تاریخ، دوباره قابل هشداردادن می‌شه)."""
     while True:
         try:
             if TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token") and TELEGRAM_SETTINGS.get("chat_id"):
@@ -167,7 +140,7 @@ async def telegram_notifier_loop():
                                 link["expiry_notified"] = True
         except Exception as e:
             logger.warning(f"telegram_notifier_loop error: {e}")
-        await asyncio.sleep(300)  # هر ۵ دقیقه
+        await asyncio.sleep(300)
 
 @app.on_event("startup")
 async def startup():
@@ -206,7 +179,6 @@ async def health():
 
 @app.get("/api/health")
 async def health_admin(_=Depends(require_auth)):
-    """آمار سلامت واقعی (اتصالات زنده، uptime) — فقط برای ادمین لاگین‌شده."""
     return {"status": "ok", "connections": len(connections), "uptime": uptime()}
 
 # ── Subscription (single link) ────────────────────────────────────────────────
