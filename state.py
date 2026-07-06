@@ -1,10 +1,6 @@
 # state.py — تیم آزادی Gateway v10.0
 # ══════════════════════════════════════════════════════════════════════════════
-# تمام state مشترک (LINKS، SUBS، stats، connections، ...) و توابع کمکی که هم
-# main.py و هم relay_vless.py و هم xhttp_siz10.py بهشون نیاز دارن، اینجا زندگی
-# می‌کنن. این فایل عمداً از main.py، relay_vless.py یا xhttp_siz10.py هیچی
-# ایمپورت نمی‌کنه تا حلقه‌ی وارداتی (circular import) که باعث خطای
-# "cannot import name 'router' from 'xhttp_siz10'" می‌شد، دیگه پیش نیاد.
+# تمام state مشترک (LINKS، SUBS، stats، connections، ...) و توابع کمکی
 # ══════════════════════════════════════════════════════════════════════════════
 
 import asyncio
@@ -32,9 +28,6 @@ IRAN_TZ = ZoneInfo("Asia/Tehran")
 
 # ── Secret / Config ──────────────────────────────────────────────────────────
 def _load_or_create_secret() -> str:
-    """اگر SECRET_KEY در env تنظیم نشده باشد، آن را یک‌بار می‌سازد و روی دیسک
-    ذخیره می‌کند تا با هر ری‌استارت سرور عوض نشود (که باعث نامعتبر شدن
-    session‌ها و هش‌های وابسته به secret می‌شد)."""
     env_secret = os.environ.get("SECRET_KEY")
     if env_secret:
         return env_secret
@@ -87,30 +80,28 @@ TELEGRAM_SETTINGS = {
     "notify_quota_pct": 90,
     "notify_expiry_hours": 24,
     "api_ip": "",
-    "bot_username": "",  # ✅ اضافه شد: نام کاربری بات برای لینک رفرال
+    "bot_username": "",
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ✅ تنظیمات جدید: سیستم رفرال و عضویت اجباری در کانال
+# ✅ تنظیمات سیستم رفرال و عضویت اجباری در کانال
 # ══════════════════════════════════════════════════════════════════════════════
 
 REFERRAL_SETTINGS = {
-    "enabled": False,                    # فعال/غیرفعال بودن سیستم رفرال
-    "channel_username": "TimAzadi",      # نام کاربری کانال اجباری (بدون @)
-    "channel_required": True,            # آیا عضویت در کانال اجباری است؟
-    "referral_reward_gb": 1,             # حجم جایزه به گیگابایت به ازای هر رفرال
-    "referral_reward_days": 7,           # مدت اعتبار کانفیگ به روز
-    "referral_limit": 5,                 # حداکثر تعداد رفرال برای هر کاربر
-    "max_links_per_user": 3,             # حداکثر تعداد کانفیگ برای هر کاربر
-    "bot_token": "",                     # توکن بات برای چک کردن عضویت (جدا از توکن اصلی)
+    "enabled": False,
+    "channel_username": "TimAzadi",
+    "channel_required": True,
+    "referral_reward_gb": 1,
+    "referral_reward_days": 7,
+    "referral_limit": 5,
+    "max_links_per_user": 3,
+    "bot_token": "",
+    "bot_username": "",
 }
 
-# دیکشنری برای ذخیره رفرال‌ها
-REFERRALS: dict = {}  # {"referral_code": {"user_id": "xxx", "used_by": [], "created_at": ""}}
+REFERRALS: dict = {}
 REFERRALS_LOCK = asyncio.Lock()
-
-# دیکشنری برای ذخیره کاربران و کانفیگ‌های ساخته‌شده
-USER_LINKS: dict = {}  # {"user_id": ["link_uuid1", "link_uuid2"]}
+USER_LINKS: dict = {}
 
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -227,7 +218,6 @@ async def load_state():
                 AUTH["password_hash"] = data["password_hash"]
             if "telegram_settings" in data:
                 TELEGRAM_SETTINGS.update(data["telegram_settings"])
-            # ✅ بارگذاری تنظیمات رفرال
             if "referral_settings" in data:
                 REFERRAL_SETTINGS.update(data["referral_settings"])
             if "referrals" in data:
@@ -502,15 +492,12 @@ async def ensure_default_link():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def generate_referral_code(user_id: str) -> str:
-    """تولید کد رفرال یکتا برای هر کاربر"""
     return secrets.token_urlsafe(8)
 
 def get_referral_settings() -> dict:
-    """دریافت تنظیمات رفرال"""
     return dict(REFERRAL_SETTINGS)
 
 def update_referral_settings(data: dict):
-    """بروزرسانی تنظیمات رفرال"""
     for key, value in data.items():
         if key in REFERRAL_SETTINGS:
             if isinstance(REFERRAL_SETTINGS[key], bool):
@@ -521,10 +508,6 @@ def update_referral_settings(data: dict):
                 REFERRAL_SETTINGS[key] = str(value).strip()
 
 async def check_channel_membership(user_id: str) -> bool:
-    """
-    بررسی عضویت کاربر در کانال تیم آزادی
-    نیاز به توکن بات برای فراخوانی API تلگرام
-    """
     if not REFERRAL_SETTINGS.get("channel_required", True):
         return True
     
@@ -532,7 +515,7 @@ async def check_channel_membership(user_id: str) -> bool:
     channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
     
     if not bot_token:
-        return True  # اگر توکن نباشه، چک نمیکنه
+        return True
     
     try:
         import httpx
@@ -549,32 +532,25 @@ async def check_channel_membership(user_id: str) -> bool:
                 return status in ["member", "administrator", "creator"]
             return False
     except Exception:
-        return True  # در صورت خطا، اجازه بده
+        return True
 
 async def create_link_from_referral(user_id: str, label: str = None) -> str | None:
-    """
-    ساخت کانفیگ جدید برای کاربر بر اساس تنظیمات رفرال
-    """
     if not REFERRAL_SETTINGS.get("enabled", False):
         return None
     
-    # بررسی تعداد کانفیگ‌های ساخته‌شده برای این کاربر
     user_links = USER_LINKS.get(user_id, [])
     max_links = REFERRAL_SETTINGS.get("max_links_per_user", 3)
     if len(user_links) >= max_links:
         return None
     
-    # تولید UUID جدید
     uid = generate_uuid()
     
-    # محاسبه حجم و مدت
     reward_gb = REFERRAL_SETTINGS.get("referral_reward_gb", 1)
     reward_days = REFERRAL_SETTINGS.get("referral_reward_days", 7)
     
     limit_bytes = reward_gb * 1024 * 1024 * 1024
     expires_at = (datetime.now() + timedelta(days=reward_days)).isoformat()
     
-    # ذخیره کانفیگ
     async with LINKS_LOCK:
         LINKS[uid] = {
             "label": label or f"کانفیگ رفرال {user_id[:8]}",
@@ -593,10 +569,9 @@ async def create_link_from_referral(user_id: str, label: str = None) -> str | No
             "max_devices": 1,
             "quota_notified": False,
             "expiry_notified": False,
-            "referral_user": user_id,  # نشانه‌گذاری که این کانفیگ از رفرال ساخته شده
+            "referral_user": user_id,
         }
     
-    # ثبت در USER_LINKS
     if user_id not in USER_LINKS:
         USER_LINKS[user_id] = []
     USER_LINKS[user_id].append(uid)
