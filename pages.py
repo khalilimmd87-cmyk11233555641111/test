@@ -193,7 +193,6 @@ a{color:inherit;text-decoration:none}
 .metric:hover::after{opacity:1}
 .metric.suc::after{background:var(--green)}
 .metric.dan::after{background:var(--red)}
-/* ══════ صفحه ترافیک - ریدیزاین ══════ */
 .traf-hero{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:13px;margin-bottom:18px}
 .traf-main-stat{background:linear-gradient(155deg,var(--bg3) 0%,var(--card) 60%);border:1px solid var(--card-b);border-radius:20px;padding:22px 24px;position:relative;overflow:hidden}
 .traf-main-stat::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;background:radial-gradient(circle,var(--accent-d),transparent 70%);pointer-events:none}
@@ -212,7 +211,6 @@ a{color:inherit;text-decoration:none}
 .traf-mini-label{font-size:9.5px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .traf-mini-val{font-size:21px;font-weight:800;color:var(--t1);letter-spacing:-.01em}
 .traf-mini-sub{font-size:9.5px;color:var(--t3);margin-top:3px}
-
 .traf-chart-card{background:var(--card);border:1px solid var(--card-b);border-radius:22px;padding:22px 24px 18px;box-shadow:var(--shadow);margin-bottom:16px}
 .traf-chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:10px}
 .traf-chart-title{font-size:14px;font-weight:800;color:var(--t1);display:flex;align-items:center;gap:8px}
@@ -225,7 +223,6 @@ a{color:inherit;text-decoration:none}
 .traf-range-tab{padding:6px 13px;border-radius:8px;font-size:10.5px;font-weight:700;color:var(--t3);cursor:pointer;transition:.15s;border:none;background:transparent;font-family:inherit}
 .traf-range-tab.on{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(59,130,246,.35)}
 .traf-chart-body{height:320px;margin-top:14px;position:relative}
-
 @media(max-width:900px){.traf-hero{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.traf-hero{grid-template-columns:1fr}.traf-chart-body{height:260px}}
 .m-icon{width:34px;height:34px;border-radius:8px;background:var(--accent-d);display:flex;align-items:center;justify-content:center;margin-bottom:11px;color:var(--accent);font-size:17px}
@@ -298,7 +295,6 @@ a{color:inherit;text-decoration:none}
 .cl{background:var(--accent-d);border:1px solid rgba(59,130,246,.15);border-radius:10px;padding:11px 13px;font-size:11px;color:var(--t2);display:flex;gap:9px;align-items:flex-start;line-height:1.8;margin-top:12px}
 .cl i{font-size:15px;color:var(--accent);margin-top:1px;flex-shrink:0}
 .cl.amber{background:var(--amber-bg);border-color:rgba(245,158,11,.2);color:var(--amber-t)}
-/* ══════ پنل ساخت کانفیگ - طراحی جدید ══════ */
 .create-panel{background:linear-gradient(155deg,var(--bg3) 0%,var(--card) 55%);border:1px solid var(--card-b);border-radius:22px;padding:0;overflow:hidden;box-shadow:var(--shadow);margin-bottom:16px;position:relative}
 .create-panel::before{content:'';position:absolute;top:-60px;left:-60px;width:220px;height:220px;background:radial-gradient(circle,var(--accent-d),transparent 70%);pointer-events:none}
 .cp-head{display:flex;align-items:center;gap:13px;padding:22px 24px 18px;position:relative;z-index:1}
@@ -347,7 +343,6 @@ a{color:inherit;text-decoration:none}
   .cp-footer{flex-direction:column;align-items:stretch}
   .cp-submit-btn{justify-content:center}
 }
-/* ══════ پنل اطلاعات سرور ══════ */
 .srv-panel{background:linear-gradient(155deg,var(--bg3) 0%,var(--card) 60%);border:1px solid var(--card-b);border-radius:22px;overflow:hidden;box-shadow:var(--shadow);position:relative}
 .srv-panel::before{content:'';position:absolute;top:-60px;left:-60px;width:200px;height:200px;background:radial-gradient(circle,var(--accent-d),transparent 70%);pointer-events:none}
 .srv-hero{display:flex;align-items:center;gap:14px;padding:22px 24px;position:relative;z-index:1;border-bottom:1px solid var(--card-b)}
@@ -363,8 +358,6 @@ a{color:inherit;text-decoration:none}
 .srv-tile-text{min-width:0}
 .srv-tile-label{font-size:9.5px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
 .srv-tile-val{font-size:12px;font-weight:700;color:var(--t1);word-break:break-word}
-
-/* ══════ پنل تغییر رمز ══════ */
 .pw-panel{background:linear-gradient(155deg,var(--bg3) 0%,var(--card) 60%);border:1px solid var(--card-b);border-radius:22px;overflow:hidden;box-shadow:var(--shadow);position:relative}
 .pw-panel::before{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:radial-gradient(circle,var(--purple-bg),transparent 70%);pointer-events:none}
 .pw-hero{display:flex;align-items:center;gap:14px;padding:22px 24px 18px;position:relative;z-index:1}
@@ -389,8 +382,6 @@ a{color:inherit;text-decoration:none}
 .pw-submit{width:100%;justify-content:center;background:linear-gradient(135deg,var(--purple),#6D48D6);color:#fff;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 6px 18px rgba(139,92,246,.32);transition:.18s}
 .pw-submit:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(139,92,246,.42)}
 .pw-submit:active{transform:translateY(0) scale(.98)}
-
-/* ══════ اتصالات فعال - نسخه پیشرفته ══════ */
 .conn-hero{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
 .conn-hero-tile{background:var(--card);border:1px solid var(--card-b);border-radius:16px;padding:16px 18px;position:relative;overflow:hidden;transition:.2s}
 .conn-hero-tile:hover{border-color:var(--card-bh);transform:translateY(-2px);box-shadow:var(--shadow)}
@@ -402,13 +393,11 @@ a{color:inherit;text-decoration:none}
 .conn-hero-label{font-size:9.5px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
 .conn-hero-val{font-size:21px;font-weight:800;color:var(--t1);line-height:1;letter-spacing:-.02em}
 .conn-hero-unit{font-size:11px;color:var(--t3);font-weight:500}
-
 .conn-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .conn-toolbar-title{font-size:12px;font-weight:800;color:var(--t2);display:flex;align-items:center;gap:7px;text-transform:uppercase;letter-spacing:.06em}
 .conn-toolbar-title i{color:var(--green);font-size:15px}
 .conn-live-badge{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:var(--green-t);background:var(--green-bg);padding:5px 12px;border-radius:20px;border:1px solid rgba(16,185,129,.2)}
 .conn-live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.6s infinite}
-
 .conn-grid-v2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .conn-card-v2{background:var(--card);border:1px solid var(--card-b);border-radius:18px;padding:0;overflow:hidden;transition:all .22s cubic-bezier(.4,0,.2,1);position:relative}
 .conn-card-v2:hover{border-color:var(--card-bh);transform:translateY(-3px);box-shadow:0 14px 32px rgba(0,0,0,.22)}
@@ -436,15 +425,12 @@ a{color:inherit;text-decoration:none}
 .conn-duration-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--green),#3FD79C);position:relative;overflow:hidden}
 .conn-duration-fill::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);width:40%;animation:shimmer 1.8s linear infinite}
 @keyframes shimmer{0%{transform:translateX(-120%)}100%{transform:translateX(280%)}}
-
 .conn-empty-v2{text-align:center;padding:70px 20px;background:var(--card);border:1px dashed var(--card-b);border-radius:20px}
 .conn-empty-v2-icon{width:64px;height:64px;border-radius:18px;background:var(--accent-d);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--t3);margin:0 auto 16px}
 .conn-empty-v2-title{font-size:13.5px;font-weight:700;color:var(--t2);margin-bottom:5px}
 .conn-empty-v2-sub{font-size:11px;color:var(--t3)}
-
 @media(max-width:760px){.conn-hero{grid-template-columns:1fr 1fr}}
 @media(max-width:500px){.conn-grid-v2{grid-template-columns:1fr}}
-
 @media(max-width:560px){.srv-tiles{grid-template-columns:1fr}}
 .cl.amber i{color:var(--amber)}
 .sub-box{background:rgba(139,92,246,.07);border:1px solid rgba(139,92,246,.2);border-radius:10px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:11px}
@@ -454,13 +440,11 @@ a{color:inherit;text-decoration:none}
 .empty{text-align:center;padding:50px 20px;color:var(--t3)}
 .empty i{font-size:40px;opacity:.3;margin-bottom:12px;display:block}
 .empty p{font-size:12.5px;margin-top:4px}
-/* ══════ گروه‌های ساب - ریدیزاین کامل ══════ */
 .subs-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .subs-search{flex:1;min-width:200px;position:relative}
 .subs-search input{width:100%;padding:11px 40px 11px 15px;border-radius:12px;border:1px solid var(--card-b);background:var(--card);color:var(--t1);font-family:inherit;font-size:12.5px;outline:none;transition:.15s}
 .subs-search input:focus{border-color:rgba(139,92,246,.5);box-shadow:0 0 0 3px rgba(139,92,246,.1)}
 .subs-search i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:15px}
-
 .sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-bottom:18px}
 .sub-card{background:var(--card);border:1px solid var(--card-b);border-radius:20px;padding:0;overflow:hidden;transition:all .25s cubic-bezier(.4,0,.2,1);position:relative}
 .sub-card:hover{border-color:var(--card-bh);transform:translateY(-4px);box-shadow:0 16px 36px rgba(0,0,0,.24)}
@@ -485,28 +469,22 @@ a{color:inherit;text-decoration:none}
 .sub-card-lock-badge{flex-shrink:0;width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px}
 .sub-card-lock-badge.locked{background:var(--amber-bg);color:var(--amber-t)}
 .sub-card-lock-badge.open{background:var(--green-bg);color:var(--green-t)}
-
 .sub-card-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;position:relative;z-index:1;margin-top:16px;background:rgba(0,0,0,.14);border:1px solid var(--card-b);border-radius:13px;overflow:hidden}
 [data-theme="light"] .sub-card-stats{background:rgba(124,58,237,.03)}
 .sub-card-stat{padding:11px 8px;text-align:center;border-left:1px solid var(--card-b)}
 .sub-card-stat:last-child{border-left:none}
 .sub-card-stat-val{font-size:15px;font-weight:800;color:var(--t1);line-height:1.2}
 .sub-card-stat-label{font-size:8.5px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-top:4px}
-
 .sub-card-url-row{margin:14px 20px 0;background:rgba(139,92,246,.08);border:1px dashed rgba(139,92,246,.25);border-radius:11px;padding:9px 12px;display:flex;align-items:center;gap:8px}
 .sub-card-url-text{font-family:ui-monospace,monospace;font-size:9.5px;color:#A78BFA;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sub-card-url-copy{background:none;border:none;color:var(--purple);cursor:pointer;font-size:13px;padding:3px;display:flex;flex-shrink:0;transition:.15s}
 .sub-card-url-copy:hover{color:#A78BFA;transform:scale(1.1)}
-
 .sub-card-bottom{padding:14px 20px 18px;display:flex;gap:7px;flex-wrap:wrap}
 .sub-card-bottom .btn{flex:1;justify-content:center;min-width:fit-content}
-
 .subs-empty-v2{text-align:center;padding:70px 20px;background:var(--card);border:1px dashed var(--card-b);border-radius:20px;grid-column:1/-1}
 .subs-empty-v2-icon{width:64px;height:64px;border-radius:18px;background:var(--purple-bg);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--purple);margin:0 auto 16px}
 .subs-empty-v2-title{font-size:13.5px;font-weight:700;color:var(--t2);margin-bottom:5px}
 .subs-empty-v2-sub{font-size:11px;color:var(--t3)}
-
-/* ══════ مودال ساخت گروه - نسخه فشرده ══════ */
 .modal-v2{background:var(--card);border:1px solid var(--card-b);border-radius:22px;padding:0;max-width:430px;width:calc(100% - 32px);max-height:92vh;overflow-y:auto;position:relative;animation:fi .2s ease;box-shadow:0 24px 70px rgba(0,0,0,.5)}
 .modal-v2-head{background:linear-gradient(155deg,rgba(139,92,246,.14) 0%,transparent 65%);padding:18px 22px 14px;position:relative;overflow:hidden}
 .modal-v2-head::before{content:'';position:absolute;top:-50px;left:-50px;width:160px;height:160px;background:radial-gradient(circle,rgba(139,92,246,.2),transparent 70%);pointer-events:none}
@@ -527,7 +505,7 @@ a{color:inherit;text-decoration:none}
 .modal-v2-input:focus{border-color:rgba(139,92,246,.55);box-shadow:0 0 0 3px rgba(139,92,246,.12);background:rgba(0,0,0,.28)}
 [data-theme="light"] .modal-v2-input:focus{background:#fff}
 .modal-v2-input:focus~i{color:var(--purple)}
-.modal-v2-hint{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:11px;padding:9px 12px;font-size:10px;color:var(--t2);display:flex;gap:7px;align-items:flex-start;line-height:1.6;margin-top:2px}
+.modal-v2-hint{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:11px;padding:9px 12px;font-size:10px;color:var(--t2);display:flex;gap:7px;align-items:flex-start;line-height:1.6}
 .modal-v2-hint i{font-size:14px;color:var(--accent);margin-top:1px;flex-shrink:0}
 .modal-v2-footer{display:flex;gap:8px;margin-top:15px}
 .modal-v2-btn-cancel{flex:.75;justify-content:center;padding:10px;border-radius:11px;background:transparent;border:1px solid var(--card-b);color:var(--t2);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center}
@@ -535,8 +513,6 @@ a{color:inherit;text-decoration:none}
 .modal-v2-btn-submit{flex:1;justify-content:center;padding:10px;border-radius:11px;background:linear-gradient(135deg,var(--purple),#6D48D6);color:#fff;border:none;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 6px 18px rgba(139,92,246,.4);transition:.18s}
 .modal-v2-btn-submit:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(139,92,246,.5)}
 .modal-v2-btn-submit:active{transform:translateY(0) scale(.98)}
-
-/* ══════ مودال انتخاب کانفیگ - نسخه پیشرفته ══════ */
 .lmodal-head{background:linear-gradient(155deg,var(--accent-d) 0%,transparent 70%);padding:22px 24px 18px;position:relative;border-bottom:1px solid var(--card-b)}
 .lmodal-icon-row{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
 .lmodal-icon{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px;flex-shrink:0;box-shadow:0 6px 16px rgba(59,130,246,.35)}
@@ -551,7 +527,6 @@ a{color:inherit;text-decoration:none}
 .lmodal-qbtn{font-size:10px;font-weight:700;padding:5px 11px;border-radius:8px;background:var(--accent-d);color:var(--accent2);border:1px solid var(--card-b);cursor:pointer;transition:.15s;font-family:inherit}
 .lmodal-qbtn:hover{background:rgba(59,130,246,.2)}
 .lmodal-count{margin-right:auto;font-size:10.5px;color:var(--t3);display:flex;align-items:center}
-
 .lmodal-list{padding:10px 14px;max-height:360px;overflow-y:auto}
 .lrow-v2{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:13px;cursor:pointer;transition:.15s;margin-bottom:4px;border:1px solid transparent}
 .lrow-v2:hover{background:var(--accent-d)}
@@ -568,14 +543,11 @@ a{color:inherit;text-decoration:none}
 .lrow-v2-status{font-size:9px;font-weight:800;padding:3px 9px;border-radius:20px;flex-shrink:0;white-space:nowrap}
 .lrow-v2-status.on{background:var(--green-bg);color:var(--green-t)}
 .lrow-v2-status.off{background:var(--red-bg);color:var(--red-t)}
-
 .lmodal-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 24px;border-top:1px solid var(--card-b)}
 .lmodal-footer-info{font-size:10.5px;color:var(--t3);display:flex;align-items:center;gap:6px}
 .lmodal-footer-info i{color:var(--accent)}
 .lmodal-footer-btns{display:flex;gap:8px}
-
 @media(max-width:500px){.sub-grid{grid-template-columns:1fr}.sub-card-stats{grid-template-columns:repeat(3,1fr)}}
-
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
 .modal-bg.open{display:flex}
 .modal{background:var(--card);border:1px solid var(--card-b);border-radius:20px;padding:28px 26px;max-width:520px;width:calc(100% - 32px);max-height:90vh;overflow-y:auto;position:relative;animation:fi .2s ease}
@@ -594,8 +566,6 @@ a{color:inherit;text-decoration:none}
 .dash-footer{border-top:1px solid var(--card-b);margin-top:14px;padding-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .df-text{font-size:10px;color:var(--t3)}
 .df-link{font-size:11.5px;color:var(--accent2);display:flex;align-items:center;gap:5px;font-weight:600}
-
-/* ══════ کانفیگ‌ها - طراحی ردیفی حرفه‌ای ══════ */
 .cfg-grid{display:flex;flex-direction:column;gap:10px}
 .cfg-card{background:var(--card);border:1px solid var(--card-b);border-radius:14px;padding:0;transition:all .2s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
 .cfg-card:hover{border-color:var(--card-bh);box-shadow:0 6px 24px rgba(0,0,0,.18)}
@@ -629,14 +599,11 @@ a{color:inherit;text-decoration:none}
 .tog::after{content:'';position:absolute;width:13px;height:13px;border-radius:50%;background:#fff;left:3px;top:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .tog.on::after{top:14px}
 .tog.on{background:var(--green)}
-
 @media(max-width:880px){
   .cfg-row{flex-wrap:wrap}
   .cfg-divider-v{display:none}
   .cfg-usage-col{min-width:100%;order:5}
 }
-
-/* ── زیر ۷۶۸px: تبدیل کامل به کارت موبایل ── */
 @media(max-width:768px){
   .cfg-grid{display:grid;grid-template-columns:1fr;gap:13px}
   .cfg-card{border-radius:16px}
@@ -648,8 +615,6 @@ a{color:inherit;text-decoration:none}
   .cfg-badges-col{flex-direction:row;align-items:center;flex-wrap:wrap}
   .cfg-actions{flex-wrap:wrap;border-top:1px solid var(--card-b);padding-top:10px;margin-top:2px;width:100%}
 }
-
-/* ══════ اتصالات فعال با IP ══════ */
 .conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
 .conn-card{background:var(--card);border:1px solid var(--card-b);border-radius:16px;padding:15px 17px;transition:.2s;position:relative;overflow:hidden}
 .conn-card:hover{border-color:var(--card-bh);transform:translateY(-1px)}
@@ -659,8 +624,6 @@ a{color:inherit;text-decoration:none}
 .conn-ip{font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:var(--t1)}
 .conn-label{font-size:10.5px;color:var(--t3);margin-top:1px}
 .conn-meta{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t3);padding-top:10px;border-top:1px solid var(--card-b)}
-
-/* ══════ لاگ فعالیت‌ها ══════ */
 .log-timeline{display:flex;flex-direction:column}
 .log-item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid rgba(59,130,246,.05);position:relative}
 .log-item:last-child{border-bottom:none}
@@ -677,7 +640,6 @@ a{color:inherit;text-decoration:none}
 .erow:last-child{border-bottom:none}
 .etime{color:var(--t3);font-size:9.5px;margin-bottom:3px;display:flex;align-items:center;gap:4px}
 .emsg{color:var(--red-t);font-family:ui-monospace,monospace;background:var(--red-bg);padding:6px 9px;border-radius:6px;word-break:break-all;font-size:10.5px}
-
 @media(max-width:1050px){
   .sidebar{transform:translateX(100%)}
   .sidebar.open{transform:translateX(0);box-shadow:-10px 0 40px rgba(0,0,0,.4)}
@@ -1078,7 +1040,6 @@ a{color:inherit;text-decoration:none}
     <div><div class="tb-title"><i class="ti ti-chart-area"></i> ترافیک</div><div class="tb-sub">تحلیل و مانیتورینگ مصرف پهنای باند</div></div>
     <div class="tb-right"><button class="btn btn-p btn-sm" onclick="refreshAll()"><i class="ti ti-refresh"></i> رفرش</button></div>
   </div>
-
   <div class="traf-hero">
     <div class="traf-main-stat">
       <div class="traf-main-label"><i class="ti ti-database"></i> کل ترافیک مصرفی</div>
@@ -1098,7 +1059,6 @@ a{color:inherit;text-decoration:none}
       <div><div class="traf-mini-val" id="t-low">—</div><div class="traf-mini-sub">MB در ساعت</div></div>
     </div>
   </div>
-
   <div class="traf-chart-card">
     <div class="traf-chart-head">
       <div>
@@ -1118,7 +1078,6 @@ a{color:inherit;text-decoration:none}
     <div><div class="tb-title"><i class="ti ti-plug-connected"></i> اتصالات فعال</div><div class="tb-sub">مانیتورینگ زنده‌ی آی‌پی و ترافیک هر اتصال</div></div>
     <div class="tb-right"><span class="badge bg-green" id="conns-live">—</span><button class="btn btn-p btn-sm" onclick="refreshAll()"><i class="ti ti-refresh"></i> رفرش</button></div>
   </div>
-
   <div class="conn-hero">
     <div class="conn-hero-tile">
       <div class="conn-hero-icon"><i class="ti ti-plug-connected"></i></div>
@@ -1141,19 +1100,16 @@ a{color:inherit;text-decoration:none}
       <div class="conn-hero-val" id="ch-uniq">—</div>
     </div>
   </div>
-
   <div class="conn-toolbar">
     <div class="conn-toolbar-title"><i class="ti ti-list-details"></i> لیست اتصالات</div>
     <div class="conn-live-badge"><span class="conn-live-dot"></span> بروزرسانی خودکار هر ۵ ثانیه</div>
   </div>
-
   <div class="conn-grid-v2" id="conns-grid"></div>
   <div class="conn-empty-v2" id="conns-empty" style="display:none">
     <div class="conn-empty-v2-icon"><i class="ti ti-plug-off"></i></div>
     <div class="conn-empty-v2-title">هیچ اتصال فعالی نیست</div>
     <div class="conn-empty-v2-sub">به محض اتصال کلاینت‌ها، اینجا نمایش داده می‌شوند</div>
   </div>
-
   <div class="conn-toolbar" style="margin-top:22px">
     <div class="conn-toolbar-title"><i class="ti ti-trophy"></i> پرمصرف‌ترین کانفیگ‌ها</div>
   </div>
@@ -1327,7 +1283,7 @@ function toast(msg,type=''){
 function fmtB(b){if(!b||b===0)return '0 B';if(b<1024)return b+' B';if(b<1024**2)return (b/1024).toFixed(1)+' KB';if(b<1024**3)return (b/1024**2).toFixed(2)+' MB';return (b/1024**3).toFixed(2)+' GB'}
 function toFa(n){return String(n).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d])}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function daysLeft(exp){if(!exp)return null;return Math.ceil((new Date(exp)-Date.now())/(864e5))}
+function daysLeft(exp){if(!exp)return null;return Math.ceil((new Date(exp)-Date.now())/864e5)}
 function expChip(exp,expired){
   if(expired)return '<span class="exp-chip ec-exp"><i class="ti ti-calendar-x"></i> منقضی</span>';
   if(!exp)return '<span class="exp-chip ec-inf"><i class="ti ti-infinity"></i> نامحدود</span>';
@@ -1759,11 +1715,6 @@ function filterLmodal(q){
 async function saveSubLinks(){
   if(!currentSubId)return;
   const link_ids=[...lmodalInSub];
-  // 🐛 باگ رفع‌شده: قبلاً اینجا روی *همه‌ی* لینک‌های کل سیستم لوپ می‌زد و برای
-  // هرکدام که در این مودال تیک نداشت (یعنی همه‌ی لینک‌های گروه‌های دیگر هم!)
-  // sub_id را null می‌کرد — یعنی ذخیره‌کردن گروه A، لینک‌های گروه B و C را هم
-  // از آن گروه‌ها جدا می‌کرد. الان فقط لینک‌هایی که واقعاً عضویتشان در همین
-  // گروه (نسبت به لحظه‌ی باز شدن مودال) تغییر کرده، PATCH می‌شوند.
   const added=[...lmodalInSub].filter(u=>!lmodalOriginal.has(u));
   const removed=[...lmodalOriginal].filter(u=>!lmodalInSub.has(u));
   try{
@@ -2039,7 +1990,7 @@ async function saveTelegramSettings(){
     api_ip:document.getElementById('tg-api-ip').value.trim(),
   };
   const tokenVal=document.getElementById('tg-token').value.trim();
-  if(tokenVal&&!tokenVal.includes('…'))body.bot_token=tokenVal; // فقط اگه توکن واقعی جدید بود بفرست، نه نسخه‌ی ماسک‌شده
+  if(tokenVal&&!tokenVal.includes('…'))body.bot_token=tokenVal;
   try{
     const r=await authF('/api/settings/telegram',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok)throw new Error();
