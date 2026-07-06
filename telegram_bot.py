@@ -549,21 +549,18 @@ async def polling_loop():
                 await asyncio.sleep(5)
                 continue
             
-            logger.info(f"telegram_bot: calling getUpdates with offset: {_offset}")
-            
+            # دریافت آپدیت‌ها با پارامتر drop_pending_updates
             result = await _api("getUpdates", {
                 "offset": _offset, 
                 "timeout": 25, 
-                "allowed_updates": ["message", "callback_query"]
+                "allowed_updates": ["message", "callback_query"],
+                "drop_pending_updates": True
             })
             
             if result is None:
-                logger.warning("telegram_bot: getUpdates returned None")
                 await asyncio.sleep(5)
                 continue
                 
-            logger.info(f"telegram_bot: got {len(result)} updates")
-            
             for update in result:
                 _offset = update["update_id"] + 1
                 await _process_update(update)
