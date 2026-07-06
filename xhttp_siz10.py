@@ -26,8 +26,9 @@ from state import (
     is_link_allowed,
     save_state,
     client_ip,  # ✅ یکی‌سازی شد: قبلاً نسخه‌ی جداگانه‌ی _req_client_ip اینجا بود
+    is_device_allowed,
 )
-from relay_vless import parse_vless_header, check_and_use
+from relay_vless import parse_vless_header, check_and_use, trojan_expected_hex, parse_trojan_header
 
 router = APIRouter()
 
@@ -174,8 +175,15 @@ class _AdaptiveFlow:
             self.high_water = max(FLOW_MIN_HW, self.high_water // 2)
 
 
-async def _open_tcp_from_header(first_chunk: bytes):
-    command, address, port, payload = await parse_vless_header(first_chunk)
+async def _open_tcp_from_header(uuid: str, first_chunk: bytes):
+    # ✅ فیچر: همون تشخیص خودکار Trojan-vs-VLESS از روی بایت‌های رسیده که
+    # تو relay_vless.py (ترنسپورت WS) هست، اینجا هم برای XHTTP تکرار شده تا
+    # کانفیگ‌های Trojan روی هر دو ترنسپورت کار کنند.
+    is_trojan = first_chunk[:56] == trojan_expected_hex(uuid).encode()
+    if is_trojan:
+        address, port, payload = await parse_trojan_header(first_chunk, trojan_expected_hex(uuid))
+    else:
+        _command, address, port, payload = await parse_vless_header(first_chunk)
     reader, writer = await asyncio.wait_for(
         asyncio.open_connection(address, port), timeout=TCP_CONNECT_TIMEOUT
     )
@@ -183,7 +191,7 @@ async def _open_tcp_from_header(first_chunk: bytes):
     if payload:
         writer.write(payload)
         await writer.drain()
-    return reader, writer, address, port
+    return reader, writer, address, port, is_trojan
 
 
 async def _check_link(uuid: str):
@@ -204,6 +212,11 @@ async def _get_or_create_session(uuid: str, mode: str, session_id: str, ip: str 
         if sess is not None:
             sess["last_seen"] = time.time()
             return sess
+        # ✅ فیچر: محدودیت تعداد دستگاه/IP — فقط موقع ساخت یک سشن کاملاً
+        # جدید بررسی می‌شود (نه در استفاده‌ی مجدد از سشن موجود)، چون این‌جا
+        # واقعاً «دستگاه/اتصال جدید» در حال شکل‌گرفتن است.
+        if not is_device_allowed(uuid, ip):
+            raise HTTPException(status_code=404, detail="Not Found")
         conn_id = secrets.token_urlsafe(6)
         connections[conn_id] = {
             "uuid": uuid,
@@ -291,7 +304,7 @@ def ensure_reaper():
         _reaper_started = True
 
 
-async def _pump_tcp_to_queue(session_id: str, uuid: str, reader: asyncio.StreamReader, down_q: asyncio.Queue):
+async def _pump_tcp_to_queue(session_id: str, uuid: str, reader: asyncio.StreamReader, down_q: asyncio.Queue, reply_prefix: bytes = b"\x00\x00"):
     first = True
     gate = _QuotaGate(uuid)  # دانلینک هم از همون گیت batched استفاده می‌کنه
     try:
@@ -307,7 +320,7 @@ async def _pump_tcp_to_queue(session_id: str, uuid: str, reader: asyncio.StreamR
                 c = connections.get(sess["conn_id"])
                 if c:
                     c["bytes"] += len(data)
-            payload = (b"\x00\x00" + data) if first else data
+            payload = (reply_prefix + data) if (first and reply_prefix) else data
             first = False
             await down_q.put(payload)
     except (asyncio.CancelledError, Exception):
@@ -318,13 +331,17 @@ async def _pump_tcp_to_queue(session_id: str, uuid: str, reader: asyncio.StreamR
 
 
 async def _open_tcp_for_session(session_id: str, uuid: str, sess: dict, first_chunk: bytes):
-    """تونل TCP رو از روی هدر VLESS باز می‌کنه و پمپ دانلینک رو راه می‌اندازه."""
-    reader, writer, address, port = await _open_tcp_from_header(first_chunk)
+    """تونل TCP رو از روی هدر VLESS/Trojan باز می‌کنه و پمپ دانلینک رو راه می‌اندازه."""
+    reader, writer, address, port, is_trojan = await _open_tcp_from_header(uuid, first_chunk)
     logger.info(f"connect XHTTP[{sess['mode']}] [{session_id[:8]}] -> {address}:{port}")
     sess["writer"] = writer
     sess["tcp_open"] = True
+    sess["is_trojan"] = is_trojan
+    conn = connections.get(sess["conn_id"])
+    if conn:
+        conn["transport"] = "trojan-xhttp" if is_trojan else f"xhttp-{sess['mode']}"
     sess["downlink_task"] = asyncio.create_task(
-        _pump_tcp_to_queue(session_id, uuid, reader, sess["down_q"])
+        _pump_tcp_to_queue(session_id, uuid, reader, sess["down_q"], reply_prefix=(b"" if is_trojan else b"\x00\x00"))
     )
     asyncio.create_task(save_state())
 
