@@ -182,6 +182,8 @@ async def startup():
         logger.warning("⚠️  ADMIN_PASSWORD در env تنظیم نشده؛ رمز پیش‌فرض در حال استفاده است. برای امنیت، آن را در متغیرهای محیطی ست کنید و/یا از پنل تغییر بدهید.")
     log_activity("system", "سرور راه‌اندازی شد", "ok")
     asyncio.create_task(telegram_notifier_loop())
+    import telegram_bot
+    asyncio.create_task(telegram_bot.polling_loop())
     logger.info(f"تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
