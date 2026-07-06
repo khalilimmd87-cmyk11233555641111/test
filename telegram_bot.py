@@ -41,7 +41,7 @@ def _allowed_chats() -> set[str]:
 
 # ── ارتباط خام با Bot API (با همان ترفند api_ip موجود در send_telegram_message) ─
 async def _api(method: str, payload: dict | None = None) -> dict | None:
-    from main import http_client  # ایمپورت دیرهنگام؛ جلوگیری از import چرخه‌ای
+    from main import http_client
 
     token = TELEGRAM_SETTINGS.get("bot_token")
     if not token or http_client is None:
@@ -88,7 +88,6 @@ async def _edit(chat_id, message_id, text, kb=None):
         payload["reply_markup"] = {"inline_keyboard": kb}
     res = await _api("editMessageText", payload)
     if res is None:
-        # اگر ادیت ممکن نبود (مثلاً پیام قبلی عکس بوده)، پیام تازه بفرست
         await _send(chat_id, text, kb)
 
 
@@ -189,7 +188,7 @@ async def _show_link_detail(chat_id, message_id, uid: str):
     await _edit(chat_id, message_id, text, kb)
 
 
-# ── تابع اصلاح‌شده برای دریافت لینک/QR با مدیریت خطا ──────────────────────────
+# ── تابع اصلی دریافت لینک/QR ────────────────────────────────────────────────
 async def _send_link_and_qr(chat_id, uid: str):
     """ارسال لینک‌های کانفیگ و QR کد با مدیریت خطا"""
     try:
@@ -200,7 +199,6 @@ async def _send_link_and_qr(chat_id, uid: str):
             return
         
         host = get_host()
-        # اگر host خالی یا localhost بود، از دامنه‌ی واقعی استفاده کن
         if not host or host == "localhost":
             host = "telegram-timazadi-chanalame.up.railway.app"
         
@@ -214,8 +212,7 @@ async def _send_link_and_qr(chat_id, uid: str):
             if not bundle:
                 await _send(chat_id, "❌ خطا در تولید لینک.")
                 return
-        except Exception as e:
-            logger.warning(f"telegram_bot: generate_all_vless_links error: {e}")
+        except Exception:
             await _send(chat_id, "❌ خطا در تولید لینک.")
             return
         
@@ -228,13 +225,11 @@ async def _send_link_and_qr(chat_id, uid: str):
         try:
             qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + _urlquote(primary, safe="")
             await _send(chat_id, text, photo=qr_url)
-        except Exception as e:
-            logger.warning(f"telegram_bot: QR send error: {e}")
+        except Exception:
             kb = [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
             await _send(chat_id, text + "\n\n⚠️ QR code قابل ارسال نبود، لینک‌ها بالا ارسال شدند.", kb)
             
-    except Exception as e:
-        logger.warning(f"telegram_bot: _send_link_and_qr error: {e}")
+    except Exception:
         await _send(chat_id, "❌ خطا در دریافت لینک. لطفاً دوباره تلاش کنید.")
 
 
@@ -325,10 +320,13 @@ async def _show_stats(chat_id, message_id):
     await _edit(chat_id, message_id, text, [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]])
 
 
-# ── مسیریابی پیام‌های متنی (پاسخ به مراحل ویزارد) ───────────────────────────────
+# ── مسیریابی پیام‌های متنی ──────────────────────────────────────────────────────
 async def _handle_text(chat_id, text):
     w = _wizard.get(str(chat_id))
     text = (text or "").strip()
+    
+    # لاگ ساده برای دیباگ
+    logger.info(f"telegram_bot: received text from {chat_id}: {text[:50]}")
 
     if not w:
         if text.startswith("/start") or text.startswith("/menu"):
@@ -544,9 +542,6 @@ async def _process_update(update: dict):
 
 
 async def polling_loop():
-    """این تسک در startup اجرا می‌شود و تا shutdown ادامه دارد. اگر بات
-    غیرفعال یا توکن/چت‌آیدی خالی باشد، فقط منتظر می‌ماند (زیاد پول نمی‌زند)
-    تا از پنل فعال شود — نیازی به ری‌استارت سرویس نیست."""
     global _offset, _running
     _running = True
     logger.info("telegram_bot: polling loop started")
