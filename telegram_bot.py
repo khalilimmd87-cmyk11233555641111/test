@@ -188,7 +188,6 @@ async def _show_link_detail(chat_id, message_id, uid: str):
     await _edit(chat_id, message_id, text, kb)
 
 
-# ── تابع اصلی دریافت لینک/QR ────────────────────────────────────────────────
 async def _send_link_and_qr(chat_id, uid: str):
     """ارسال لینک‌های کانفیگ و QR کد با مدیریت خطا"""
     try:
@@ -325,7 +324,6 @@ async def _handle_text(chat_id, text):
     w = _wizard.get(str(chat_id))
     text = (text or "").strip()
     
-    # لاگ ساده برای دیباگ
     logger.info(f"telegram_bot: received text from {chat_id}: {text[:50]}")
 
     if not w:
@@ -550,13 +548,26 @@ async def polling_loop():
             if not (TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token") and _allowed_chats()):
                 await asyncio.sleep(5)
                 continue
-            result = await _api("getUpdates", {"offset": _offset, "timeout": 25, "allowed_updates": ["message", "callback_query"]})
+            
+            logger.info(f"telegram_bot: calling getUpdates with offset: {_offset}")
+            
+            result = await _api("getUpdates", {
+                "offset": _offset, 
+                "timeout": 25, 
+                "allowed_updates": ["message", "callback_query"]
+            })
+            
             if result is None:
+                logger.warning("telegram_bot: getUpdates returned None")
                 await asyncio.sleep(5)
                 continue
+                
+            logger.info(f"telegram_bot: got {len(result)} updates")
+            
             for update in result:
                 _offset = update["update_id"] + 1
                 await _process_update(update)
+                
         except asyncio.CancelledError:
             break
         except Exception as e:
