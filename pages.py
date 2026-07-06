@@ -1261,6 +1261,68 @@ a{color:inherit;text-decoration:none}
         <div class="cl" style="margin-top:12px"><i class="ti ti-info-circle"></i><span>برای ساخت بات، به @BotFather پیام بده و دستور /newbot را بزن؛ برای گرفتن چت‌آیدی خودت، به @userinfobot پیام بده.</span></div>
       </div>
     </div>
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!-- ✅ بخش تنظیمات رفرال - اضافه شده -->
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <div class="pw-panel" style="margin-top:16px">
+      <div class="pw-hero">
+        <div class="pw-hero-icon" style="background:rgba(251,191,36,.14);color:#fbbf24"><i class="ti ti-gift"></i></div>
+        <div class="pw-hero-text">
+          <div class="pw-hero-title">🎁 سیستم رفرال</div>
+          <div class="pw-hero-sub">کاربران با معرفی دوستان، کانفیگ رایگان دریافت کنند</div>
+        </div>
+      </div>
+      <div class="pw-body">
+        <div class="pw-field" style="margin-bottom:14px">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>فعال‌سازی سیستم رفرال</span>
+            <label class="switch"><input type="checkbox" id="ref-enabled"><span class="slider"></span></label>
+          </label>
+        </div>
+        
+        <div class="pw-field">
+          <label>نام کاربری کانال اجباری (بدون @)</label>
+          <input class="pw-input" type="text" id="ref-channel" placeholder="TimAzadi" value="TimAzadi">
+        </div>
+        
+        <div class="pw-field" style="margin-bottom:14px">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>عضویت در کانال اجباری باشد؟</span>
+            <label class="switch"><input type="checkbox" id="ref-channel-required" checked><span class="slider"></span></label>
+          </label>
+        </div>
+        
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="fg" style="flex:1"><label>حجم جایزه (GB)</label><input class="fi" id="ref-reward-gb" type="number" min="0" step="0.1" value="1"></div>
+          <div class="fg" style="flex:1"><label>مدت اعتبار (روز)</label><input class="fi" id="ref-reward-days" type="number" min="1" value="7"></div>
+        </div>
+        
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="fg" style="flex:1"><label>حداکثر تعداد رفرال برای هر کاربر</label><input class="fi" id="ref-limit" type="number" min="1" value="5"></div>
+          <div class="fg" style="flex:1"><label>حداکثر کانفیگ برای هر کاربر</label><input class="fi" id="ref-max-links" type="number" min="1" value="3"></div>
+        </div>
+        
+        <div class="pw-field" style="margin-bottom:6px">
+          <label>توکن بات (برای بررسی عضویت در کانال)</label>
+          <input class="pw-input" type="text" id="ref-bot-token" placeholder="توکن بات را وارد کنید (اختیاری)">
+        </div>
+        
+        <div class="pw-field" style="margin-bottom:6px">
+          <label>نام کاربری بات (برای لینک رفرال، بدون @)</label>
+          <input class="pw-input" type="text" id="ref-bot-username" placeholder="مثلاً: timazadi_bot">
+        </div>
+        
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="pw-submit" style="flex:1" onclick="saveReferralSettings()"><i class="ti ti-device-floppy"></i> ذخیره تنظیمات</button>
+          <button class="btn btn-g" onclick="loadReferralSettings()"><i class="ti ti-refresh"></i></button>
+        </div>
+        
+        <div class="cl" style="margin-top:12px"><i class="ti ti-info-circle"></i>
+          <span>کاربران با لینک رفرال <code>https://t.me/bot?start=ref_xxxx</code> ثبت‌نام می‌کنند و به ازای هر رفرال، یک کانفیگ دریافت می‌کنند.</span>
+        </div>
+      </div>
+    </div>
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
   </div>
 </section>
 </main>
@@ -2007,6 +2069,53 @@ async function testTelegram(){
   }catch(e){toast('خطا در ارسال تست','err')}
 }
 
+// ── توابع سیستم رفرال ──────────────────────────────────────────────────────
+
+async function loadReferralSettings() {
+  try {
+    const r = await authF('/api/settings/referral');
+    const d = await r.json();
+    document.getElementById('ref-enabled').checked = !!d.enabled;
+    document.getElementById('ref-channel').value = d.channel_username || 'TimAzadi';
+    document.getElementById('ref-channel-required').checked = d.channel_required !== false;
+    document.getElementById('ref-reward-gb').value = d.referral_reward_gb || 1;
+    document.getElementById('ref-reward-days').value = d.referral_reward_days || 7;
+    document.getElementById('ref-limit').value = d.referral_limit || 5;
+    document.getElementById('ref-max-links').value = d.max_links_per_user || 3;
+    document.getElementById('ref-bot-token').value = d.bot_token_masked || '';
+    document.getElementById('ref-bot-username').value = d.bot_username || '';
+  } catch(e) {
+    console.error('loadReferralSettings error:', e);
+  }
+}
+
+async function saveReferralSettings() {
+  const body = {
+    enabled: document.getElementById('ref-enabled').checked,
+    channel_username: document.getElementById('ref-channel').value.trim(),
+    channel_required: document.getElementById('ref-channel-required').checked,
+    referral_reward_gb: Number(document.getElementById('ref-reward-gb').value) || 1,
+    referral_reward_days: Number(document.getElementById('ref-reward-days').value) || 7,
+    referral_limit: Number(document.getElementById('ref-limit').value) || 5,
+    max_links_per_user: Number(document.getElementById('ref-max-links').value) || 3,
+    bot_token: document.getElementById('ref-bot-token').value.trim(),
+    bot_username: document.getElementById('ref-bot-username').value.trim(),
+  };
+  
+  try {
+    const r = await authF('/api/settings/referral', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error();
+    toast('تنظیمات رفرال ذخیره شد ✓', 'ok');
+    loadReferralSettings();
+  } catch(e) {
+    toast('خطا در ذخیره', 'err');
+  }
+}
+
 let dailyChartInstance=null;
 async function openDailyChart(uuid,label){
   document.getElementById('dc-title').textContent=label;
@@ -2031,6 +2140,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   document.getElementById('set-host').textContent=location.host;
   document.getElementById('sub-all-url')&&(document.getElementById('sub-all-url').textContent=location.protocol+'//'+location.host+'/sub-all');
   loadTelegramSettings();
+  loadReferralSettings();
   fetchStats();fetchDefaultVless();loadLinks();loadSubs();
   setInterval(fetchStats,4000);
   setInterval(()=>{
@@ -2660,10 +2770,6 @@ init();
 </body></html>"""
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ✅ تابع جدید: صفحه عمومی برای لینک‌های تکی (سینگل ساب)
-# ══════════════════════════════════════════════════════════════════════════════
-
 def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     """صفحه‌ی عمومی یک کانفیگ تکی – نمایش حجم مصرف، سهمیه، لینک و QR"""
     import json as _json
@@ -2686,7 +2792,6 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     _country_names = {"🇺🇸": "آمریکا", "🇳🇱": "هلند", "🇩🇪": "آلمان", "🇬🇧": "بریتانیا", "🇫🇷": "فرانسه", "🇹🇷": "ترکیه", "🇸🇬": "سنگاپور", "🇯🇵": "ژاپن"}
     country_name = _country_names.get(flag, "")
     
-    # نمایش پروتکل به فارسی
     proto_names = {
         "vless-ws": "VLESS / WebSocket",
         "xhttp-packet-up": "XHTTP · packet-up",
