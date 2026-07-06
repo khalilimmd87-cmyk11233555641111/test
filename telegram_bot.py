@@ -189,6 +189,7 @@ async def _show_link_detail(chat_id, message_id, uid: str):
     await _edit(chat_id, message_id, text, kb)
 
 
+# ── تابع اصلاح‌شده برای دریافت لینک/QR با مدیریت خطا ──────────────────────────
 async def _send_link_and_qr(chat_id, uid: str):
     """ارسال لینک‌های کانفیگ و QR کد با مدیریت خطا"""
     try:
@@ -200,7 +201,7 @@ async def _send_link_and_qr(chat_id, uid: str):
         
         host = get_host()
         if not host:
-            await _send(chat_id, "❌ خطا در دریافت آدرس سرور. لطفاً با ادمین تماس بگیرید.")
+            await _send(chat_id, "❌ خطا در دریافت آدرس سرور.")
             return
         
         label = d.get("label", "کانفیگ")
@@ -208,15 +209,13 @@ async def _send_link_and_qr(chat_id, uid: str):
         limit_bytes = d.get("limit_bytes", 0)
         flag = d.get("flag", "")
         
-        # تولید لینک‌ها با try/except جداگانه
         try:
             bundle = generate_all_vless_links(uid, host, label, used_bytes, limit_bytes, flag=flag)
-            if not bundle or len(bundle) == 0:
-                await _send(chat_id, "❌ خطا در تولید لینک. لطفاً دوباره تلاش کنید.")
+            if not bundle:
+                await _send(chat_id, "❌ خطا در تولید لینک.")
                 return
-        except Exception as e:
-            logger.error(f"telegram_bot: generate_all_vless_links error: {e}")
-            await _send(chat_id, f"❌ خطا در تولید لینک: {str(e)[:100]}")
+        except:
+            await _send(chat_id, "❌ خطا در تولید لینک.")
             return
         
         primary = bundle[0]["vless_link"]
@@ -225,19 +224,15 @@ async def _send_link_and_qr(chat_id, uid: str):
         
         text = f"🔗 <b>{label}</b>\n\n<code>{all_text}</code>\n\n📡 لینک ساب:\n{sub_url}"
         
-        # ساخت QR با try/except جداگانه
         try:
             qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + _urlquote(primary, safe="")
             await _send(chat_id, text, photo=qr_url)
-        except Exception as e:
-            logger.warning(f"telegram_bot: QR send error: {e}")
-            # اگر QR خطا داد، حداقل لینک رو بفرست
+        except:
             kb = [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
             await _send(chat_id, text + "\n\n⚠️ QR code قابل ارسال نبود، لینک‌ها بالا ارسال شدند.", kb)
             
-    except Exception as e:
-        logger.error(f"telegram_bot: _send_link_and_qr error: {e}")
-        await _send(chat_id, f"❌ خطای غیرمنتظره: {str(e)[:200]}")
+    except:
+        await _send(chat_id, "❌ خطا در دریافت لینک. لطفاً دوباره تلاش کنید.")
 
 
 # ── ساخت کانفیگ جدید (ویزارد) ───────────────────────────────────────────────────
@@ -464,11 +459,7 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
         _wizard[str(chat_id)] = {"step": "increase_quota", "data": {"uid": uid}}
         await _edit(chat_id, message_id, "✏️ چند گیگابایت اضافه شود؟ (مثلاً 5):", [[{"text": "❌ انصراف", "callback_data": "m:main"}]])
     elif data.startswith("lg:"):
-        try:
-            await _send_link_and_qr(chat_id, data[3:])
-        except Exception as e:
-            logger.error(f"telegram_bot: callback lg error: {e}")
-            await _send(chat_id, f"❌ خطا در دریافت لینک: {str(e)[:200]}")
+        await _send_link_and_qr(chat_id, data[3:])
     elif data.startswith("ldc:"):
         uid = data[4:]
         async with LINKS_LOCK:
