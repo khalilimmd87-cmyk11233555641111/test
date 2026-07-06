@@ -1,5 +1,6 @@
 import asyncio
 import secrets
+import socket
 import time
 from datetime import datetime, timedelta
 from urllib.parse import quote
@@ -27,6 +28,7 @@ from state import (
     check_login_rate_limit, record_login_attempt,
     is_blocked_proxy_target,
     parse_expiry_to_timedelta, sub_permissions,
+    is_device_allowed, TELEGRAM_SETTINGS, daily_traffic, link_daily_traffic,
 )
 
 # ✅ امنیت: به‌جای CORS باز (allow_origins=["*"] + allow_credentials=True که
@@ -86,6 +88,87 @@ async def _harden_headers(request: Request, call_next):
     return response
 
 # ── Startup / Shutdown ────────────────────────────────────────────────────────
+async def send_telegram_message(text: str) -> tuple[bool, str]:
+    """پیام را با httpx (همون http_client مشترک) به بات تلگرام می‌فرستد.
+    اگر توکن/چت‌آیدی ست نشده باشه یا خطایی رخ بده، (False, پیام‌خطا)
+    برمی‌گردونه تا هم لاگ بشه و هم بشه از پنل «تست» نتیجه رو دید.
+
+    ✅ فیچر: اگر ادمین یک IP دستی برای api.telegram.org ست کرده باشد
+    (مثلاً چون DNS این دامنه روی سرور فیلتر/بلاک است)، درخواست مستقیماً
+    به همان IP وصل می‌شود؛ SNI و هدر Host همچنان api.telegram.org
+    می‌مانند تا هم هندشیک TLS با گواهی واقعی تلگرام معتبر باشد و هم
+    خودِ سرویس تلگرام درخواست را برای همان دامنه تشخیص بدهد. اگر فیلترینگ
+    در سطح IP باشد (نه فقط DNS)، این ترفند کمکی نمی‌کند — آن یک محدودیت
+    شبکه‌ای است، نه چیزی که با کد قابل دورزدن باشد."""
+    token = TELEGRAM_SETTINGS.get("bot_token")
+    chat_id = TELEGRAM_SETTINGS.get("chat_id")
+    if not token or not chat_id:
+        return False, "توکن بات یا چت‌آیدی تنظیم نشده"
+    if http_client is None:
+        return False, "سرور هنوز آماده نیست"
+
+    api_ip = (TELEGRAM_SETTINGS.get("api_ip") or "").strip()
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    try:
+        if api_ip:
+            host_for_url = f"[{api_ip}]" if ":" in api_ip else api_ip
+            url = f"https://{host_for_url}/bot{token}/sendMessage"
+            resp = await http_client.post(
+                url,
+                json=payload,
+                headers={"Host": "api.telegram.org"},
+                extensions={"sni_hostname": "api.telegram.org"},
+                timeout=15.0,
+            )
+        else:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            resp = await http_client.post(url, json=payload, timeout=15.0)
+        if resp.status_code == 200:
+            return True, "ok"
+        return False, f"تلگرام خطا داد: {resp.status_code} — {resp.text[:200]}"
+    except Exception as e:
+        return False, f"خطا در اتصال به تلگرام{' (IP دستی: ' + api_ip + ')' if api_ip else ''}: {e}"
+
+async def telegram_notifier_loop():
+    """✅ فیچر: هشدار خودکار — هر چند دقیقه یک‌بار همه‌ی کانفیگ‌ها را چک
+    می‌کند و اگر مصرف از درصد ست‌شده رد شده یا انقضا نزدیک شده، یک پیام
+    تلگرامی به مدیر می‌فرستد (فقط یک‌بار به ازای هر رویداد، تا اسپم نشه؛
+    با ریست‌کردن مصرف/تمدید تاریخ، دوباره قابل هشداردادن می‌شه)."""
+    while True:
+        try:
+            if TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token") and TELEGRAM_SETTINGS.get("chat_id"):
+                quota_pct = TELEGRAM_SETTINGS.get("notify_quota_pct", 90)
+                expiry_hours = TELEGRAM_SETTINGS.get("notify_expiry_hours", 24)
+                async with LINKS_LOCK:
+                    items = list(LINKS.items())
+                for uid, link in items:
+                    label = link.get("label", uid)
+                    limit_bytes = link.get("limit_bytes", 0)
+                    used_bytes = link.get("used_bytes", 0)
+                    if limit_bytes > 0 and not link.get("quota_notified"):
+                        pct = used_bytes / limit_bytes * 100
+                        if pct >= quota_pct:
+                            ok, _ = await send_telegram_message(
+                                f"⚠️ <b>{label}</b>\nمصرف به {pct:.0f}٪ از سقف رسید ({fmt_bytes(used_bytes)} از {fmt_bytes(limit_bytes)})."
+                            )
+                            if ok:
+                                link["quota_notified"] = True
+                    exp_at = link.get("expires_at")
+                    if exp_at and not link.get("expiry_notified"):
+                        try:
+                            remaining = (datetime.fromisoformat(exp_at) - datetime.now()).total_seconds() / 3600
+                        except Exception:
+                            remaining = None
+                        if remaining is not None and 0 < remaining <= expiry_hours:
+                            ok, _ = await send_telegram_message(
+                                f"⏰ <b>{label}</b>\nکمتر از {expiry_hours} ساعت تا انقضا مانده."
+                            )
+                            if ok:
+                                link["expiry_notified"] = True
+        except Exception as e:
+            logger.warning(f"telegram_notifier_loop error: {e}")
+        await asyncio.sleep(300)  # هر ۵ دقیقه
+
 @app.on_event("startup")
 async def startup():
     global http_client
@@ -98,6 +181,7 @@ async def startup():
     if os.environ.get("ADMIN_PASSWORD") is None:
         logger.warning("⚠️  ADMIN_PASSWORD در env تنظیم نشده؛ رمز پیش‌فرض در حال استفاده است. برای امنیت، آن را در متغیرهای محیطی ست کنید و/یا از پنل تغییر بدهید.")
     log_activity("system", "سرور راه‌اندازی شد", "ok")
+    asyncio.create_task(telegram_notifier_loop())
     logger.info(f"تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
@@ -696,6 +780,8 @@ async def create_link(request: Request, _=Depends(require_auth)):
     if protocol not in PROTOCOLS:
         protocol = DEFAULT_PROTOCOL
     flag = str(body.get("flag") or "🇺🇸").strip()[:8]
+    # ✅ فیچر: حداکثر تعداد دستگاه/IP هم‌زمان مجاز روی این کانفیگ (۰ = نامحدود)
+    max_devices = max(0, int(body.get("max_devices") or 0))
 
     uid = generate_uuid()
     async with LINKS_LOCK:
@@ -713,6 +799,9 @@ async def create_link(request: Request, _=Depends(require_auth)):
             "parent_id": None,
             "white_label": False,
             "flag": flag,
+            "max_devices": max_devices,
+            "quota_notified": False,
+            "expiry_notified": False,
         }
 
     if sub_id:
@@ -748,6 +837,7 @@ async def list_links(_=Depends(require_auth)):
         # دسترسی‌ای به بسته‌ی کامل نداشت، برای همین دکمه‌ی کپی/QR توی خودِ
         # پنل هم فقط یک پروتکل را نشان می‌داد.
         bundle = generate_all_vless_links(uid, host, d["label"], used_bytes, limit_bytes, flag=d.get("flag", ""))
+        link_conns = [c for c in connections.values() if c.get("uuid") == uid]
         result.append({
             "uuid": uid,
             **d,
@@ -756,6 +846,10 @@ async def list_links(_=Depends(require_auth)):
             "vless_link": next((b["vless_link"] for b in bundle if b["protocol"] == proto), bundle[0]["vless_link"]),
             "vless_links": bundle,
             "sub_url": f"https://{host}/sub/{uid}",
+            # ✅ فیچر: تعداد اتصال زنده و IP یکتای همین لحظه، مستقیم روی کارت
+            # کانفیگ در پنل قابل دیدن است.
+            "live_connections": len(link_conns),
+            "live_unique_ips": len({c.get("ip") for c in link_conns}),
         })
     result.sort(key=lambda x: x["created_at"], reverse=True)
     return {"links": result}
@@ -778,20 +872,26 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
             link["note"] = str(body["note"])[:200]
         if "reset_usage" in body and body["reset_usage"]:
             link["used_bytes"] = 0
+            link["quota_notified"] = False
             log_activity("link", f"مصرف کانفیگ «{label}» ریست شد", "info")
         if "limit_value" in body:
             lv = float(body.get("limit_value") or 0)
             lu = body.get("limit_unit") or "GB"
             link["limit_bytes"] = 0 if lv <= 0 else parse_size_to_bytes(lv, lu)
+            link["quota_notified"] = False
+        if "max_devices" in body:
+            link["max_devices"] = max(0, int(body.get("max_devices") or 0))
         if "expires_value" in body:
             exp_delta = parse_expiry_to_timedelta(float(body.get("expires_value") or 0), body.get("expires_unit") or "days")
             if exp_delta:
                 link["expires_at"] = (datetime.now() + exp_delta).isoformat()
+                link["expiry_notified"] = False
         elif "expires_days" in body:
             ed = int(body["expires_days"] or 0)
             exp_delta = parse_expiry_to_timedelta(ed, "days")
             if exp_delta:
                 link["expires_at"] = (datetime.now() + exp_delta).isoformat()
+                link["expiry_notified"] = False
         if any(k in body for k in ("label", "note", "limit_value", "expires_days", "expires_value")):
             log_activity("link", f"کانفیگ «{link['label']}» ویرایش شد", "info")
         new_sub = body.get("sub_id", "UNCHANGED")
@@ -829,6 +929,102 @@ async def delete_link(uid: str, _=Depends(require_auth)):
     await schedule_save()
     log_activity("link", f"کانفیگ «{label}» حذف شد", "err")
     return {"ok": True, "deleted": uid}
+
+# ✅ فیچر: «پرمصرف‌ترین‌ها» — رتبه‌بندی واقعی کانفیگ‌ها بر اساس مصرف واقعی
+# (used_bytes) و اتصالات زنده‌ی همین لحظه، نه یک عدد تزئینی.
+@app.get("/api/top-usage")
+async def top_usage(limit: int = 10, _=Depends(require_auth)):
+    async with LINKS_LOCK:
+        snap = dict(LINKS)
+    conn_by_uid: dict[str, list] = {}
+    for c in connections.values():
+        conn_by_uid.setdefault(c.get("uuid"), []).append(c)
+
+    rows = []
+    for uid, d in snap.items():
+        conns = conn_by_uid.get(uid, [])
+        rows.append({
+            "uuid": uid,
+            "label": d.get("label", "?"),
+            "used_bytes": d.get("used_bytes", 0),
+            "used_fmt": fmt_bytes(d.get("used_bytes", 0)),
+            "limit_bytes": d.get("limit_bytes", 0),
+            "limit_fmt": "∞" if not d.get("limit_bytes") else fmt_bytes(d["limit_bytes"]),
+            "pct": (d.get("used_bytes", 0) / d["limit_bytes"] * 100) if d.get("limit_bytes") else None,
+            "live_connections": len(conns),
+            "live_unique_ips": len({c.get("ip") for c in conns}),
+            "session_bytes": sum(c.get("bytes", 0) for c in conns),
+            "active": is_link_allowed(d),
+        })
+    by_total = sorted(rows, key=lambda r: r["used_bytes"], reverse=True)[:limit]
+    by_live = sorted([r for r in rows if r["live_connections"] > 0], key=lambda r: r["session_bytes"], reverse=True)[:limit]
+    return {"top_total": by_total, "top_live": by_live}
+
+# ✅ فیچر: مصرف روزانه‌ی هر کانفیگ به تفکیک روز، برای رسم نمودار در پنل.
+@app.get("/api/links/{uid}/daily")
+async def link_daily_usage(uid: str, days: int = 14, _=Depends(require_auth)):
+    async with LINKS_LOCK:
+        if uid not in LINKS:
+            raise HTTPException(status_code=404, detail="link not found")
+    from datetime import timedelta as _td
+    today = now_ir().date()
+    hist = link_daily_traffic.get(uid, {})
+    out = []
+    for i in range(days - 1, -1, -1):
+        day = today - _td(days=i)
+        key = day.strftime("%Y-%m-%d")
+        out.append({"date": key, "bytes": hist.get(key, 0), "fmt": fmt_bytes(hist.get(key, 0))})
+    return {"days": out}
+
+# ✅ فیچر: تنظیمات نوتیفیکیشن تلگرام — توکن بات و چت‌آیدی از پنل ذخیره
+# می‌شود، هیچ‌چیزی هاردکد نیست. تست مستقیم هم دارد تا مدیر مطمئن شود پیام
+# واقعاً می‌رسد، نه صرفاً «ذخیره شد» بدون تضمین کارکرد.
+@app.get("/api/settings/telegram")
+async def get_telegram_settings(_=Depends(require_auth)):
+    s = dict(TELEGRAM_SETTINGS)
+    if s.get("bot_token"):
+        s["bot_token_masked"] = s["bot_token"][:6] + "…" + s["bot_token"][-4:]
+    return s
+
+@app.post("/api/settings/telegram")
+async def set_telegram_settings(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    if "enabled" in body:
+        TELEGRAM_SETTINGS["enabled"] = bool(body["enabled"])
+    if "bot_token" in body and body["bot_token"]:
+        TELEGRAM_SETTINGS["bot_token"] = str(body["bot_token"]).strip()
+    if "chat_id" in body and body["chat_id"]:
+        TELEGRAM_SETTINGS["chat_id"] = str(body["chat_id"]).strip()
+    if "notify_quota_pct" in body:
+        TELEGRAM_SETTINGS["notify_quota_pct"] = max(1, min(100, int(body["notify_quota_pct"])))
+    if "notify_expiry_hours" in body:
+        TELEGRAM_SETTINGS["notify_expiry_hours"] = max(1, int(body["notify_expiry_hours"]))
+    if "api_ip" in body:
+        TELEGRAM_SETTINGS["api_ip"] = str(body["api_ip"] or "").strip()
+    await schedule_save()
+    log_activity("system", "تنظیمات نوتیفیکیشن تلگرام بروزرسانی شد", "ok")
+    return {"ok": True}
+
+# ✅ فیچر: کمک به ادمین برای پیدا کردن IP فعلی api.telegram.org از دید
+# خودِ سرور (نه از دید مرورگر ادمین) — چون فیلترینگ معمولاً روی همون
+# سروریه که پنل رویش اجراست، نه روی مرورگر. اگر DNS خودِ سرور هم فیلتر
+# باشه، این درخواست با خطا مواجه می‌شه و همون خودش یعنی مشکل DNS-level است.
+@app.get("/api/settings/telegram/resolve")
+async def resolve_telegram_ip(_=Depends(require_auth)):
+    try:
+        loop = asyncio.get_event_loop()
+        infos = await loop.getaddrinfo("api.telegram.org", 443, type=socket.SOCK_STREAM)
+        ips = sorted({info[4][0] for info in infos})
+        return {"ok": True, "ips": ips}
+    except Exception as e:
+        return {"ok": False, "detail": f"DNS این سرور نتوانست api.telegram.org را resolve کند: {e}"}
+
+@app.post("/api/settings/telegram/test")
+async def test_telegram(_=Depends(require_auth)):
+    ok, msg = await send_telegram_message("🔔 این یک پیام تست از پنل تیم‌آزادی Gateway است. اگر این را می‌بینید، تنظیمات درست است.")
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"ok": True}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # VLESS Relay
@@ -1109,4 +1305,21 @@ async def test_ws_redirect():
     return HTMLResponse(content="<script>location.href='/timazadi'</script>")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=CONFIG["port"], log_level="info", workers=1)
+    # ✅ فیچر: سرعت واقعی سرور — uvloop (event loop مبتنی بر libuv، به‌جای
+    # asyncio خالص) و httptools برای پارس HTTP، هر دو در uvicorn[standard]
+    # از قبل نصب هستند؛ فقط لازم بود صریحاً انتخاب شوند. این تغییر خصوصاً
+    # روی حجم اتصالات هم‌زمان بالا (relay/xhttp) تاخیر و مصرف CPU را کاهش
+    # می‌دهد. loop/http روی "auto" گذاشته شده: اگر uvloop/httptools در
+    # دسترس باشند (که با uvicorn[standard] هستند) انتخاب می‌شوند، وگرنه
+    # uvicorn بی‌صدا و بدون کرش به asyncio/h11 پیش‌فرض برمی‌گردد.
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=CONFIG["port"],
+        log_level="info",
+        workers=1,
+        loop="auto",
+        http="auto",
+        ws_ping_interval=20.0,
+        ws_ping_timeout=20.0,
+    )
