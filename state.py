@@ -74,13 +74,39 @@ stats = {
 error_logs: deque = deque(maxlen=50)
 activity_logs: deque = deque(maxlen=200)
 hourly_traffic: dict = defaultdict(int)
+# ✅ فیچر: مصرف روزانه — هم مجموع کل (برای نمودار کلی) و هم به تفکیک هر
+# کانفیگ (uid) تا بشه نمودار مصرف روزانه‌ی هر کانفیگ رو جدا رسم کرد.
+daily_traffic: dict = defaultdict(int)
+link_daily_traffic: dict = defaultdict(lambda: defaultdict(int))
 LINKS: dict = {}
 LINKS_LOCK = asyncio.Lock()
 SUBS: dict = {}
 SUBS_LOCK = asyncio.Lock()
 
+# ✅ فیچر: نوتیفیکیشن تلگرام به مدیر — وقتی حجم/زمان یک کانفیگ داره تموم
+# می‌شه. توکن/چت‌آیدی از پنل تنظیم می‌شه، چیزی هاردکد نیست.
+TELEGRAM_SETTINGS = {
+    "enabled": False,
+    "bot_token": "",
+    "chat_id": "",
+    "notify_quota_pct": 90,      # هشدار وقتی مصرف به این درصد از سقف رسید
+    "notify_expiry_hours": 24,   # هشدار وقتی این‌قدر ساعت به انقضا مونده
+    # ✅ فیچر: اگر DNS دامنه‌ی api.telegram.org روی سرور فیلتر/بلاک باشه
+    # (نه خودِ IP)، ادمین می‌تونه یک IP دستی بده تا مستقیم بهش وصل بشیم و
+    # فقط از دامنه برای SNI/Host (تطبیق گواهی TLS) استفاده کنیم.
+    "api_ip": "",
+}
+
+def record_traffic(uid: str, n: int):
+    """هم ترافیک ساعتی/کلی قبلی و هم ترافیک روزانه (کلی + به‌ازای هر کانفیگ)
+    را به‌روزرسانی می‌کند. صدا زدنش از داخل قفل LINKS_LOCK بی‌خطر است چون
+    فقط دیکشنری‌های درون‌حافظه‌ای را دستکاری می‌کند."""
+    day_key = now_ir().strftime("%Y-%m-%d")
+    daily_traffic[day_key] += n
+    link_daily_traffic[uid][day_key] += n
+
 # پروتکل‌های پشتیبانی‌شده برای هر کانفیگ
-PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one")
+PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one", "trojan-ws")
 DEFAULT_PROTOCOL = "vless-ws"
 
 def log_activity(kind: str, message: str, level: str = "info"):
@@ -200,6 +226,8 @@ async def load_state():
             SUBS.update(data.get("subs", {}))
             if "password_hash" in data:
                 AUTH["password_hash"] = data["password_hash"]
+            if "telegram_settings" in data:
+                TELEGRAM_SETTINGS.update(data["telegram_settings"])
             logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
@@ -212,6 +240,7 @@ async def save_state():
                 "links": dict(LINKS),
                 "subs": dict(SUBS),
                 "password_hash": AUTH["password_hash"],
+                "telegram_settings": TELEGRAM_SETTINGS,
                 "saved_at": datetime.now().isoformat(),
             }
             tmp = DATA_FILE.with_suffix(".tmp")
@@ -233,8 +262,24 @@ def now_ir() -> datetime:
     return datetime.now(IRAN_TZ)
 
 def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی", protocol: str = DEFAULT_PROTOCOL) -> str:
-    """می‌سازد VLESS share-link متناسب با پروتکل انتخاب‌شده (WS کلاسیک یا یکی از مدهای XHTTP)."""
+    """می‌سازد VLESS/Trojan share-link متناسب با پروتکل انتخاب‌شده (WS کلاسیک،
+    یکی از مدهای XHTTP، یا Trojan روی WS)."""
     from urllib.parse import quote
+    if protocol == "trojan-ws":
+        # ✅ فیچر: کانفیگ Trojan — پسورد همان UUID کانفیگ است (روی سیم به‌صورت
+        # SHA224-hex فرستاده می‌شود، خودِ کلاینت این هش را انجام می‌دهد).
+        path = f"/ws/{uuid}"
+        params = {
+            "security": "tls",
+            "type": "ws",
+            "host": host,
+            "path": path,
+            "sni": host,
+            "fp": "chrome",
+            "alpn": "http/1.1",
+        }
+        query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
+        return f"trojan://{uuid}@{host}:443?{query}#{quote(remark)}"
     if protocol == "vless-ws":
         path = f"/ws/{uuid}"
         params = {
@@ -279,8 +324,8 @@ def fmt_bytes(b: int) -> str:
 # پروتکل‌هایی که واقعاً روی این استک کار می‌کنند (xhttp-stream-one در PROTOCOLS
 # نگه داشته شده برای سازگاری با نصب‌های قبلی، ولی route ندارد و همیشه 404
 # می‌دهد — عمداً از باندل خودکار ساب کنار گذاشته شده تا کانفیگ خراب پخش نشود).
-ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up")
-_PROTOCOL_TAG = {"vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S"}
+ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "trojan-ws")
+_PROTOCOL_TAG = {"vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S", "trojan-ws": "TROJAN"}
 
 def quota_suffix(used_bytes: int, limit_bytes: int) -> str:
     """رشته‌ی حجم دقیق برای نمایش در remark لینک/QR، مثلاً «12.3GB/100GB» یا «12.3GB/∞»."""
@@ -361,6 +406,24 @@ def is_link_allowed(link: dict | None) -> bool:
         if sub and sub.get("locked"):
             return False
     return True
+
+def is_device_allowed(uid: str, ip: str) -> bool:
+    """✅ فیچر: محدودیت تعداد دستگاه/IP هم‌زمان روی هر کانفیگ. ادمین از پنل
+    برای هر کانفیگ یک عدد «حداکثر دستگاه» (max_devices) ست می‌کند؛ ۰ یعنی
+    نامحدود (رفتار قبلی، بدون تغییر). واحد شمارش، تعداد IPهای یکتای در حال
+    حاضر متصل است، نه تعداد اتصالات خام — چون یک کلاینت VLESS معمولاً چند
+    سوکت هم‌زمان برای همون یک دستگاه باز می‌کند و شمردن آن‌ها به‌عنوان
+    «دستگاه‌های جدا» غیرمنصفانه بود."""
+    link = LINKS.get(uid)
+    if not link:
+        return False
+    max_devices = int(link.get("max_devices") or 0)
+    if max_devices <= 0:
+        return True
+    current_ips = {c.get("ip") for c in connections.values() if c.get("uuid") == uid}
+    if ip in current_ips:
+        return True
+    return len(current_ips) < max_devices
 
 def sub_permissions(sub_id: str | None) -> dict:
     """اجازه‌های پیش‌فرض: True (رفتار قبلی حفظ می‌شود) مگر ادمین صریحاً
