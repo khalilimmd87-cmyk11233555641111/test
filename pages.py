@@ -324,7 +324,7 @@ a{color:inherit;text-decoration:none}
 .chip{font-size:10.5px;font-weight:700;padding:5px 12px;border-radius:8px;background:var(--accent-d);color:var(--t2);border:1px solid var(--card-b);cursor:pointer;transition:.15s;white-space:nowrap}
 .chip:hover{background:rgba(59,130,246,.18);color:var(--accent2)}
 .chip.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 3px 10px rgba(59,130,246,.35)}
-.proto-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.proto-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
 .proto-card{border:1.5px solid var(--card-b);border-radius:13px;padding:13px 12px;cursor:pointer;transition:.18s;text-align:center;position:relative;background:rgba(0,0,0,.1)}
 [data-theme="light"] .proto-card{background:#fff}
 .proto-card:hover{border-color:var(--card-bh);transform:translateY(-1px)}
@@ -469,6 +469,12 @@ a{color:inherit;text-decoration:none}
 .sub-card-perms{display:flex;flex-direction:column;gap:6px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--card-b)}
 .perm-toggle{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--t2);font-weight:600;cursor:pointer;user-select:none}
 .perm-toggle input{width:14px;height:14px;accent-color:#8b5cf6;cursor:pointer}
+.switch{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.switch .slider{position:absolute;cursor:pointer;inset:0;background:var(--card-b);border-radius:24px;transition:.2s}
+.switch .slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+.slider{background:var(--accent)}
+.switch input:checked+.slider:before{transform:translateX(18px)}
 .sub-card-top{background:linear-gradient(155deg,var(--purple-bg) 0%,transparent 65%);padding:20px 20px 16px;position:relative}
 .sub-card-top::before{content:'';position:absolute;top:-30px;left:-30px;width:130px;height:130px;background:radial-gradient(circle,rgba(139,92,246,.14),transparent 70%);pointer-events:none}
 .sub-card-head-v2{display:flex;align-items:flex-start;gap:13px;position:relative;z-index:1}
@@ -616,6 +622,7 @@ a{color:inherit;text-decoration:none}
 .pc-ws{background:var(--accent-d);color:var(--accent2)}
 .pc-xhttp{background:var(--purple-bg);color:#A78BFA}
 .pc-ultra{background:var(--green-bg);color:var(--green-t)}
+.pc-trojan{background:rgba(239,68,68,.14);color:#f87171}
 .cfg-sub-tag{font-size:9.5px;color:var(--t3);display:flex;align-items:center;gap:4px;white-space:nowrap}
 .cfg-sub-tag i{color:var(--purple);font-size:11px}
 .tog{width:19px;height:30px;border-radius:19px;background:rgba(100,116,139,0.25);position:relative;cursor:pointer;transition:.2s;flex-shrink:0;border:none}
@@ -808,12 +815,20 @@ a{color:inherit;text-decoration:none}
       <div class="fg" style="flex:1"><label>انقضا از الان (0 = بدون تغییر)</label><input class="fi" id="el-exp" type="number" min="0" step="1" style="width:100%"></div>
       <div class="fg"><label>واحد</label><select class="fs" id="el-exp-unit"><option value="hours">ساعت</option><option value="days" selected>روز</option></select></div>
     </div>
+    <div class="fg" style="margin-bottom:13px"><label>حداکثر تعداد دستگاه/IP هم‌زمان (0 = نامحدود)</label><input class="fi" id="el-devices" type="number" min="0" step="1" style="width:100%"></div>
     <div class="fg" style="margin-bottom:16px"><label>یادداشت</label><input class="fi" id="el-note" style="width:100%"></div>
     <div class="cl"><i class="ti ti-info-circle"></i><span>برای حفظ انقضای فعلی، فیلد انقضا را صفر بگذارید.</span></div>
     <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-o" onclick="closeModal('modal-edit-link')">انصراف</button>
       <button class="btn btn-p" onclick="saveEditLink()"><i class="ti ti-check"></i> ذخیره تغییرات</button>
     </div>
+  </div>
+</div>
+<div class="modal-bg" id="modal-daily-chart">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="closeModal('modal-daily-chart')"><i class="ti ti-x"></i></button>
+    <div class="modal-title"><i class="ti ti-chart-histogram"></i> مصرف روزانه — <span id="dc-title"></span></div>
+    <div style="height:260px;margin-top:10px"><canvas id="dc-canvas"></canvas></div>
   </div>
 </div>
 <div class="mob-top">
@@ -958,6 +973,9 @@ a{color:inherit;text-decoration:none}
             <span class="chip active" onclick="setExpiry(30,'days',this)">۳۰ روز</span>
             <span class="chip" onclick="setExpiry(90,'days',this)">۹۰ روز</span>
           </div>
+          <div class="cp-mini-row">
+            <input class="cp-input-full" id="nl-devices" type="number" min="0" step="1" placeholder="حداکثر تعداد دستگاه/IP هم‌زمان · 0 = نامحدود">
+          </div>
         </div>
       </div>
       <div class="cp-block mb16">
@@ -1000,6 +1018,12 @@ a{color:inherit;text-decoration:none}
             <div class="proto-card-icon"><i class="ti ti-rocket"></i></div>
             <div class="proto-card-title">XHTTP · stream-up</div>
             <div class="proto-card-desc">تاخیر پایین‌تر</div>
+          </div>
+          <div class="proto-card" data-val="trojan-ws" onclick="selectProto('trojan-ws',this)">
+            <div class="proto-card-check"><i class="ti ti-check"></i></div>
+            <div class="proto-card-icon"><i class="ti ti-shield-lock"></i></div>
+            <div class="proto-card-title">Trojan / WS</div>
+            <div class="proto-card-desc">ساده و سریع</div>
           </div>
         </div>
       </div>
@@ -1129,6 +1153,13 @@ a{color:inherit;text-decoration:none}
     <div class="conn-empty-v2-title">هیچ اتصال فعالی نیست</div>
     <div class="conn-empty-v2-sub">به محض اتصال کلاینت‌ها، اینجا نمایش داده می‌شوند</div>
   </div>
+
+  <div class="conn-toolbar" style="margin-top:22px">
+    <div class="conn-toolbar-title"><i class="ti ti-trophy"></i> پرمصرف‌ترین کانفیگ‌ها</div>
+  </div>
+  <div class="card" id="top-usage-card">
+    <div id="top-usage-list">—</div>
+  </div>
 </section>
 <section class="pg" id="pg-security">
   <div class="topbar"><div><div class="tb-title"><i class="ti ti-shield-lock"></i> امنیت</div></div></div>
@@ -1232,6 +1263,48 @@ a{color:inherit;text-decoration:none}
         <button class="pw-submit" onclick="changePw()"><i class="ti ti-shield-check"></i> ذخیره رمز جدید</button>
       </div>
     </div>
+    <div class="pw-panel">
+      <div class="pw-hero">
+        <div class="pw-hero-icon" style="background:rgba(34,158,217,.14);color:#29a9eb"><i class="ti ti-brand-telegram"></i></div>
+        <div class="pw-hero-text">
+          <div class="pw-hero-title">نوتیفیکیشن تلگرام</div>
+          <div class="pw-hero-sub">وقتی حجم/زمان یک کانفیگ داره تموم می‌شه، به مدیر پیام بده</div>
+        </div>
+      </div>
+      <div class="pw-body">
+        <div class="pw-field" style="margin-bottom:14px">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>فعال‌سازی نوتیفیکیشن</span>
+            <label class="switch"><input type="checkbox" id="tg-enabled"><span class="slider"></span></label>
+          </label>
+        </div>
+        <div class="pw-field">
+          <label>توکن بات (از @BotFather)</label>
+          <input class="pw-input" type="text" id="tg-token" placeholder="123456:ABC-DEF...">
+        </div>
+        <div class="pw-field" style="margin-bottom:14px">
+          <label>چت‌آیدی (خودت یا گروه)</label>
+          <input class="pw-input" type="text" id="tg-chatid" placeholder="مثلاً 123456789">
+        </div>
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="fg" style="flex:1"><label>هشدار مصرف در چند درصد؟</label><input class="fi" id="tg-quota-pct" type="number" min="1" max="100" style="width:100%" value="90"></div>
+          <div class="fg" style="flex:1"><label>هشدار انقضا چند ساعت قبل؟</label><input class="fi" id="tg-exp-hours" type="number" min="1" style="width:100%" value="24"></div>
+        </div>
+        <div class="fg" style="margin-bottom:6px">
+          <label>IP دستی api.telegram.org (اختیاری — برای دورزدن فیلترینگِ DNS روی همین سرور)</label>
+          <div style="display:flex;gap:6px">
+            <input class="pw-input" type="text" id="tg-api-ip" placeholder="مثلاً 149.154.167.220 — خالی = استفاده از دامنه">
+            <button class="btn btn-o" style="white-space:nowrap" onclick="resolveTelegramIp()"><i class="ti ti-search"></i> پیدا کن</button>
+          </div>
+        </div>
+        <div class="cl amber" style="margin-bottom:14px"><i class="ti ti-alert-triangle"></i><span>این فقط فیلترینگ در سطح DNS را دور می‌زند، نه بلاک در سطح IP. IPهای تلگرام هم گاهی عوض می‌شوند؛ دکمه‌ی «پیدا کن» از خودِ سرور (نه مرورگر شما) IP فعلی را می‌گیرد.</span></div>
+        <div style="display:flex;gap:8px">
+          <button class="pw-submit" style="flex:1" onclick="saveTelegramSettings()"><i class="ti ti-device-floppy"></i> ذخیره تنظیمات</button>
+          <button class="btn btn-g" onclick="testTelegram()"><i class="ti ti-send"></i> تست ارسال</button>
+        </div>
+        <div class="cl" style="margin-top:12px"><i class="ti ti-info-circle"></i><span>برای ساخت بات، به @BotFather پیام بده و دستور /newbot را بزن؛ برای گرفتن چت‌آیدی خودت، به @userinfobot پیام بده.</span></div>
+      </div>
+    </div>
   </div>
 </section>
 </main>
@@ -1264,7 +1337,7 @@ function expChip(exp,expired){
   return `<span class="exp-chip ec-ok"><i class="ti ti-calendar-check"></i> ${toFa(d)} روز مانده</span>`;
 }
 function protoBadge(p){
-  const m={'vless-ws':['VLESS · WS','pc-ws'],'xhttp-packet-up':['XHTTP · packet-up','pc-xhttp'],'xhttp-stream-up':['XHTTP · stream-up','pc-xhttp'],'xhttp-stream-one':['XHTTP ULTRA','pc-ultra']};
+  const m={'vless-ws':['VLESS · WS','pc-ws'],'xhttp-packet-up':['XHTTP · packet-up','pc-xhttp'],'xhttp-stream-up':['XHTTP · stream-up','pc-xhttp'],'xhttp-stream-one':['XHTTP ULTRA','pc-ultra'],'trojan-ws':['Trojan · WS','pc-trojan'],'trojan-xhttp':['Trojan · XHTTP','pc-trojan']};
   const v=m[p]||m['vless-ws'];
   return `<span class="proto-chip ${v[1]}">${v[0]}</span>`;
 }
@@ -1405,6 +1478,9 @@ async function loadLinks(){
       <div class="cfg-badges-col">
         ${protoBadge(l.protocol)}
         ${l.sub_id&&allSubsList.find(s=>s.sub_id===l.sub_id)?`<span class="cfg-sub-tag"><i class="ti ti-folder"></i> ${esc(allSubsList.find(s=>s.sub_id===l.sub_id).name)}</span>`:''}
+        <span class="cfg-sub-tag" style="${l.live_connections>0?'color:var(--green-t);border-color:rgba(34,197,94,.3)':''}" title="اتصال زنده / سقف دستگاه">
+          <i class="ti ti-devices"></i> ${toFa(l.live_connections||0)}${l.max_devices?'/'+toFa(l.max_devices):''}
+        </span>
       </div>
       <div class="cfg-divider-v"></div>
       <div class="cfg-actions">
@@ -1412,6 +1488,7 @@ async function loadLinks(){
         <button class="btn btn-sm btn-g btn-icon" onclick='copyAllProtocols(${JSON.stringify(l.uuid)})' title="کپی هر ۳ کانفیگ باهم"><i class="ti ti-copy"></i></button>
         <button class="btn btn-sm btn-g btn-icon" onclick="navigator.clipboard.writeText('${esc(l.sub_url)}').then(()=>toast('Sub کپی شد','ok'))" title="Sub URL"><i class="ti ti-rss"></i></button>
         <button class="btn btn-sm btn-g btn-icon" onclick='openQrModal(${JSON.stringify(l.uuid)})' title="QR"><i class="ti ti-qrcode"></i></button>
+        <button class="btn btn-sm btn-pur btn-icon" onclick="openDailyChart('${l.uuid}','${esc(l.label)}')" title="نمودار مصرف روزانه"><i class="ti ti-chart-histogram"></i></button>
         <button class="btn btn-sm btn-amber btn-icon" onclick="openEditLink('${l.uuid}')" title="ویرایش"><i class="ti ti-edit"></i></button>
         <button class="btn btn-sm btn-g btn-icon" onclick="resetUsage('${l.uuid}')" title="ریست مصرف"><i class="ti ti-rotate"></i></button>
         <button class="btn btn-sm btn-d btn-icon" onclick="deleteLink('${l.uuid}')" title="حذف"><i class="ti ti-trash"></i></button>
@@ -1432,10 +1509,11 @@ async function createLink(){
   const sub_id=document.getElementById('nl-sub').value||null;
   const protocol=document.getElementById('nl-proto').value||'vless-ws';
   const flag=document.getElementById('nl-flag').value||'🇺🇸';
+  const max_devices=document.getElementById('nl-devices').value||0;
   try{
-    const r=await authF('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,limit_value:val||0,limit_unit:unit,expires_value:exp||0,expires_unit:expUnit,note,sub_id,protocol,flag})});
+    const r=await authF('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,limit_value:val||0,limit_unit:unit,expires_value:exp||0,expires_unit:expUnit,note,sub_id,protocol,flag,max_devices})});
     if(!r.ok)throw new Error('failed');
-    ['nl-label','nl-val','nl-exp','nl-note'].forEach(id=>document.getElementById(id).value='');
+    ['nl-label','nl-val','nl-exp','nl-note','nl-devices'].forEach(id=>document.getElementById(id).value='');
     toast('کانفیگ ساخته شد ✓','ok');loadLinks();
   }catch(e){toast('خطا در ساخت','err')}
 }
@@ -1449,6 +1527,7 @@ function openEditLink(uuid){
   else{document.getElementById('el-val').value=(l.limit_bytes/1024/1024).toFixed(0);document.getElementById('el-unit').value='MB';}
   document.getElementById('el-exp').value='';
   document.getElementById('el-exp-unit').value='days';
+  document.getElementById('el-devices').value=l.max_devices||'';
   openModal('modal-edit-link');
 }
 async function saveEditLink(){
@@ -1459,7 +1538,8 @@ async function saveEditLink(){
   const unit=document.getElementById('el-unit').value;
   const exp=document.getElementById('el-exp').value;
   const expUnit=document.getElementById('el-exp-unit').value||'days';
-  const body={label,note,limit_value:val||0,limit_unit:unit};
+  const max_devices=document.getElementById('el-devices').value;
+  const body={label,note,limit_value:val||0,limit_unit:unit,max_devices:max_devices===''?0:Number(max_devices)};
   if(exp&&Number(exp)>0){body.expires_value=Number(exp);body.expires_unit=expUnit;}
   try{
     const r=await authF('/api/links/'+uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -1794,6 +1874,25 @@ async function loadConns(){
       </div>`;
     }).join('');
   }catch(e){console.error(e)}
+  loadTopUsage();
+}
+async function loadTopUsage(){
+  try{
+    const r=await authF('/api/top-usage?limit=8'),d=await r.json();
+    const box=document.getElementById('top-usage-list');
+    const rows=d.top_total||[];
+    if(!rows.length){box.innerHTML='<div class="empty"><i class="ti ti-chart-bar-off"></i><p>هنوز داده‌ای نیست</p></div>';return}
+    box.innerHTML=rows.map((r,i)=>`
+      <div class="sr">
+        <span class="sr-k" style="gap:8px">
+          <span style="width:20px;height:20px;border-radius:6px;background:${i<3?'var(--accent)':'var(--card-b)'};display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">${toFa(i+1)}</span>
+          ${esc(r.label)}
+          ${r.live_connections>0?`<span style="color:var(--green-t);font-size:10px"><i class="ti ti-plug-connected"></i> ${toFa(r.live_connections)} زنده</span>`:''}
+        </span>
+        <span class="sr-v" style="font-size:10.5px">${esc(r.used_fmt)} ${r.pct!==null?' · '+r.pct.toFixed(0)+'٪':''}</span>
+      </div>
+    `).join('');
+  }catch(e){}
 }
 async function loadErrs(){try{const r=await authF('/stats'),d=await r.json();renderErrs(d.recent_errors||[]);}catch(e){}}
 async function fetchDefaultVless(){
@@ -1919,11 +2018,68 @@ function wsLog(c,m){const l=document.getElementById('ws-log'),p=document.createE
 function wsConn(){const u=document.getElementById('ws-uuid').value.trim();if(!u){toast('UUID را وارد کنید','err');return}const url=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws/'+u;wsLog('info','اتصال: '+url);ws=new WebSocket(url);ws.onopen=()=>wsLog('ok','✓ متصل - UUID معتبر');ws.onerror=()=>wsLog('err','✗ خطا - UUID نامعتبر یا غیرفعال');ws.onmessage=m=>wsLog('info','دریافت '+(m.data.size||m.data.length)+' byte');ws.onclose=e=>wsLog('err','قطع ('+e.code+')'+(e.code===1008?' - دسترسی رد شد':''))}
 function wsSend(){const m=document.getElementById('ws-msg').value;if(!m||!ws||ws.readyState!==1)return;ws.send(m);wsLog('sent','ارسال: '+m);document.getElementById('ws-msg').value=''}
 function wsDisc(){if(ws)ws.close()}
+
+async function loadTelegramSettings(){
+  try{
+    const r=await authF('/api/settings/telegram'),d=await r.json();
+    document.getElementById('tg-enabled').checked=!!d.enabled;
+    document.getElementById('tg-token').value=d.bot_token_masked||'';
+    document.getElementById('tg-chatid').value=d.chat_id||'';
+    document.getElementById('tg-quota-pct').value=d.notify_quota_pct||90;
+    document.getElementById('tg-exp-hours').value=d.notify_expiry_hours||24;
+    document.getElementById('tg-api-ip').value=d.api_ip||'';
+  }catch(e){}
+}
+async function saveTelegramSettings(){
+  const body={
+    enabled:document.getElementById('tg-enabled').checked,
+    chat_id:document.getElementById('tg-chatid').value.trim(),
+    notify_quota_pct:Number(document.getElementById('tg-quota-pct').value||90),
+    notify_expiry_hours:Number(document.getElementById('tg-exp-hours').value||24),
+    api_ip:document.getElementById('tg-api-ip').value.trim(),
+  };
+  const tokenVal=document.getElementById('tg-token').value.trim();
+  if(tokenVal&&!tokenVal.includes('…'))body.bot_token=tokenVal; // فقط اگه توکن واقعی جدید بود بفرست، نه نسخه‌ی ماسک‌شده
+  try{
+    const r=await authF('/api/settings/telegram',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error();
+    toast('تنظیمات ذخیره شد ✓','ok');
+    loadTelegramSettings();
+  }catch(e){toast('خطا در ذخیره','err')}
+}
+async function testTelegram(){
+  try{
+    const r=await authF('/api/settings/telegram/test',{method:'POST'});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){toast(d.detail||'ارسال ناموفق بود','err');return}
+    toast('پیام تست ارسال شد ✓ چک کن تلگرامت','ok');
+  }catch(e){toast('خطا در ارسال تست','err')}
+}
+
+let dailyChartInstance=null;
+async function openDailyChart(uuid,label){
+  document.getElementById('dc-title').textContent=label;
+  openModal('modal-daily-chart');
+  try{
+    const r=await authF('/api/links/'+uuid+'/daily?days=14'),{days=[]}=await r.json();
+    const ctx=document.getElementById('dc-canvas');
+    if(dailyChartInstance)dailyChartInstance.destroy();
+    dailyChartInstance=new Chart(ctx,{
+      type:'bar',
+      data:{
+        labels:days.map(d=>new Date(d.date).toLocaleDateString('fa-IR',{month:'short',day:'numeric'})),
+        datasets:[{label:'مصرف روزانه',data:days.map(d=>d.bytes/1024/1024),backgroundColor:'rgba(124,92,255,.55)',borderRadius:6}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+' MB'}}}}
+    });
+  }catch(e){}
+}
 document.addEventListener('DOMContentLoaded',async()=>{
   await checkAuth();
   initCharts();
   document.getElementById('set-host').textContent=location.host;
   document.getElementById('sub-all-url')&&(document.getElementById('sub-all-url').textContent=location.protocol+'//'+location.host+'/sub-all');
+  loadTelegramSettings();
   fetchStats();fetchDefaultVless();loadLinks();loadSubs();
   setInterval(fetchStats,4000);
   setInterval(()=>{
@@ -2060,6 +2216,7 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .pc-ws{{background:var(--accent-d);color:var(--accent2)}}
 .pc-xhttp{{background:var(--purple-bg);color:var(--purple-t)}}
 .pc-ultra{{background:var(--green-bg);color:var(--green-t)}}
+.pc-trojan{{background:rgba(239,68,68,.14);color:#f87171}}
 .cfg-status{{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap}}
 .cfg-status.ok{{background:var(--green-bg);color:var(--green-t)}}
 .cfg-status.no{{background:var(--red-bg);color:var(--red-t)}}
