@@ -200,7 +200,7 @@ async def _send_link_and_qr(chat_id, uid: str):
         
         host = get_host()
         if not host or host == "localhost":
-            host = "telegram-timazadi-chanalame.up.railway.app"
+            host = "mmd-mimi-mikham.up.railway.app"
         
         label = d.get("label", "کانفیگ")
         sub_url = f"https://{host}/sub/{uid}"
@@ -210,8 +210,7 @@ async def _send_link_and_qr(chat_id, uid: str):
         kb = [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
         await _send(chat_id, text, kb)
             
-    except Exception as e:
-        logger.warning(f"telegram_bot: _send_link_and_qr error: {e}")
+    except Exception:
         await _send(chat_id, "❌ خطا در دریافت لینک. لطفاً دوباره تلاش کنید.")
 
 
