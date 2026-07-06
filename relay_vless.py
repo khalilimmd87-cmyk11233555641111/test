@@ -3,6 +3,7 @@
 # تغییر: ثبت IP واقعی کلاینت (با احتساب هدر x-forwarded-for پشت پراکسی) در connections
 
 import asyncio
+import hashlib
 import secrets
 from datetime import datetime
 
@@ -21,6 +22,8 @@ from state import (
     log_activity,
     now_ir,
     client_ip,  # ✅ یکی‌سازی شد: قبلاً نسخه‌ی جداگانه‌ی _ws_client_ip اینجا بود
+    is_device_allowed,
+    record_traffic,
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -50,6 +53,35 @@ async def parse_vless_header(chunk: bytes):
         raise ValueError(f"unknown addr type: {addr_type}")
     return command, address, port, chunk[pos:]
 
+# ✅ فیچر: پروتکل Trojan (روی همان WebSocket) — فریم روی سیم متفاوت از VLESS
+# است: ۵۶ کاراکتر هگزِ SHA224(پسورد) + CRLF + یک درخواست به‌سبک SOCKS5
+# (cmd, atyp, addr, port) + CRLF + payload. پسورد همان UUID کانفیگ است، پس
+# سرور مقدار مورد انتظار را بدون ذخیره‌ی جداگانه، از خودِ uuid حساب می‌کند.
+def trojan_expected_hex(uuid: str) -> str:
+    return hashlib.sha224(uuid.encode()).hexdigest()
+
+async def parse_trojan_header(chunk: bytes, expected_hex: str):
+    if len(chunk) < 56 + 2 + 1 + 1 + 2 + 2:
+        raise ValueError("chunk too small")
+    if chunk[:56].decode("ascii", errors="ignore") != expected_hex:
+        raise ValueError("bad trojan password")
+    pos = 56 + 2  # 56 هگز + CRLF
+    _cmd = chunk[pos]; pos += 1
+    atyp = chunk[pos]; pos += 1
+    if atyp == 1:
+        address = ".".join(str(b) for b in chunk[pos:pos+4]); pos += 4
+    elif atyp == 3:
+        dlen = chunk[pos]; pos += 1
+        address = chunk[pos:pos+dlen].decode("utf-8", errors="ignore"); pos += dlen
+    elif atyp == 4:
+        ab = chunk[pos:pos+16]; pos += 16
+        address = ":".join(f"{ab[i]:02x}{ab[i+1]:02x}" for i in range(0, 16, 2))
+    else:
+        raise ValueError(f"unknown atyp: {atyp}")
+    port = int.from_bytes(chunk[pos:pos+2], "big"); pos += 2
+    pos += 2  # CRLF پایانی
+    return address, port, chunk[pos:]
+
 async def check_and_use(uid: str, n: int) -> bool:
     async with LINKS_LOCK:
         link = LINKS.get(uid)
@@ -60,6 +92,7 @@ async def check_and_use(uid: str, n: int) -> bool:
         link["used_bytes"] += n
         stats["total_bytes"] += n
         hourly_traffic[now_ir().strftime("%H:00")] += n
+        record_traffic(uid, n)
     return True
 
 async def relay_ws_to_tcp(ws: WebSocket, writer: asyncio.StreamWriter, conn_id: str, uid: str):
@@ -87,7 +120,7 @@ async def relay_ws_to_tcp(ws: WebSocket, writer: asyncio.StreamWriter, conn_id: 
         except Exception:
             pass
 
-async def relay_tcp_to_ws(ws: WebSocket, reader: asyncio.StreamReader, conn_id: str, uid: str):
+async def relay_tcp_to_ws(ws: WebSocket, reader: asyncio.StreamReader, conn_id: str, uid: str, reply_prefix: bytes = b"\x00\x00"):
     first = True
     try:
         while True:
@@ -98,7 +131,10 @@ async def relay_tcp_to_ws(ws: WebSocket, reader: asyncio.StreamReader, conn_id: 
                 await ws.close(code=1008, reason="quota/disabled/unknown")
                 break
             connections[conn_id]["bytes"] += len(data)
-            payload = (b"\x00\x00" + data) if first else data
+            # ✅ پرانتز پروتکلی: VLESS انتظار ۲ بایت پاسخ نسخه در اولین پکت
+            # جواب را دارد؛ Trojan همچین چیزی نمی‌خواهد (raw passthrough)،
+            # پس برای آن reply_prefix خالی پاس داده می‌شود.
+            payload = (reply_prefix + data) if (first and reply_prefix) else data
             first = False
             await ws.send_bytes(payload)
     except Exception:
@@ -120,11 +156,21 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
         return
 
     ip = client_ip(ws)
+
+    # ✅ فیچر: محدودیت تعداد دستگاه/IP هم‌زمان — اگر ادمین برای این کانفیگ
+    # سقفی گذاشته و همین حالا از تعداد IPهای مجاز رد شده، اتصال جدید (از
+    # یک IP جدید) رد می‌شود بدون این‌که به کلاینت پروبینگ‌پذیر اطلاع بدهد.
+    if not is_device_allowed(uuid, ip):
+        logger.warning(f"🚫 WS rejected uuid={uuid[:8]}… (device/IP limit reached, ip={ip})")
+        log_activity("connection", f"اتصال از {ip} به‌خاطر سقف تعداد دستگاه رد شد (کانفیگ {link.get('label','?')})", "warn")
+        await ws.close(code=1000)
+        return
+
     conn_id = secrets.token_urlsafe(6)
     connections[conn_id] = {
         "uuid": uuid,
         "ip": ip,
-        "transport": "vless-ws",
+        "transport": "vless-ws",  # بعد از تشخیص واقعی پروتکل از روی بایت‌ها، پایین‌تر اصلاح می‌شود
         "connected_at": datetime.now().isoformat(),
         "bytes": 0,
     }
@@ -140,7 +186,17 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
         if not first_chunk:
             return
 
-        command, address, port, payload = await parse_vless_header(first_chunk)
+        # ✅ تشخیصِ پروتکل از روی خودِ بایت‌های رسیده، نه فیلد protocol
+        # ذخیره‌شده‌ی لینک — چون هر uuid همزمان هم یک لینک vless و هم یک
+        # لینک trojan معتبر دارد (هر دو به همین یک روت /ws/{uuid} وصل
+        # می‌شوند) و protocol ذخیره‌شده فقط برای نمایش پیش‌فرض در پنل است.
+        expected_hex = trojan_expected_hex(uuid).encode()
+        is_trojan = first_chunk[:56] == expected_hex
+        connections[conn_id]["transport"] = "trojan-ws" if is_trojan else "vless-ws"
+        if is_trojan:
+            address, port, payload = await parse_trojan_header(first_chunk, trojan_expected_hex(uuid))
+        else:
+            _command, address, port, payload = await parse_vless_header(first_chunk)
 
         if not await check_and_use(uuid, len(first_chunk)):
             await ws.close(code=1008, reason="quota/disabled")
@@ -166,7 +222,7 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
         done, pending = await asyncio.wait(
             {
                 asyncio.create_task(relay_ws_to_tcp(ws, writer, conn_id, uuid)),
-                asyncio.create_task(relay_tcp_to_ws(ws, reader, conn_id, uuid)),
+                asyncio.create_task(relay_tcp_to_ws(ws, reader, conn_id, uuid, reply_prefix=(b"" if is_trojan else b"\x00\x00"))),
             },
             return_when=asyncio.FIRST_COMPLETED,
         )
