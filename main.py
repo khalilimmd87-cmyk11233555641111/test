@@ -31,10 +31,6 @@ from state import (
     is_device_allowed, TELEGRAM_SETTINGS, daily_traffic, link_daily_traffic,
 )
 
-# ایمپورت ربات تلگرام
-from telegram_bot import router as telegram_router
-import telegram_bot
-
 # ✅ امنیت: به‌جای CORS باز (allow_origins=["*"] + allow_credentials=True که
 # ترکیب خطرناکی‌ست و می‌تواند کوکی سشن را در معرض هر سایتی بگذارد)، فقط
 # دامنه‌ی واقعی سرویس (و هر چیزی که صریحاً در ALLOWED_ORIGINS ست شود) مجاز است.
@@ -66,9 +62,6 @@ async def schedule_save():
     _save_task = asyncio.create_task(save_state())
 
 app = FastAPI(title="تیم آزادی Gateway", docs_url=None, redoc_url=None)
-
-# اضافه کردن روت‌های تلگرام
-app.include_router(telegram_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -190,8 +183,9 @@ async def startup():
     log_activity("system", "سرور راه‌اندازی شد", "ok")
     asyncio.create_task(telegram_notifier_loop())
     
-    # تنظیم Webhook تلگرام به جای polling
-    asyncio.create_task(telegram_bot.set_webhook())
+    # ✅ استفاده از polling (نه webhook)
+    import telegram_bot
+    asyncio.create_task(telegram_bot.polling_loop())
     
     logger.info(f"تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
 
@@ -202,13 +196,6 @@ async def shutdown():
         await http_client.aclose()
 
 # ── Basic endpoints ───────────────────────────────────────────────────────────
-# 🐛 باگ امنیتی/ضد-پروبینگ رفع‌شده: قبلاً "/" و "/health" بدون هیچ احراز
-# هویتی، هویت این سرویس (نام پروژه، ورژن) و حتی تعداد اتصالات زنده را به هر
-# بازدیدکننده‌ی ناشناس (از جمله ابزارهای اسکن/پروبینگ سانسور) اعلام می‌کردند —
-# دقیقاً برخلاف هدف «ضد-پروبینگ»ی که بقیه‌ی پروژه (حذف پیام‌های خطای
-# اختصاصی و...) دنبالش بود. الان این دو مسیر مثل یک وب‌سرویس معمولی و
-# بی‌اهمیت به نظر می‌رسند؛ آمار زنده‌ی واقعی فقط برای ادمین لاگین‌شده
-# در دسترس است.
 @app.get("/")
 async def root():
     return JSONResponse({"status": "ok"})
@@ -235,14 +222,8 @@ async def subscription_single(uuid: str, request: Request):
     proto = link.get("protocol", DEFAULT_PROTOCOL)
     used_bytes = link.get("used_bytes", 0)
     limit_bytes = link.get("limit_bytes", 0)
-    # ✅ سفید-برند: اگر این کانفیگ متعلق به یک ساب سفید-برند (تقسیم/هدیه‌شده)
-    # باشد، هیچ اسمی از تیم‌آزادی حتی داخل remark (اسمی که در اپ کلاینت
-    # دیده می‌شود) نمی‌آید.
     owning_sub = SUBS.get(link.get("sub_id")) if link.get("sub_id") else None
     white_label = bool(link.get("white_label")) or bool(owning_sub and owning_sub.get("white_label"))
-    # ✅ فیچر: به‌جای یک کانفیگ تک‌پروتکلی، ساب حالا هر سه پروتکل کارکردی
-    # (WS + دو مد XHTTP) را با هم می‌دهد — اگر یکی فیلتر شد، بقیه در کلاینت
-    # موجودند؛ هر سه روی همان uuid/سهمیه کار می‌کنند.
     bundle = generate_all_vless_links(uuid, host, link["label"], used_bytes, limit_bytes, brand=not white_label, flag=link.get("flag", ""))
     vless = next((b["vless_link"] for b in bundle if b["protocol"] == proto), bundle[0]["vless_link"])
     sub_url = f"https://{host}/sub/{uuid}"
@@ -284,13 +265,11 @@ async def subscription_all(_=Depends(require_auth)):
     return Response(content=content, media_type="text/plain")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# QUOTA SPLIT — خودِ کاربرِ یک ساب (بدون نیاز به لاگین ادمین؛ uuid خودش توکن
-# دسترسی است، مثل بقیه‌ی مسیرهای /sub/{uuid}) می‌تواند بخشی از سهمیه‌ی باقی‌مانده‌ی
-# خودش را به‌صورت یک ساب کاملاً مستقل و بدون‌برند جدا کند و به یک دوست بدهد.
+# QUOTA SPLIT
 # ══════════════════════════════════════════════════════════════════════════════
 
 MAX_CHILDREN_PER_LINK = 50
-MIN_SPLIT_BYTES = 1 * 1024 * 1024  # حداقل ۱ مگابایت، برای جلوگیری از هرزنامه/ساب‌های صفر-حجمی
+MIN_SPLIT_BYTES = 1 * 1024 * 1024
 
 def _child_view(uid: str, d: dict, host: str, perms: dict | None = None) -> dict:
     perms = perms or {"client_can_delete": True, "client_can_disable": True}
@@ -306,8 +285,6 @@ def _child_view(uid: str, d: dict, host: str, perms: dict | None = None) -> dict
         "expires_at": d.get("expires_at"),
         "created_at": d.get("created_at"),
         "sub_url": f"https://{host}/sub/{uid}",
-        # ✅ فیچر: پنل تشخیص می‌دهد آیا صاحب ساب اجازه دارد این کانفیگ هدیه‌ای
-        # را خودش حذف/غیرفعال کند یا این کنترل کاملاً دست ادمین است.
         "client_can_delete": perms["client_can_delete"],
         "client_can_disable": perms["client_can_disable"],
     }
@@ -318,8 +295,6 @@ async def create_split_child(uuid: str, request: Request):
     amount = float(body.get("amount") or 0)
     unit = body.get("unit") or "GB"
     label = (body.get("label") or "اشتراکی").strip()[:60]
-    # ✅ فیچر: کاربر می‌تواند برای کانفیگ هدیه‌ای که می‌سازد یک انقضای
-    # ساعتی/روزی هم تعیین کند (مثلاً «۶ ساعت» دسترسی مهمان).
     exp_delta = parse_expiry_to_timedelta(float(body.get("expires_value") or 0), body.get("expires_unit") or "days")
     child_expires_at = (datetime.now() + exp_delta).isoformat() if exp_delta else None
     if amount <= 0:
@@ -343,8 +318,6 @@ async def create_split_child(uuid: str, request: Request):
             if amount_bytes > remaining:
                 raise HTTPException(status_code=400, detail="این مقدار بیشتر از سهمیه‌ی باقی‌مانده‌ی توست")
             parent["limit_bytes"] = parent_limit - amount_bytes
-        # اگه سهمیه‌ی خودِ parent نامحدود باشه (limit_bytes==0)، جداسازی یک
-        # سهمیه‌ی مستقل و محدود می‌سازه بدون اینکه چیزی از parent کم بشه.
 
         child_uid = generate_uuid()
         LINKS[child_uid] = {
@@ -390,12 +363,8 @@ async def revoke_split_child(uuid: str, child_uuid: str):
         child = LINKS.get(child_uuid)
         if not parent or not child or child.get("parent_id") != uuid:
             raise HTTPException(status_code=404, detail="not found")
-        # ✅ کنترل کامل ادمین: اگر ادمین برای گروه این کانفیگ، اجازه‌ی
-        # حذف را از مشتری گرفته باشد، این درخواست رد می‌شود.
         if not sub_permissions(parent.get("sub_id"))["client_can_delete"]:
             raise HTTPException(status_code=403, detail="حذف کانفیگ‌های هدیه‌ای توسط مدیر غیرفعال شده است")
-        # سهمیه‌ی مصرف‌نشده‌ی ساب لغو‌شده، به سهمیه‌ی خودِ کاربر برمی‌گردد
-        # (فقط اگر سهمیه‌ی parent محدود باشد؛ برای نامحدود چیزی برای برگرداندن نیست).
         if parent.get("limit_bytes", 0) > 0:
             unused = max(0, child.get("limit_bytes", 0) - child.get("used_bytes", 0))
             parent["limit_bytes"] += unused
@@ -409,9 +378,6 @@ async def revoke_split_child(uuid: str, child_uuid: str):
 
 @app.post("/api/public/split/{uuid}/{child_uuid}/toggle")
 async def toggle_split_child(uuid: str, child_uuid: str, request: Request):
-    """صاحب کانفیگ اصلی، کانفیگ هدیه‌ای که خودش ساخته را فعال/غیرفعال
-    می‌کند — فقط اگر ادمین این اجازه (client_can_disable) را برای گروه
-    مربوطه بسته نباشد؛ در غیر این صورت این کنترل کاملاً دست ادمین می‌ماند."""
     body = await request.json()
     active = bool(body.get("active", True))
     host = get_host()
@@ -438,10 +404,6 @@ async def create_sub(request: Request, _=Depends(require_auth)):
     name = (body.get("name") or "گروه جدید").strip()[:60]
     desc = (body.get("desc") or "").strip()[:200]
     password = (body.get("password") or "").strip()
-    # ✅ فیچر: «استخر تقسیم‌پذیر» — اگر ادمین یک سقف حجم (pool) برای این گروه
-    # تعیین کند، صاحب همین ساب می‌تواند بعداً از داخل صفحه‌ی عمومی خودش
-    # بخشی از این سقف را جدا کند و به‌عنوان یک ساب-فرزند مستقل به کس دیگری
-    # بدهد (بدون نیاز به پنل ادمین).
     pool_value = float(body.get("pool_value") or 0)
     pool_unit = str(body.get("pool_unit") or "GB")
     pool_limit_bytes = parse_size_to_bytes(pool_value, pool_unit) if pool_value > 0 else 0
@@ -460,10 +422,7 @@ async def create_sub(request: Request, _=Depends(require_auth)):
             "parent_sub_id": None,
             "child_sub_ids": [],
             "white_label": False,
-            # ✅ فیچر: قفل گروهی (ادمین کل گروه را با یک کلیک فریز/باز می‌کند)
             "locked": False,
-            # ✅ فیچر: کنترل کامل ادمین روی این‌که آیا مشتریِ این گروه
-            # می‌تواند کانفیگ‌های هدیه‌ای که خودش ساخته را حذف/غیرفعال کند
             "client_can_delete": bool(body.get("client_can_delete", True)),
             "client_can_disable": bool(body.get("client_can_disable", True)),
         }
@@ -532,8 +491,6 @@ async def update_sub(sub_id: str, request: Request, _=Depends(require_auth)):
             pool_unit = str(body.get("pool_unit") or "GB")
             s["pool_limit_bytes"] = parse_size_to_bytes(pool_value, pool_unit) if pool_value > 0 else 0
             s.setdefault("pool_allocated_bytes", 0)
-        # ✅ فیچر: ادمین از همین‌جا کنترل می‌کند که مشتریِ این گروه اجازه‌ی
-        # حذف/غیرفعال‌کردن کانفیگ‌های هدیه‌ای که خودش ساخته را دارد یا نه.
         if "client_can_delete" in body:
             s["client_can_delete"] = bool(body["client_can_delete"])
         if "client_can_disable" in body:
@@ -545,11 +502,6 @@ async def update_sub(sub_id: str, request: Request, _=Depends(require_auth)):
 
 @app.post("/api/subs/{sub_id}/lock")
 async def toggle_sub_lock(sub_id: str, request: Request, _=Depends(require_auth)):
-    """قفل/باز کردن کل گروه با یک کلیک. وقتی قفل است، همه‌ی کانفیگ‌های عضو
-    این گروه (صرف‌نظر از وضعیت active تک‌تکشان) بلافاصله در سرویس (relay/xhttp)
-    و صفحات ساب/پابلیک غیرفعال نشان داده و رد می‌شوند؛ با باز کردن قفل، بدون
-    نیاز به تغییر جداگانه‌ی هیچ کانفیگی، همه دوباره طبق وضعیت واقعی خودشان
-    فعال می‌شوند."""
     body = await request.json()
     locked = bool(body.get("locked", True))
     async with SUBS_LOCK:
@@ -634,7 +586,6 @@ async def sub_group_subscription(uuid_key: str, request: Request):
 async def api_login(request: Request):
     ip = client_ip(request)
 
-    # ✅ امنیت: rate-limit روی تلاش‌های ورود برای مقابله با brute-force
     if not await check_login_rate_limit(ip):
         log_activity("auth", f"مسدود شدن موقت تلاش‌های ورود از {ip} (بیش از حد مجاز)", "err")
         raise HTTPException(status_code=429, detail="تعداد تلاش‌ها بیش از حد است، چند دقیقه بعد دوباره تلاش کنید")
@@ -647,7 +598,6 @@ async def api_login(request: Request):
         log_activity("auth", f"تلاش ورود ناموفق از {ip}", "err")
         raise HTTPException(status_code=401, detail="رمز عبور اشتباه است")
 
-    # ✅ ارتقای خودکار هش قدیمی (sha256 ساده) به PBKDF2 بعد از اولین ورود موفق
     if is_legacy_hash(AUTH["password_hash"]):
         AUTH["password_hash"] = hash_password(password)
         await schedule_save()
@@ -776,9 +726,6 @@ async def create_link(request: Request, _=Depends(require_auth)):
     lv = float(body.get("limit_value") or 0)
     lu = body.get("limit_unit") or "GB"
     limit_bytes = 0 if lv <= 0 else parse_size_to_bytes(lv, lu)
-    # ✅ فیچر: سهمیه‌ی زمانی ساعتی/روزی — اگر «expires_value»+«expires_unit»
-    # (unit=hours|days) بیاید همان استفاده می‌شود، وگرنه سازگاری با فرمت
-    # قدیمی «expires_days» حفظ شده.
     if "expires_value" in body:
         exp_delta = parse_expiry_to_timedelta(float(body.get("expires_value") or 0), body.get("expires_unit") or "days")
     else:
@@ -791,7 +738,6 @@ async def create_link(request: Request, _=Depends(require_auth)):
     if protocol not in PROTOCOLS:
         protocol = DEFAULT_PROTOCOL
     flag = str(body.get("flag") or "🇺🇸").strip()[:8]
-    # ✅ فیچر: حداکثر تعداد دستگاه/IP هم‌زمان مجاز روی این کانفیگ (۰ = نامحدود)
     max_devices = max(0, int(body.get("max_devices") or 0))
 
     uid = generate_uuid()
@@ -843,10 +789,6 @@ async def list_links(_=Depends(require_auth)):
         proto = d.get("protocol", DEFAULT_PROTOCOL)
         used_bytes = d.get("used_bytes", 0)
         limit_bytes = d.get("limit_bytes", 0)
-        # ✅ فیچر: بسته‌ی هر ۳ پروتکل (WS + دو مد XHTTP) اینجا هم اضافه شد؛
-        # قبلاً فقط generate_vless_link (تک‌پروتکلی) صدا زده می‌شد و پنل هیچ
-        # دسترسی‌ای به بسته‌ی کامل نداشت، برای همین دکمه‌ی کپی/QR توی خودِ
-        # پنل هم فقط یک پروتکل را نشان می‌داد.
         bundle = generate_all_vless_links(uid, host, d["label"], used_bytes, limit_bytes, flag=d.get("flag", ""))
         link_conns = [c for c in connections.values() if c.get("uuid") == uid]
         result.append({
@@ -857,8 +799,6 @@ async def list_links(_=Depends(require_auth)):
             "vless_link": next((b["vless_link"] for b in bundle if b["protocol"] == proto), bundle[0]["vless_link"]),
             "vless_links": bundle,
             "sub_url": f"https://{host}/sub/{uid}",
-            # ✅ فیچر: تعداد اتصال زنده و IP یکتای همین لحظه، مستقیم روی کارت
-            # کانفیگ در پنل قابل دیدن است.
             "live_connections": len(link_conns),
             "live_unique_ips": len({c.get("ip") for c in link_conns}),
         })
@@ -941,8 +881,6 @@ async def delete_link(uid: str, _=Depends(require_auth)):
     log_activity("link", f"کانفیگ «{label}» حذف شد", "err")
     return {"ok": True, "deleted": uid}
 
-# ✅ فیچر: «پرمصرف‌ترین‌ها» — رتبه‌بندی واقعی کانفیگ‌ها بر اساس مصرف واقعی
-# (used_bytes) و اتصالات زنده‌ی همین لحظه، نه یک عدد تزئینی.
 @app.get("/api/top-usage")
 async def top_usage(limit: int = 10, _=Depends(require_auth)):
     async with LINKS_LOCK:
@@ -971,7 +909,6 @@ async def top_usage(limit: int = 10, _=Depends(require_auth)):
     by_live = sorted([r for r in rows if r["live_connections"] > 0], key=lambda r: r["session_bytes"], reverse=True)[:limit]
     return {"top_total": by_total, "top_live": by_live}
 
-# ✅ فیچر: مصرف روزانه‌ی هر کانفیگ به تفکیک روز، برای رسم نمودار در پنل.
 @app.get("/api/links/{uid}/daily")
 async def link_daily_usage(uid: str, days: int = 14, _=Depends(require_auth)):
     async with LINKS_LOCK:
@@ -987,9 +924,6 @@ async def link_daily_usage(uid: str, days: int = 14, _=Depends(require_auth)):
         out.append({"date": key, "bytes": hist.get(key, 0), "fmt": fmt_bytes(hist.get(key, 0))})
     return {"days": out}
 
-# ✅ فیچر: تنظیمات نوتیفیکیشن تلگرام — توکن بات و چت‌آیدی از پنل ذخیره
-# می‌شود، هیچ‌چیزی هاردکد نیست. تست مستقیم هم دارد تا مدیر مطمئن شود پیام
-# واقعاً می‌رسد، نه صرفاً «ذخیره شد» بدون تضمین کارکرد.
 @app.get("/api/settings/telegram")
 async def get_telegram_settings(_=Depends(require_auth)):
     s = dict(TELEGRAM_SETTINGS)
@@ -1016,10 +950,6 @@ async def set_telegram_settings(request: Request, _=Depends(require_auth)):
     log_activity("system", "تنظیمات نوتیفیکیشن تلگرام بروزرسانی شد", "ok")
     return {"ok": True}
 
-# ✅ فیچر: کمک به ادمین برای پیدا کردن IP فعلی api.telegram.org از دید
-# خودِ سرور (نه از دید مرورگر ادمین) — چون فیلترینگ معمولاً روی همون
-# سروریه که پنل رویش اجراست، نه روی مرورگر. اگر DNS خودِ سرور هم فیلتر
-# باشه، این درخواست با خطا مواجه می‌شه و همون خودش یعنی مشکل DNS-level است.
 @app.get("/api/settings/telegram/resolve")
 async def resolve_telegram_ip(_=Depends(require_auth)):
     try:
@@ -1067,17 +997,6 @@ async def http_proxy(target_url: str, request: Request, _=Depends(require_auth))
     if not target_url.startswith("http"):
         target_url = "https://" + target_url
 
-    # ✅ امنیت: قبلاً این پراکسی به هر URL دلخواه (از جمله IPهای داخلی شبکه یا
-    # سرویس متادیتای کلود مثل 169.254.169.254) وصل می‌شد که یک ریسک SSRF
-    # واقعی بود. الان آی‌پی خصوصی/لوکال/متادیتا (چه literal و چه بعد از resolve
-    # نام دامنه) مسدود می‌شود.
-    #
-    # 🐛 باگ امنیتی رفع‌شده: این چک فقط روی URL اولیه انجام می‌شد، اما
-    # http_client با follow_redirects=True ساخته شده بود؛ یعنی یک سرور مجاز و
-    # عمومی می‌توانست با یک 3xx به یک آدرس داخلی/متادیتا ریدایرکت کند و httpx
-    # بدون عبور از چک SSRF آن را دنبال می‌کرد (SSRF-via-redirect، دور زدن کامل
-    # محافظت بالا). الان هر hop ریدایرکت هم به‌طور جداگانه اعتبارسنجی می‌شود و
-    # ریدایرکت خودکار httpx خاموش شده است.
     if await is_blocked_proxy_target(target_url):
         raise HTTPException(status_code=400, detail="این آدرس مجاز نیست")
 
@@ -1158,9 +1077,6 @@ async def public_sub_data(uuid_key: str, request: Request):
         used_bytes = link.get("used_bytes", 0)
         limit_bytes = link.get("limit_bytes", 0)
         bundle = generate_all_vless_links(lid, host, link["label"], used_bytes, limit_bytes, brand=not white_label, flag=link.get("flag", ""))
-        # ✅ فیچر: مالکِ ساب اصلی، کانفیگ‌های هدیه‌ای که خودش (یا مشتری‌اش)
-        # از داخل این کانفیگ جدا کرده را هم همین‌جا می‌بیند و طبق اجازه‌ای
-        # که ادمین داده می‌تواند فعال/غیرفعال یا حذفشان کند.
         children = [_child_view(cid, cd, host, perms) for cid, cd in snap.items() if cd.get("parent_id") == lid]
         children.sort(key=lambda x: x["created_at"] or "", reverse=True)
         links_out.append({
@@ -1196,10 +1112,6 @@ async def public_sub_data(uuid_key: str, request: Request):
         "white_label": white_label,
         "locked_by_admin": locked,
         "permissions": perms,
-        # ✅ فیچر «تقسیم سهمیه»: اگر ادمین برای این ساب یک سقف (pool) تعیین
-        # کرده باشد، صاحب ساب می‌تواند از همین صفحه بخشی از باقی‌مانده‌ی
-        # سقف را جدا کند و به‌عنوان یک ساب مستقل و کاملاً سفید-برند (بدون
-        # هیچ نام/لوگویی) به کس دیگری بدهد.
         "pool_enabled": pool_limit > 0,
         "pool_limit_bytes": pool_limit,
         "pool_allocated_bytes": pool_alloc,
@@ -1210,11 +1122,6 @@ async def public_sub_data(uuid_key: str, request: Request):
 
 @app.post("/api/public/sub/{uuid_key}/split")
 async def split_sub_quota(uuid_key: str, request: Request):
-    """صاحب یک ساب استخردار (pool-managed) بخشی از سهمیه‌ی باقی‌مانده‌ی خودش را
-    جدا می‌کند و یک ساب-فرزند کاملاً مستقل و سفید-برند (بدون هیچ نام/لوگویی)
-    می‌سازد که می‌تواند به کس دیگری بدهد. سهمیه‌ی جداشده از سقف ساب خودش کم
-    می‌شود (رزرو می‌شود) تا امکان دوباره‌فروشی بیش از حجم واقعی وجود نداشته
-    باشد."""
     body = await request.json()
     pw = str(body.get("pw", ""))
     amount_value = float(body.get("amount_value") or 0)
@@ -1247,7 +1154,6 @@ async def split_sub_quota(uuid_key: str, request: Request):
         child_sub_id = generate_uuid()
         child_uuid_key = secrets.token_urlsafe(16)
 
-        # سهمیه از استخر والد رزرو می‌شود — چه دوستش همین الان مصرف کند چه نه
         sub["pool_allocated_bytes"] = pool_alloc + amount_bytes
         sub.setdefault("child_sub_ids", []).append(child_sub_id)
 
@@ -1258,8 +1164,6 @@ async def split_sub_quota(uuid_key: str, request: Request):
             "uuid_key": child_uuid_key,
             "created_at": datetime.now().isoformat(),
             "link_ids": [child_uuid],
-            # سهمیه‌ی فرزند همان مقدار جداشده است و همان‌جا کامل رزرو شده،
-            # پس این ساب دیگر خودش قابل تقسیم مجدد نیست (available=0)
             "pool_limit_bytes": amount_bytes,
             "pool_allocated_bytes": amount_bytes,
             "parent_sub_id": sub_id,
@@ -1316,13 +1220,6 @@ async def test_ws_redirect():
     return HTMLResponse(content="<script>location.href='/timazadi'</script>")
 
 if __name__ == "__main__":
-    # ✅ فیچر: سرعت واقعی سرور — uvloop (event loop مبتنی بر libuv، به‌جای
-    # asyncio خالص) و httptools برای پارس HTTP، هر دو در uvicorn[standard]
-    # از قبل نصب هستند؛ فقط لازم بود صریحاً انتخاب شوند. این تغییر خصوصاً
-    # روی حجم اتصالات هم‌زمان بالا (relay/xhttp) تاخیر و مصرف CPU را کاهش
-    # می‌دهد. loop/http روی "auto" گذاشته شده: اگر uvloop/httptools در
-    # دسترس باشند (که با uvicorn[standard] هستند) انتخاب می‌شوند، وگرنه
-    # uvicorn بی‌صدا و بدون کرش به asyncio/h11 پیش‌فرض برمی‌گردد.
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
