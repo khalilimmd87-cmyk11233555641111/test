@@ -200,9 +200,9 @@ async def _send_link_and_qr(chat_id, uid: str):
             return
         
         host = get_host()
-        if not host:
-            await _send(chat_id, "❌ خطا در دریافت آدرس سرور.")
-            return
+        # اگر host خالی یا localhost بود، از دامنه‌ی واقعی استفاده کن
+        if not host or host == "localhost":
+            host = "telegram-timazadi-chanalame.up.railway.app"
         
         label = d.get("label", "کانفیگ")
         used_bytes = d.get("used_bytes", 0)
@@ -214,7 +214,8 @@ async def _send_link_and_qr(chat_id, uid: str):
             if not bundle:
                 await _send(chat_id, "❌ خطا در تولید لینک.")
                 return
-        except:
+        except Exception as e:
+            logger.warning(f"telegram_bot: generate_all_vless_links error: {e}")
             await _send(chat_id, "❌ خطا در تولید لینک.")
             return
         
@@ -227,11 +228,13 @@ async def _send_link_and_qr(chat_id, uid: str):
         try:
             qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + _urlquote(primary, safe="")
             await _send(chat_id, text, photo=qr_url)
-        except:
+        except Exception as e:
+            logger.warning(f"telegram_bot: QR send error: {e}")
             kb = [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
             await _send(chat_id, text + "\n\n⚠️ QR code قابل ارسال نبود، لینک‌ها بالا ارسال شدند.", kb)
             
-    except:
+    except Exception as e:
+        logger.warning(f"telegram_bot: _send_link_and_qr error: {e}")
         await _send(chat_id, "❌ خطا در دریافت لینک. لطفاً دوباره تلاش کنید.")
 
 
