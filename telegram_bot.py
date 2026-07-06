@@ -1,21 +1,9 @@
-# telegram_bot.py
-# ══════════════════════════════════════════════════════════════════════════════
-# مدیریت پنل از طریق بات تلگرام — دو-طرفه (نه فقط نوتیفیکیشن)
-#
-# از همان bot_token / chat_id که در تب «تنظیمات → تلگرام» پنل ست شده استفاده
-# می‌کند (چیز جدیدی برای کانفیگ‌کردن لازم نیست). فقط از همان چت‌آیدی(ها)
-# دستور می‌پذیرد؛ هر پیام/دکمه از هر چت دیگری کاملاً نادیده گرفته می‌شود
-# (نه حتی یک پاسخ خطا، تا هویت بات لو نرود).
-#
-# طراحی: long-polling با getUpdates (نه webhook) — چون روی Railway با
-# ری‌استارت/ری‌دیپلوی مکرر، وابسته نبودن به ثبت یک URL وبهوک، مطمئن‌تر و
-# کم‌باگ‌تر است. تمام state ویزارد (مراحل «کانفیگ جدید» و غیره) در حافظه،
-# به‌ازای هر چت، نگه داشته می‌شود.
-# ══════════════════════════════════════════════════════════════════════════════
+# telegram_bot.py - نسخه Webhook
 
 import asyncio
 from datetime import datetime
 from urllib.parse import quote as _urlquote
+from fastapi import APIRouter, Request, HTTPException
 
 from state import (
     LINKS, LINKS_LOCK, SUBS, SUBS_LOCK,
@@ -26,10 +14,10 @@ from state import (
     DEFAULT_PROTOCOL, uptime,
 )
 
+router = APIRouter()
+
 PAGE_SIZE = 6
-_offset = 0
-_wizard: dict[str, dict] = {}   # chat_id(str) -> {"step": str, "data": {...}}
-_running = False
+_wizard: dict[str, dict] = {}
 
 
 def _allowed_chats() -> set[str]:
@@ -39,10 +27,9 @@ def _allowed_chats() -> set[str]:
     return {p.strip() for p in raw.replace(";", ",").split(",") if p.strip()}
 
 
-# ── ارتباط خام با Bot API (با همان ترفند api_ip موجود در send_telegram_message) ─
+# ── ارتباط با Bot API ──────────────────────────────────────────────────────────
 async def _api(method: str, payload: dict | None = None) -> dict | None:
     from main import http_client
-
     token = TELEGRAM_SETTINGS.get("bot_token")
     if not token or http_client is None:
         return None
@@ -323,8 +310,6 @@ async def _show_stats(chat_id, message_id):
 async def _handle_text(chat_id, text):
     w = _wizard.get(str(chat_id))
     text = (text or "").strip()
-    
-    logger.info(f"telegram_bot: received text from {chat_id}: {text[:50]}")
 
     if not w:
         if text.startswith("/start") or text.startswith("/menu"):
@@ -520,55 +505,58 @@ async def _toggle_sub_lock(chat_id, message_id, sub_id):
     await _show_subs(chat_id, message_id, 0)
 
 
-# ── حلقه‌ی اصلی long-polling ─────────────────────────────────────────────────────
-async def _process_update(update: dict):
+# ── Webhook endpoint ──────────────────────────────────────────────────────────
+@router.post("/webhook")
+async def telegram_webhook(request: Request):
+    """دریافت آپدیت‌های تلگرام از طریق Webhook"""
     try:
-        if "callback_query" in update:
-            cq = update["callback_query"]
-            chat_id = cq["message"]["chat"]["id"]
-            if str(chat_id) not in _allowed_chats():
-                return
-            await _handle_callback(chat_id, cq["message"]["message_id"], cq["id"], cq.get("data", ""))
-        elif "message" in update:
+        update = await request.json()
+        logger.info(f"telegram_bot webhook: received update {update.get('update_id', 'unknown')}")
+        
+        if "message" in update:
             msg = update["message"]
             chat_id = msg["chat"]["id"]
+            text = msg.get("text", "")
+            
             if str(chat_id) not in _allowed_chats():
-                return
-            await _handle_text(chat_id, msg.get("text", ""))
+                return {"ok": True}
+            
+            await _handle_text(chat_id, text)
+            
+        elif "callback_query" in update:
+            cq = update["callback_query"]
+            chat_id = cq["message"]["chat"]["id"]
+            
+            if str(chat_id) not in _allowed_chats():
+                return {"ok": True}
+                
+            await _handle_callback(
+                chat_id, 
+                cq["message"]["message_id"], 
+                cq["id"], 
+                cq.get("data", "")
+            )
+            
     except Exception as e:
-        logger.warning(f"telegram_bot: process_update error: {e}")
+        logger.warning(f"telegram_bot webhook error: {e}")
+    
+    return {"ok": True}
 
 
-async def polling_loop():
-    global _offset, _running
-    _running = True
-    logger.info("telegram_bot: polling loop started")
-    while True:
-        try:
-            if not (TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token") and _allowed_chats()):
-                await asyncio.sleep(5)
-                continue
-            
-            # دریافت آپدیت‌ها با پارامتر drop_pending_updates
-            result = await _api("getUpdates", {
-                "offset": _offset, 
-                "timeout": 25, 
-                "allowed_updates": ["message", "callback_query"],
-                "drop_pending_updates": True
-            })
-            
-            if result is None:
-                await asyncio.sleep(5)
-                continue
-                
-            for update in result:
-                _offset = update["update_id"] + 1
-                await _process_update(update)
-                
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.warning(f"telegram_bot: polling_loop error: {e}")
-            await asyncio.sleep(5)
-    _running = False
-    logger.info("telegram_bot: polling loop stopped")
+# ── تابع تنظیم Webhook ────────────────────────────────────────────────────────
+async def set_webhook():
+    """تنظیم Webhook در تلگرام"""
+    token = TELEGRAM_SETTINGS.get("bot_token")
+    if not token:
+        return
+    
+    webhook_url = f"https://telegram-timazadi-chanalame.up.railway.app/webhook"
+    
+    try:
+        result = await _api("setWebhook", {"url": webhook_url})
+        if result:
+            logger.info(f"telegram_bot: webhook set to {webhook_url}")
+        else:
+            logger.warning("telegram_bot: failed to set webhook")
+    except Exception as e:
+        logger.warning(f"telegram_bot: setWebhook error: {e}")
