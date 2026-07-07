@@ -104,6 +104,105 @@ REFERRALS_LOCK = asyncio.Lock()
 USER_LINKS: dict = {}
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ✅ تنظیمات و آمار بات (اضافه شده)
+# ══════════════════════════════════════════════════════════════════════════════
+
+BOT_SETTINGS = {
+    "enabled": True,
+    "allow_public": True,
+    "max_links_per_user": 5,
+    "default_quota_gb": 1,
+    "default_expiry_days": 7,
+}
+
+BOT_USERS: dict = {}  # user_id -> {"first_name", "username", "joined_at", "links": [], "last_active"}
+BOT_STATS = {
+    "total_users": 0,
+    "total_links_created": 0,
+    "total_messages": 0,
+    "started_at": time.time(),
+}
+BOT_USERS_LOCK = asyncio.Lock()
+
+def add_bot_user(user_id: str, first_name: str = "", username: str = ""):
+    """افزودن یا به‌روزرسانی کاربر بات"""
+    async def _add():
+        async with BOT_USERS_LOCK:
+            if user_id not in BOT_USERS:
+                BOT_USERS[user_id] = {
+                    "first_name": first_name,
+                    "username": username,
+                    "joined_at": datetime.now().isoformat(),
+                    "links": [],
+                    "last_active": datetime.now().isoformat(),
+                }
+                BOT_STATS["total_users"] = len(BOT_USERS)
+            else:
+                BOT_USERS[user_id]["last_active"] = datetime.now().isoformat()
+                if first_name:
+                    BOT_USERS[user_id]["first_name"] = first_name
+                if username:
+                    BOT_USERS[user_id]["username"] = username
+    return _add()
+
+def get_bot_stats() -> dict:
+    """گرفتن آمار بات"""
+    return {
+        **BOT_STATS,
+        "total_users": len(BOT_USERS),
+        "uptime": f"{int((time.time() - BOT_STATS['started_at']) // 3600)}h",
+    }
+
+def get_bot_users() -> list:
+    """گرفتن لیست کاربران بات"""
+    return list(BOT_USERS.values())
+
+def update_bot_settings(data: dict) -> dict:
+    """به‌روزرسانی تنظیمات بات"""
+    for key, value in data.items():
+        if key in BOT_SETTINGS:
+            if isinstance(BOT_SETTINGS[key], bool):
+                BOT_SETTINGS[key] = bool(value)
+            elif isinstance(BOT_SETTINGS[key], int):
+                BOT_SETTINGS[key] = int(value)
+            else:
+                BOT_SETTINGS[key] = str(value).strip()
+    return dict(BOT_SETTINGS)
+
+async def send_broadcast(message: str) -> tuple[bool, int, int]:
+    """ارسال پیام گروهی به همه‌ی کاربران بات"""
+    from main import send_telegram_message, http_client
+    
+    if not BOT_SETTINGS.get("enabled"):
+        return False, 0, 0
+    
+    token = TELEGRAM_SETTINGS.get("bot_token")
+    if not token or http_client is None:
+        return False, 0, 0
+    
+    sent = 0
+    failed = 0
+    
+    async with BOT_USERS_LOCK:
+        users = list(BOT_USERS.keys())
+    
+    for user_id in users:
+        try:
+            ok, _ = await send_telegram_message(message, user_id)
+            if ok:
+                sent += 1
+                BOT_STATS["total_messages"] += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+        
+        # برای جلوگیری از محدودیت Rate Limit
+        await asyncio.sleep(0.05)
+    
+    return True, sent, failed
+
+# ══════════════════════════════════════════════════════════════════════════════
 
 def record_traffic(uid: str, n: int):
     day_key = now_ir().strftime("%Y-%m-%d")
@@ -205,7 +304,7 @@ async def require_auth(request: Request):
 
 # ── Persistence I/O ───────────────────────────────────────────────────────────
 async def load_state():
-    global LINKS, AUTH, SUBS, REFERRALS, USER_LINKS, REFERRAL_SETTINGS
+    global LINKS, AUTH, SUBS, REFERRALS, USER_LINKS, REFERRAL_SETTINGS, BOT_USERS, BOT_STATS, BOT_SETTINGS
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -224,7 +323,13 @@ async def load_state():
                 REFERRALS.update(data["referrals"])
             if "user_links" in data:
                 USER_LINKS.update(data["user_links"])
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(REFERRALS)} referrals")
+            if "bot_users" in data:
+                BOT_USERS.update(data["bot_users"])
+            if "bot_stats" in data:
+                BOT_STATS.update(data["bot_stats"])
+            if "bot_settings" in data:
+                BOT_SETTINGS.update(data["bot_settings"])
+            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(REFERRALS)} referrals, {len(BOT_USERS)} bot users")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
 
@@ -240,6 +345,9 @@ async def save_state():
                 "referral_settings": REFERRAL_SETTINGS,
                 "referrals": REFERRALS,
                 "user_links": USER_LINKS,
+                "bot_users": BOT_USERS,
+                "bot_stats": BOT_STATS,
+                "bot_settings": BOT_SETTINGS,
                 "saved_at": datetime.now().isoformat(),
             }
             tmp = DATA_FILE.with_suffix(".tmp")
@@ -260,8 +368,15 @@ def generate_uuid() -> str:
 def now_ir() -> datetime:
     return datetime.now(IRAN_TZ)
 
+# کش برای بهبود سرعت
+_vless_cache: dict = {}
+
 def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی", protocol: str = DEFAULT_PROTOCOL) -> str:
     from urllib.parse import quote
+    cache_key = f"{uuid}:{host}:{remark}:{protocol}"
+    if cache_key in _vless_cache:
+        return _vless_cache[cache_key]
+    
     if protocol == "trojan-ws":
         path = f"/ws/{uuid}"
         params = {
@@ -274,8 +389,8 @@ def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی",
             "alpn": "http/1.1",
         }
         query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
-        return f"trojan://{uuid}@{host}:443?{query}#{quote(remark)}"
-    if protocol == "vless-ws":
+        result = f"trojan://{uuid}@{host}:443?{query}#{quote(remark)}"
+    elif protocol == "vless-ws":
         path = f"/ws/{uuid}"
         params = {
             "encryption": "none",
@@ -287,6 +402,8 @@ def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی",
             "fp": "chrome",
             "alpn": "http/1.1",
         }
+        query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
+        result = f"vless://{uuid}@{host}:443?{query}#{quote(remark)}"
     else:
         mode = protocol.replace("xhttp-", "")
         path = f"/xhttp-siz10/{mode}/{uuid}"
@@ -301,8 +418,14 @@ def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی",
             "fp": "chrome",
             "alpn": "h2,http/1.1",
         }
-    query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
-    return f"vless://{uuid}@{host}:443?{query}#{quote(remark)}"
+        query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
+        result = f"vless://{uuid}@{host}:443?{query}#{quote(remark)}"
+    
+    # کش کردن به‌صورت محدود
+    if len(_vless_cache) > 1000:
+        _vless_cache.clear()
+    _vless_cache[cache_key] = result
+    return result
 
 def uptime() -> str:
     secs = int(time.time() - stats["start_time"])
@@ -578,3 +701,51 @@ async def create_link_from_referral(user_id: str, label: str = None) -> str | No
     
     await save_state()
     return uid
+
+# ── توابع کمکی برای بات ──────────────────────────────────────────────────────
+def user_can_create_link(user_id: str) -> tuple[bool, str]:
+    """بررسی اینکه آیا کاربر می‌تواند کانفیگ جدید بسازد"""
+    if not BOT_SETTINGS.get("enabled", True):
+        return False, "بات غیرفعال است"
+    
+    if not BOT_SETTINGS.get("allow_public", True):
+        return False, "ساخت کانفیگ عمومی غیرفعال است"
+    
+    user_data = BOT_USERS.get(user_id, {})
+    links = user_data.get("links", [])
+    max_links = BOT_SETTINGS.get("max_links_per_user", 5)
+    
+    if len(links) >= max_links:
+        return False, f"شما به حداکثر تعداد کانفیگ مجاز ({max_links}) رسیده‌اید"
+    
+    return True, ""
+
+def get_user_links(user_id: str) -> list:
+    """گرفتن لیست کانفیگ‌های یک کاربر"""
+    user_data = BOT_USERS.get(user_id, {})
+    return user_data.get("links", [])
+
+def add_user_link(user_id: str, link_uuid: str):
+    """افزودن کانفیگ به کاربر"""
+    async def _add():
+        async with BOT_USERS_LOCK:
+            if user_id not in BOT_USERS:
+                BOT_USERS[user_id] = {
+                    "first_name": "",
+                    "username": "",
+                    "joined_at": datetime.now().isoformat(),
+                    "links": [],
+                    "last_active": datetime.now().isoformat(),
+                }
+            if link_uuid not in BOT_USERS[user_id]["links"]:
+                BOT_USERS[user_id]["links"].append(link_uuid)
+                BOT_STATS["total_links_created"] += 1
+    return _add()
+
+def remove_user_link(user_id: str, link_uuid: str):
+    """حذف کانفیگ از کاربر"""
+    async def _remove():
+        async with BOT_USERS_LOCK:
+            if user_id in BOT_USERS and link_uuid in BOT_USERS[user_id]["links"]:
+                BOT_USERS[user_id]["links"].remove(link_uuid)
+    return _remove()
