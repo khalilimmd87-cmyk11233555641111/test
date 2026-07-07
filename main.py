@@ -29,13 +29,11 @@ from state import (
     is_blocked_proxy_target,
     parse_expiry_to_timedelta, sub_permissions,
     is_device_allowed, TELEGRAM_SETTINGS, daily_traffic, link_daily_traffic,
+    # ✅ اضافه شده برای رفرال
     REFERRAL_SETTINGS, REFERRALS, USER_LINKS,
     get_referral_settings, update_referral_settings,
     generate_referral_code, create_link_from_referral,
     check_channel_membership,
-    BOT_USERS, BOT_STATS, BOT_SETTINGS,
-    add_bot_user, get_bot_stats, get_bot_users, update_bot_settings,
-    send_broadcast,
 )
 
 _public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
@@ -80,19 +78,16 @@ async def _harden_headers(request: Request, call_next):
     response.headers.setdefault("x-frame-options", "SAMEORIGIN")
     return response
 
-async def send_telegram_message(text: str, chat_id: str = None) -> tuple[bool, str]:
+async def send_telegram_message(text: str) -> tuple[bool, str]:
     token = TELEGRAM_SETTINGS.get("bot_token")
-    if not token:
-        return False, "توکن بات تنظیم نشده"
+    chat_id = TELEGRAM_SETTINGS.get("chat_id")
+    if not token or not chat_id:
+        return False, "توکن بات یا چت‌آیدی تنظیم نشده"
     if http_client is None:
         return False, "سرور هنوز آماده نیست"
-    
-    target_chat = chat_id or TELEGRAM_SETTINGS.get("chat_id")
-    if not target_chat:
-        return False, "چت‌آیدی تنظیم نشده"
 
     api_ip = (TELEGRAM_SETTINGS.get("api_ip") or "").strip()
-    payload = {"chat_id": target_chat, "text": text, "parse_mode": "HTML"}
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     try:
         if api_ip:
             host_for_url = f"[{api_ip}]" if ":" in api_ip else api_ip
@@ -947,42 +942,6 @@ async def test_telegram(_=Depends(require_auth)):
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
     return {"ok": True}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ✅ API برای مدیریت بات (اضافه شده)
-# ══════════════════════════════════════════════════════════════════════════════
-
-@app.get("/api/bot/stats")
-async def get_bot_stats_api(_=Depends(require_auth)):
-    return get_bot_stats()
-
-@app.get("/api/bot/users")
-async def get_bot_users_api(limit: int = 50, offset: int = 0, _=Depends(require_auth)):
-    users = get_bot_users()
-    total = len(users)
-    paginated = users[offset:offset+limit]
-    return {"total": total, "users": paginated, "offset": offset, "limit": limit}
-
-@app.post("/api/bot/send")
-async def send_bot_broadcast(request: Request, _=Depends(require_auth)):
-    body = await request.json()
-    message = body.get("message", "").strip()
-    if not message:
-        raise HTTPException(status_code=400, detail="پیام نمی‌تواند خالی باشد")
-    
-    success, sent_count, failed_count = await send_broadcast(message)
-    return {"ok": success, "sent": sent_count, "failed": failed_count}
-
-@app.get("/api/bot/settings")
-async def get_bot_settings_api(_=Depends(require_auth)):
-    return dict(BOT_SETTINGS)
-
-@app.post("/api/bot/settings")
-async def update_bot_settings_api(request: Request, _=Depends(require_auth)):
-    body = await request.json()
-    updated = update_bot_settings(body)
-    await schedule_save()
-    return {"ok": True, "settings": updated}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ✅ API جدید: تنظیمات رفرال و عضویت در کانال
