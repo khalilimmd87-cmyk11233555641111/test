@@ -103,7 +103,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تیم آزادی Gateway</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -824,6 +824,8 @@ a{color:inherit;text-decoration:none}
     <div class="nav-it" data-pg="errors"><i class="ti ti-alert-triangle"></i> خطاها</div>
     <div class="nav-it" data-pg="testws"><i class="ti ti-wifi"></i> تست WebSocket</div>
     <div class="nav-it" data-pg="settings"><i class="ti ti-settings"></i> تنظیمات</div>
+    <div class="nav-sec">ربات</div>
+    <div class="nav-it" data-pg="bot"><i class="ti ti-brand-telegram"></i> مدیریت بات <span class="nav-badge" id="bot-nb">0</span></div>
   </div>
   <div class="sb-foot">
     <button class="theme-btn" onclick="toggleTheme()"><i class="ti ti-moon" id="theme-icon"></i> <span id="theme-label">تم روشن</span></button>
@@ -1262,7 +1264,7 @@ a{color:inherit;text-decoration:none}
       </div>
     </div>
     <!-- ══════════════════════════════════════════════════════════════════════════ -->
-    <!-- ✅ بخش تنظیمات رفرال - اضافه شده -->
+    <!-- ✅ بخش تنظیمات رفرال -->
     <!-- ══════════════════════════════════════════════════════════════════════════ -->
     <div class="pw-panel" style="margin-top:16px">
       <div class="pw-hero">
@@ -1279,50 +1281,104 @@ a{color:inherit;text-decoration:none}
             <label class="switch"><input type="checkbox" id="ref-enabled"><span class="slider"></span></label>
           </label>
         </div>
-        
         <div class="pw-field">
           <label>نام کاربری کانال اجباری (بدون @)</label>
           <input class="pw-input" type="text" id="ref-channel" placeholder="TimAzadi" value="TimAzadi">
         </div>
-        
         <div class="pw-field" style="margin-bottom:14px">
           <label style="display:flex;align-items:center;justify-content:space-between">
             <span>عضویت در کانال اجباری باشد؟</span>
             <label class="switch"><input type="checkbox" id="ref-channel-required" checked><span class="slider"></span></label>
           </label>
         </div>
-        
         <div class="form-row" style="margin-bottom:14px">
           <div class="fg" style="flex:1"><label>حجم جایزه (GB)</label><input class="fi" id="ref-reward-gb" type="number" min="0" step="0.1" value="1"></div>
           <div class="fg" style="flex:1"><label>مدت اعتبار (روز)</label><input class="fi" id="ref-reward-days" type="number" min="1" value="7"></div>
         </div>
-        
         <div class="form-row" style="margin-bottom:14px">
           <div class="fg" style="flex:1"><label>حداکثر تعداد رفرال برای هر کاربر</label><input class="fi" id="ref-limit" type="number" min="1" value="5"></div>
           <div class="fg" style="flex:1"><label>حداکثر کانفیگ برای هر کاربر</label><input class="fi" id="ref-max-links" type="number" min="1" value="3"></div>
         </div>
-        
         <div class="pw-field" style="margin-bottom:6px">
           <label>توکن بات (برای بررسی عضویت در کانال)</label>
           <input class="pw-input" type="text" id="ref-bot-token" placeholder="توکن بات را وارد کنید (اختیاری)">
         </div>
-        
         <div class="pw-field" style="margin-bottom:6px">
           <label>نام کاربری بات (برای لینک رفرال، بدون @)</label>
           <input class="pw-input" type="text" id="ref-bot-username" placeholder="مثلاً: timazadi_bot">
         </div>
-        
         <div style="display:flex;gap:8px;margin-top:14px">
           <button class="pw-submit" style="flex:1" onclick="saveReferralSettings()"><i class="ti ti-device-floppy"></i> ذخیره تنظیمات</button>
           <button class="btn btn-g" onclick="loadReferralSettings()"><i class="ti ti-refresh"></i></button>
         </div>
-        
-        <div class="cl" style="margin-top:12px"><i class="ti ti-info-circle"></i>
-          <span>کاربران با لینک رفرال <code>https://t.me/bot?start=ref_xxxx</code> ثبت‌نام می‌کنند و به ازای هر رفرال، یک کانفیگ دریافت می‌کنند.</span>
-        </div>
+        <div class="cl" style="margin-top:12px"><i class="ti ti-info-circle"></i><span>کاربران با لینک رفرال <code>https://t.me/bot?start=ref_xxxx</code> ثبت‌نام می‌کنند و به ازای هر رفرال، یک کانفیگ دریافت می‌کنند.</span></div>
       </div>
     </div>
     <!-- ══════════════════════════════════════════════════════════════════════════ -->
+  </div>
+</section>
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- ✅ بخش مدیریت بات (اضافه شده) -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<section class="pg" id="pg-bot">
+  <div class="topbar">
+    <div><div class="tb-title"><i class="ti ti-brand-telegram"></i> مدیریت بات</div><div class="tb-sub">تنظیمات، آمار و ارسال پیام گروهی به کاربران بات</div></div>
+    <div class="tb-right">
+      <span class="badge bg-green" id="bot-status"><span class="dot dg pulse"></span> فعال</span>
+      <button class="btn btn-p btn-sm" onclick="loadBotStats()"><i class="ti ti-refresh"></i> رفرش</button>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-chart-bar"></i> آمار بات</div>
+      <div id="bot-stats-list">
+        <div class="sr"><span class="sr-k">تعداد کاربران</span><span class="sr-v" id="bs-users">—</span></div>
+        <div class="sr"><span class="sr-k">کانفیگ‌های ساخته‌شده</span><span class="sr-v" id="bs-links">—</span></div>
+        <div class="sr"><span class="sr-k">پیام‌های ارسال‌شده</span><span class="sr-v" id="bs-messages">—</span></div>
+        <div class="sr"><span class="sr-k">آپ‌تایم</span><span class="sr-v" id="bs-uptime">—</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-settings"></i> تنظیمات بات</div>
+      <div class="fg" style="margin-bottom:10px">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          <span>فعال بودن بات</span>
+          <label class="switch"><input type="checkbox" id="bot-enabled"><span class="slider"></span></label>
+        </label>
+      </div>
+      <div class="fg" style="margin-bottom:10px">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          <span>دسترسی عمومی (همه بتوانند کانفیگ بسازند)</span>
+          <label class="switch"><input type="checkbox" id="bot-public"><span class="slider"></span></label>
+        </label>
+      </div>
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="fg" style="flex:1"><label>حداکثر کانفیگ برای هر کاربر</label><input class="fi" id="bot-max-links" type="number" min="1" value="5"></div>
+      </div>
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="fg" style="flex:1"><label>حجم پیش‌فرض (GB)</label><input class="fi" id="bot-default-quota" type="number" min="0.1" step="0.1" value="1"></div>
+        <div class="fg" style="flex:1"><label>انقضای پیش‌فرض (روز)</label><input class="fi" id="bot-default-expiry" type="number" min="1" value="7"></div>
+      </div>
+      <button class="btn btn-p" style="width:100%;justify-content:center" onclick="saveBotSettings()"><i class="ti ti-device-floppy"></i> ذخیره تنظیمات</button>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-title"><i class="ti ti-send"></i> ارسال پیام گروهی</div>
+    <div class="fg" style="margin-bottom:10px">
+      <label>متن پیام (HTML مجاز است)</label>
+      <textarea class="fi" id="broadcast-msg" style="width:100%;min-height:100px;resize:vertical" placeholder="متن پیام را وارد کنید..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="sendBroadcast()"><i class="ti ti-send"></i> ارسال به همه ({span id="bc-count"})</button>
+      <button class="btn btn-o" onclick="document.getElementById('broadcast-msg').value=''"><i class="ti ti-x"></i> پاک کردن</button>
+    </div>
+    <div class="cl" style="margin-top:10px"><i class="ti ti-info-circle"></i> <span>پیام به تمام کاربرانی که با بات تعامل داشته‌اند ارسال می‌شود. از HTML برای فرمت‌دهی استفاده کنید.</span></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-title"><i class="ti ti-users"></i> لیست کاربران بات</div>
+    <div style="max-height:400px;overflow-y:auto" id="bot-users-list">
+      <div class="empty"><i class="ti ti-users"></i><p>در حال بارگذاری...</p></div>
+    </div>
   </div>
 </section>
 </main>
@@ -1337,13 +1393,15 @@ function applyTheme(dark){
 }
 function toggleTheme(){isDark=!isDark;localStorage.setItem('rvg-theme',isDark?'dark':'light');applyTheme(isDark)}
 applyTheme(isDark);
+
+// ── توابع کمکی ──────────────────────────────────────────────────────────────
 function toast(msg,type=''){
   const t=document.getElementById('toast');
   t.textContent=msg;t.className='toast show'+(type?' '+type:'');
   setTimeout(()=>t.classList.remove('show'),2400);
 }
 function fmtB(b){if(!b||b===0)return '0 B';if(b<1024)return b+' B';if(b<1024**2)return (b/1024).toFixed(1)+' KB';if(b<1024**3)return (b/1024**2).toFixed(2)+' MB';return (b/1024**3).toFixed(2)+' GB'}
-function toFa(n){return String(n).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d])}
+function toFa(n){return String(n).replace(/\\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d])}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function daysLeft(exp){if(!exp)return null;return Math.ceil((new Date(exp)-Date.now())/864e5)}
 function expChip(exp,expired){
@@ -1367,40 +1425,64 @@ async function authF(url,opts={}){
   if(r.status===401){location.href='/login';throw new Error('unauthorized')}
   return r;
 }
-function setQuota(val,unit,el){
-  document.getElementById('nl-val').value = val===0?'':val;
-  document.getElementById('nl-unit').value = unit;
-  document.querySelectorAll('#quota-chips .chip').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active');
-}
-function setExpiry(value,unit,el){
-  document.getElementById('nl-exp').value = value===0?'':value;
-  document.getElementById('nl-exp-unit').value = unit||'days';
-  document.querySelectorAll('#exp-chips .chip').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active');
-}
-function selectProto(val,el){
-  document.getElementById('nl-proto').value = val;
-  document.querySelectorAll('.proto-card').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active');
-}
+
+// ── منوی کناری ──────────────────────────────────────────────────────────────
 const sb=document.getElementById('sb'),overlay=document.getElementById('overlay');
 function openSb(){sb.classList.add('open');overlay.classList.add('show')}
 function closeSb(){sb.classList.remove('open');overlay.classList.remove('show')}
 document.getElementById('open-sb').addEventListener('click',openSb);
 document.getElementById('close-sb').addEventListener('click',closeSb);
 overlay.addEventListener('click',closeSb);
+
 function navTo(name){
   document.querySelectorAll('.nav-it').forEach(n=>n.classList.toggle('on',n.dataset.pg===name));
   document.querySelectorAll('.pg').forEach(p=>p.classList.toggle('on',p.id==='pg-'+name));
-  const loaders={links:loadLinks,connections:loadConns,errors:loadErrs,subscriptions:loadSubsPage,subgroups:loadSubs,logs:loadActivity};
+  const loaders={links:loadLinks,connections:loadConns,errors:loadErrs,subscriptions:loadSubsPage,subgroups:loadSubs,logs:loadActivity,bot:loadBotStats};
   if(loaders[name])loaders[name]();
   closeSb();window.scrollTo({top:0,behavior:'smooth'});
 }
 document.querySelectorAll('.nav-it').forEach(el=>el.addEventListener('click',()=>navTo(el.dataset.pg)));
+
 function openModal(id){document.getElementById(id).classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
+
+// ── نمودارها ──────────────────────────────────────────────────────────────────
 let prevTraf=0,ch1,ch2,ch3;
+
+function makeGradient(ctx,color1,color2){
+  const g=ctx.createLinearGradient(0,0,0,260);
+  g.addColorStop(0,color1);g.addColorStop(1,color2);
+  return g;
+}
+
+function initCharts(){
+  const c1=document.getElementById('ch1').getContext('2d');
+  const grad1=makeGradient(c1,'rgba(59,130,246,.38)','rgba(59,130,246,0)');
+  ch1=new Chart(document.getElementById('ch1'),{
+    type:'line',
+    data:{labels:[],datasets:[{label:'MB',data:[],borderColor:'#3B82F6',backgroundColor:grad1,fill:true,tension:.42,pointRadius:0,borderWidth:2.5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>`${v.parsed.y.toFixed(2)} MB`}}},scales:{x:{grid:{display:false},ticks:{color:'#3D6B8E'}},y:{grid:{color:'rgba(59,130,246,.06)'},ticks:{callback:v=>v+' MB'}}}}
+  });
+  
+  const c3ctx=document.getElementById('ch3').getContext('2d');
+  const gradFill3=makeGradient(c3ctx,'rgba(59,130,246,.45)','rgba(59,130,246,0)');
+  ch3=new Chart(document.getElementById('ch3'),{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'مصرف',data:[],borderColor:'#3B82F6',backgroundColor:gradFill3,fill:true,tension:.45,pointRadius:0,borderWidth:3},
+      {label:'میانگین',data:[],borderColor:'#F59E0B',borderDash:[6,5],borderWidth:1.6,pointRadius:0,fill:false,tension:0}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>`${v.dataset.label}: ${v.parsed.y.toFixed(2)} MB`}}},scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(59,130,246,.05)'},ticks:{callback:v=>v+' MB'}}}}
+  });
+
+  ch2=new Chart(document.getElementById('ch2'),{
+    type:'doughnut',
+    data:{labels:['VLESS/WS','XHTTP Ultra','HTTP Proxy'],datasets:[{data:[55,35,10],backgroundColor:['#3B82F6','#10B981','#8B5CF6'],borderColor:getComputedStyle(document.documentElement).getPropertyValue('--card')||'#0d1b2e',borderWidth:4,hoverOffset:10,borderRadius:6,spacing:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{position:'bottom',labels:{color:'var(--t2)',font:{size:10},padding:12,usePointStyle:true,pointStyle:'circle'}}}}
+  });
+}
+
+// ── دریافت آمار ──────────────────────────────────────────────────────────────
 async function fetchStats(){
   try{
     const r=await authF('/stats'),d=await r.json();
@@ -1428,11 +1510,14 @@ async function fetchStats(){
     renderErrs(d.recent_errors||[]);
   }catch(e){console.error(e)}
 }
+
 function renderErrs(errs){
   const el=document.getElementById('errs-full');if(!el)return;
   if(!errs.length){el.innerHTML='<div style="color:var(--green-t);padding:10px;font-size:12px;display:flex;align-items:center;gap:5px"><i class="ti ti-circle-check"></i> هیچ خطایی نیست</div>';return}
   el.innerHTML=errs.slice().reverse().map(e=>`<div class="erow"><div class="etime"><i class="ti ti-clock"></i>${new Date(e.time).toLocaleString('fa-IR')}</div><div class="emsg">${esc(e.error)}${e.url?' — '+esc(e.url):''}</div></div>`).join('');
 }
+
+// ── لاگ فعالیت ──────────────────────────────────────────────────────────────
 async function loadActivity(){
   try{
     const r=await authF('/api/activity'),d=await r.json();
@@ -1453,7 +1538,10 @@ async function loadActivity(){
     `).join('');
   }catch(e){console.error(e)}
 }
-let allSubsList=[],allLinksList=[];
+
+// ── مدیریت کانفیگ ────────────────────────────────────────────────────────────
+let allSubsList=[],allLinksList=[],currentSubId=null;
+
 async function loadLinks(){
   try{
     const [lr,sr]=await Promise.all([authF('/api/links'),authF('/api/subs')]);
@@ -1470,53 +1558,73 @@ async function loadLinks(){
     empty.style.display='none';
     const subMap=Object.fromEntries(subs.map(s=>[s.sub_id,s.name]));
     grid.innerHTML=links.map(l=>{
-  const lim=l.limit_bytes===0?'∞':fmtB(l.limit_bytes);
-  const pct=l.limit_bytes===0?0:Math.min(100,l.used_bytes/l.limit_bytes*100);
-  const bc=pct>90?'var(--red)':pct>70?'var(--amber)':'var(--accent)';
-  const allowed=l.active&&!l.expired;
-  const cardCls=!l.active?'is-off':(l.expired?'is-exp':'');
-  return `<div class="cfg-card ${cardCls}">
-    <div class="cfg-row">
-      <span class="cfg-status-dot ${allowed?'pulse':''}"></span>
-      <div class="cfg-identity">
-        <div class="cfg-label">${esc(l.label)}</div>
-        <div class="cfg-sub-meta">
-          <span class="cfg-uuid-mini" onclick="navigator.clipboard.writeText('${l.uuid}').then(()=>toast('UUID کپی شد','ok'))" title="${l.uuid}"><i class="ti ti-fingerprint"></i> ${l.uuid.slice(0,10)}…</span>
-          <span>${new Date(l.created_at).toLocaleDateString('fa-IR')}</span>
+      const lim=l.limit_bytes===0?'∞':fmtB(l.limit_bytes);
+      const pct=l.limit_bytes===0?0:Math.min(100,l.used_bytes/l.limit_bytes*100);
+      const bc=pct>90?'var(--red)':pct>70?'var(--amber)':'var(--accent)';
+      const allowed=l.active&&!l.expired;
+      const cardCls=!l.active?'is-off':(l.expired?'is-exp':'');
+      return `<div class="cfg-card ${cardCls}">
+        <div class="cfg-row">
+          <span class="cfg-status-dot ${allowed?'pulse':''}"></span>
+          <div class="cfg-identity">
+            <div class="cfg-label">${esc(l.label)}</div>
+            <div class="cfg-sub-meta">
+              <span class="cfg-uuid-mini" onclick="navigator.clipboard.writeText('${l.uuid}').then(()=>toast('UUID کپی شد','ok'))" title="${l.uuid}"><i class="ti ti-fingerprint"></i> ${l.uuid.slice(0,10)}…</span>
+              <span>${new Date(l.created_at).toLocaleDateString('fa-IR')}</span>
+            </div>
+          </div>
+          <div class="cfg-divider-v"></div>
+          <div class="cfg-usage-col">
+            <div class="ubar"><div class="ubar-f" style="width:${pct}%;background:${bc}"></div></div>
+            <div class="utxt"><span>${fmtB(l.used_bytes)}</span><span>از ${lim}</span></div>
+          </div>
+          <div class="cfg-divider-v"></div>
+          <div class="cfg-exp-col">${expChip(l.expires_at,l.expired)}</div>
+          <div class="cfg-divider-v"></div>
+          <div class="cfg-badges-col">
+            ${protoBadge(l.protocol)}
+            ${l.sub_id&&allSubsList.find(s=>s.sub_id===l.sub_id)?`<span class="cfg-sub-tag"><i class="ti ti-folder"></i> ${esc(allSubsList.find(s=>s.sub_id===l.sub_id).name)}</span>`:''}
+            <span class="cfg-sub-tag" style="${l.live_connections>0?'color:var(--green-t);border-color:rgba(34,197,94,.3)':''}" title="اتصال زنده / سقف دستگاه">
+              <i class="ti ti-devices"></i> ${toFa(l.live_connections||0)}${l.max_devices?'/'+toFa(l.max_devices):''}
+            </span>
+          </div>
+          <div class="cfg-divider-v"></div>
+          <div class="cfg-actions">
+            <button class="tog${allowed?' on':''}" onclick="toggleActive('${l.uuid}',${!l.active})" title="فعال/غیرفعال"></button>
+            <button class="btn btn-sm btn-g btn-icon" onclick='copyAllProtocols(${JSON.stringify(l.uuid)})' title="کپی هر ۳ کانفیگ باهم"><i class="ti ti-copy"></i></button>
+            <button class="btn btn-sm btn-g btn-icon" onclick="navigator.clipboard.writeText('${esc(l.sub_url)}').then(()=>toast('Sub کپی شد','ok'))" title="Sub URL"><i class="ti ti-rss"></i></button>
+            <button class="btn btn-sm btn-g btn-icon" onclick='openQrModal(${JSON.stringify(l.uuid)})' title="QR"><i class="ti ti-qrcode"></i></button>
+            <button class="btn btn-sm btn-pur btn-icon" onclick="openDailyChart('${l.uuid}','${esc(l.label)}')" title="نمودار مصرف روزانه"><i class="ti ti-chart-histogram"></i></button>
+            <button class="btn btn-sm btn-amber btn-icon" onclick="openEditLink('${l.uuid}')" title="ویرایش"><i class="ti ti-edit"></i></button>
+            <button class="btn btn-sm btn-g btn-icon" onclick="resetUsage('${l.uuid}')" title="ریست مصرف"><i class="ti ti-rotate"></i></button>
+            <button class="btn btn-sm btn-d btn-icon" onclick="deleteLink('${l.uuid}')" title="حذف"><i class="ti ti-trash"></i></button>
+          </div>
         </div>
-      </div>
-      <div class="cfg-divider-v"></div>
-      <div class="cfg-usage-col">
-        <div class="ubar"><div class="ubar-f" style="width:${pct}%;background:${bc}"></div></div>
-        <div class="utxt"><span>${fmtB(l.used_bytes)}</span><span>از ${lim}</span></div>
-      </div>
-      <div class="cfg-divider-v"></div>
-      <div class="cfg-exp-col">${expChip(l.expires_at,l.expired)}</div>
-      <div class="cfg-divider-v"></div>
-      <div class="cfg-badges-col">
-        ${protoBadge(l.protocol)}
-        ${l.sub_id&&allSubsList.find(s=>s.sub_id===l.sub_id)?`<span class="cfg-sub-tag"><i class="ti ti-folder"></i> ${esc(allSubsList.find(s=>s.sub_id===l.sub_id).name)}</span>`:''}
-        <span class="cfg-sub-tag" style="${l.live_connections>0?'color:var(--green-t);border-color:rgba(34,197,94,.3)':''}" title="اتصال زنده / سقف دستگاه">
-          <i class="ti ti-devices"></i> ${toFa(l.live_connections||0)}${l.max_devices?'/'+toFa(l.max_devices):''}
-        </span>
-      </div>
-      <div class="cfg-divider-v"></div>
-      <div class="cfg-actions">
-        <button class="tog${allowed?' on':''}" onclick="toggleActive('${l.uuid}',${!l.active})" title="فعال/غیرفعال"></button>
-        <button class="btn btn-sm btn-g btn-icon" onclick='copyAllProtocols(${JSON.stringify(l.uuid)})' title="کپی هر ۳ کانفیگ باهم"><i class="ti ti-copy"></i></button>
-        <button class="btn btn-sm btn-g btn-icon" onclick="navigator.clipboard.writeText('${esc(l.sub_url)}').then(()=>toast('Sub کپی شد','ok'))" title="Sub URL"><i class="ti ti-rss"></i></button>
-        <button class="btn btn-sm btn-g btn-icon" onclick='openQrModal(${JSON.stringify(l.uuid)})' title="QR"><i class="ti ti-qrcode"></i></button>
-        <button class="btn btn-sm btn-pur btn-icon" onclick="openDailyChart('${l.uuid}','${esc(l.label)}')" title="نمودار مصرف روزانه"><i class="ti ti-chart-histogram"></i></button>
-        <button class="btn btn-sm btn-amber btn-icon" onclick="openEditLink('${l.uuid}')" title="ویرایش"><i class="ti ti-edit"></i></button>
-        <button class="btn btn-sm btn-g btn-icon" onclick="resetUsage('${l.uuid}')" title="ریست مصرف"><i class="ti ti-rotate"></i></button>
-        <button class="btn btn-sm btn-d btn-icon" onclick="deleteLink('${l.uuid}')" title="حذف"><i class="ti ti-trash"></i></button>
-      </div>
-    </div>
-  </div>`;
-}).join('');
+      </div>`;
+    }).join('');
     document.getElementById('lsummary').innerHTML=links.slice(0,6).map(l=>`<div class="sr"><span class="sr-k" style="gap:5px"><i class="ti ${l.expired?'ti-calendar-x':l.active?'ti-circle-check':'ti-circle-x'}" style="color:${l.expired?'var(--amber)':l.active?'var(--green)':'var(--red)'}"></i>${esc(l.label)}</span><span class="sr-v" style="font-size:10px">${fmtB(l.used_bytes)} / ${l.limit_bytes===0?'∞':fmtB(l.limit_bytes)}</span></div>`).join('');
   }catch(e){console.error(e)}
 }
+
+// ── توابع ساخت و مدیریت کانفیگ ──────────────────────────────────────────────
+function setQuota(val,unit,el){
+  document.getElementById('nl-val').value = val===0?'':val;
+  document.getElementById('nl-unit').value = unit;
+  document.querySelectorAll('#quota-chips .chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+}
+function setExpiry(value,unit,el){
+  document.getElementById('nl-exp').value = value===0?'':value;
+  document.getElementById('nl-exp-unit').value = unit||'days';
+  document.querySelectorAll('#exp-chips .chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+}
+function selectProto(val,el){
+  document.getElementById('nl-proto').value = val;
+  document.querySelectorAll('.proto-card').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+}
+
 async function createLink(){
   const label=document.getElementById('nl-label').value.trim()||'کانفیگ جدید';
   const val=document.getElementById('nl-val').value;
@@ -1535,6 +1643,66 @@ async function createLink(){
     toast('کانفیگ ساخته شد ✓','ok');loadLinks();
   }catch(e){toast('خطا در ساخت','err')}
 }
+
+async function toggleActive(uuid,newState){
+  try{const r=await authF('/api/links/'+uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:newState})});if(!r.ok)throw new Error();toast(newState?'فعال شد ✓':'غیرفعال شد','ok');loadLinks();}catch(e){toast('خطا','err')}
+}
+
+async function resetUsage(uuid){
+  try{const r=await authF('/api/links/'+uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({reset_usage:true})});if(!r.ok)throw new Error();toast('مصرف ریست شد ✓','ok');loadLinks();}catch(e){toast('خطا','err')}
+}
+
+async function deleteLink(uuid){
+  if(!confirm('حذف این کانفیگ؟'))return;
+  try{const r=await authF('/api/links/'+uuid,{method:'DELETE'});if(!r.ok)throw new Error();toast('حذف شد ✓','ok');loadLinks();}catch(e){toast('خطا','err')}
+}
+
+// ── QR و کپی ──────────────────────────────────────────────────────────────────
+const PROTO_TAG={'vless-ws':'WS','xhttp-packet-up':'XHTTP-P','xhttp-stream-up':'XHTTP-S','xhttp-stream-one':'ULTRA'};
+
+function copyAllProtocols(uuid){
+  const l=allLinksList.find(x=>x.uuid===uuid);
+  if(!l)return;
+  const bundle=(l.vless_links&&l.vless_links.length)?l.vless_links:[{vless_link:l.vless_link}];
+  navigator.clipboard.writeText(bundle.map(b=>b.vless_link).join('\n')).then(()=>toast('هر '+toFa(bundle.length)+' کانفیگ کپی شد ✓','ok'));
+}
+
+let qrCurrentBundle=[],qrCurrentIdx=0;
+
+function openQrModal(uuid){
+  const l=allLinksList.find(x=>x.uuid===uuid);
+  if(!l)return;
+  qrCurrentBundle=(l.vless_links&&l.vless_links.length)?l.vless_links:[{protocol:l.protocol,vless_link:l.vless_link}];
+  qrCurrentIdx=Math.max(0,qrCurrentBundle.findIndex(b=>b.protocol===l.protocol));
+  document.getElementById('qrv2-label').textContent=l.label;
+  const lim=l.limit_bytes===0?'∞':fmtB(l.limit_bytes);
+  document.getElementById('qrv2-usage').innerHTML='<i class="ti ti-chart-bar"></i> حجم دقیق: '+fmtB(l.used_bytes)+' از '+lim;
+  document.getElementById('qrv2-tabs').innerHTML=qrCurrentBundle.map((b,i)=>
+    `<button class="qr-proto-tab${i===qrCurrentIdx?' on':''}" onclick="selectQrProto(${i})">${PROTO_TAG[b.protocol]||b.protocol}</button>`).join('');
+  renderQrImg();
+  document.getElementById('qr-modal-v2').classList.add('open');
+}
+function selectQrProto(i){qrCurrentIdx=i;document.querySelectorAll('.qr-proto-tab').forEach((el,idx)=>el.classList.toggle('on',idx===i));renderQrImg()}
+function renderQrImg(){
+  document.getElementById('qrv2-img').src='https://api.qrserver.com/v1/create-qr-code/?size=280x280&data='+encodeURIComponent(qrCurrentBundle[qrCurrentIdx].vless_link);
+}
+function copyCurrentQrLink(){
+  navigator.clipboard.writeText(qrCurrentBundle[qrCurrentIdx].vless_link).then(()=>toast('لینک این پروتکل کپی شد ✓','ok'));
+}
+
+function showQR(link){
+  qrCurrentBundle=[{vless_link:link}];qrCurrentIdx=0;
+  document.getElementById('qrv2-label').textContent='QR Code';
+  document.getElementById('qrv2-usage').innerHTML='';
+  document.getElementById('qrv2-tabs').innerHTML='';
+  renderQrImg();
+  document.getElementById('qr-modal-v2').classList.add('open');
+}
+
+function cpText(id){navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>toast('کپی شد ✓','ok'))}
+function qrFor(id){showQR(document.getElementById(id).textContent)}
+
+// ── ویرایش کانفیگ ────────────────────────────────────────────────────────────
 function openEditLink(uuid){
   const l=allLinksList.find(x=>x.uuid===uuid);
   if(!l)return;
@@ -1566,55 +1734,10 @@ async function saveEditLink(){
     toast('کانفیگ ویرایش شد ✓','ok');loadLinks();
   }catch(e){toast('خطا در ویرایش','err')}
 }
-async function toggleActive(uuid,newState){
-  try{const r=await authF('/api/links/'+uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:newState})});if(!r.ok)throw new Error();toast(newState?'فعال شد ✓':'غیرفعال شد','ok');loadLinks();}catch(e){toast('خطا','err')}
-}
-async function resetUsage(uuid){
-  try{const r=await authF('/api/links/'+uuid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({reset_usage:true})});if(!r.ok)throw new Error();toast('مصرف ریست شد ✓','ok');loadLinks();}catch(e){toast('خطا','err')}
-}
-async function deleteLink(uuid){
-  if(!confirm('حذف این کانفیگ؟'))return;
-  try{const r=await authF('/api/links/'+uuid,{method:'DELETE'});if(!r.ok)throw new Error();toast('حذف شد ✓','ok');loadLinks();}catch(e){toast('خطا','err')}
-}
-const PROTO_TAG={'vless-ws':'WS','xhttp-packet-up':'XHTTP-P','xhttp-stream-up':'XHTTP-S','xhttp-stream-one':'ULTRA'};
-function copyAllProtocols(uuid){
-  const l=allLinksList.find(x=>x.uuid===uuid);
-  if(!l)return;
-  const bundle=(l.vless_links&&l.vless_links.length)?l.vless_links:[{vless_link:l.vless_link}];
-  navigator.clipboard.writeText(bundle.map(b=>b.vless_link).join('\n'))
-    .then(()=>toast('هر '+toFa(bundle.length)+' کانفیگ کپی شد ✓','ok'));
-}
-let qrCurrentBundle=[],qrCurrentIdx=0;
-function openQrModal(uuid){
-  const l=allLinksList.find(x=>x.uuid===uuid);
-  if(!l)return;
-  qrCurrentBundle=(l.vless_links&&l.vless_links.length)?l.vless_links:[{protocol:l.protocol,vless_link:l.vless_link}];
-  qrCurrentIdx=Math.max(0,qrCurrentBundle.findIndex(b=>b.protocol===l.protocol));
-  document.getElementById('qrv2-label').textContent=l.label;
-  const lim=l.limit_bytes===0?'∞':fmtB(l.limit_bytes);
-  document.getElementById('qrv2-usage').innerHTML='<i class="ti ti-chart-bar"></i> حجم دقیق: '+fmtB(l.used_bytes)+' از '+lim;
-  document.getElementById('qrv2-tabs').innerHTML=qrCurrentBundle.map((b,i)=>
-    `<button class="qr-proto-tab${i===qrCurrentIdx?' on':''}" onclick="selectQrProto(${i})">${PROTO_TAG[b.protocol]||b.protocol}</button>`).join('');
-  renderQrImg();
-  document.getElementById('qr-modal-v2').classList.add('open');
-}
-function selectQrProto(i){qrCurrentIdx=i;document.querySelectorAll('.qr-proto-tab').forEach((el,idx)=>el.classList.toggle('on',idx===i));renderQrImg()}
-function renderQrImg(){
-  const link=qrCurrentBundle[qrCurrentIdx].vless_link;
-  document.getElementById('qrv2-img').src='https://api.qrserver.com/v1/create-qr-code/?size=280x280&data='+encodeURIComponent(link);
-}
-function copyCurrentQrLink(){
-  navigator.clipboard.writeText(qrCurrentBundle[qrCurrentIdx].vless_link).then(()=>toast('لینک این پروتکل کپی شد ✓','ok'));
-}
-function showQR(link){
-  qrCurrentBundle=[{vless_link:link}];qrCurrentIdx=0;
-  document.getElementById('qrv2-label').textContent='QR Code';
-  document.getElementById('qrv2-usage').innerHTML='';
-  document.getElementById('qrv2-tabs').innerHTML='';
-  renderQrImg();
-  document.getElementById('qr-modal-v2').classList.add('open');
-}
+
+// ── گروه‌های ساب ─────────────────────────────────────────────────────────────
 let allSubsRaw=[];
+
 async function loadSubs(){
   try{
     const r=await authF('/api/subs'),d=await r.json();
@@ -1625,6 +1748,7 @@ async function loadSubs(){
     renderSubsGrid(subs);
   }catch(e){console.error(e)}
 }
+
 function renderSubsGrid(subs){
   const grid=document.getElementById('subs-grid');
   if(!subs.length){
@@ -1678,11 +1802,13 @@ function renderSubsGrid(subs){
     </div>
   `).join('');
 }
+
 function filterSubs(q){
   q=q.trim().toLowerCase();
   if(!q){renderSubsGrid(allSubsRaw);return}
   renderSubsGrid(allSubsRaw.filter(s=>s.name.toLowerCase().includes(q)||(s.desc||'').toLowerCase().includes(q)));
 }
+
 async function createSub(){
   const name=document.getElementById('ns-name').value.trim()||'گروه جدید';
   const desc=document.getElementById('ns-desc').value.trim();
@@ -1700,10 +1826,12 @@ async function createSub(){
     toast('گروه ساخته شد ✓','ok');loadSubs();
   }catch(e){toast('خطا در ساخت گروه','err')}
 }
+
 async function deleteSub(sub_id){
   if(!confirm('حذف این گروه؟ کانفیگ‌ها حذف نمی‌شوند.'))return;
   try{const r=await authF('/api/subs/'+sub_id,{method:'DELETE'});if(!r.ok)throw new Error();toast('گروه حذف شد ✓','ok');loadSubs();loadLinks();}catch(e){toast('خطا','err')}
 }
+
 async function toggleSubLock(sub_id,locked){
   try{
     const r=await authF('/api/subs/'+sub_id+'/lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locked})});
@@ -1712,6 +1840,7 @@ async function toggleSubLock(sub_id,locked){
     loadSubs();loadLinks();
   }catch(e){toast('خطا','err')}
 }
+
 async function setSubPerm(sub_id,key,value){
   try{
     const r=await authF('/api/subs/'+sub_id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:value})});
@@ -1719,7 +1848,10 @@ async function setSubPerm(sub_id,key,value){
     toast('ذخیره شد ✓','ok');
   }catch(e){toast('خطا در ذخیره','err');loadSubs()}
 }
+
+// ── مدیریت کانفیگ‌های گروه ──────────────────────────────────────────────────
 let lmodalLinks=[],lmodalInSub=new Set(),lmodalOriginal=new Set();
+
 async function openSubLinks(sub_id,name){
   currentSubId=sub_id;
   document.getElementById('modal-sub-name').textContent=name;
@@ -1737,6 +1869,7 @@ async function openSubLinks(sub_id,name){
     renderLmodalList(links);
   }catch(e){toast('خطا در بارگذاری','err')}
 }
+
 function renderLmodalList(links){
   const body=document.getElementById('modal-links-body');
   if(!links.length){body.innerHTML='<div class="empty" style="padding:30px"><i class="ti ti-link-off"></i><p>هنوز کانفیگی وجود ندارد</p></div>';updateLmodalCount();return}
@@ -1791,6 +1924,8 @@ async function saveSubLinks(){
     loadSubs();loadLinks();
   }catch(e){toast('خطا در ذخیره','err')}
 }
+
+// ── سابسکریپشن ──────────────────────────────────────────────────────────────
 async function loadSubsPage(){
   document.getElementById('sub-all-url').textContent=location.protocol+'//'+location.host+'/sub-all';
   try{
@@ -1815,6 +1950,8 @@ async function loadSubsPage(){
   }catch(e){}
 }
 function cpSubAll(){navigator.clipboard.writeText(location.protocol+'//'+location.host+'/sub-all').then(()=>toast('کپی شد ✓','ok'))}
+
+// ── اتصالات ──────────────────────────────────────────────────────────────────
 function parseBytesFmt(s){
   if(!s)return 0;
   const m=String(s).match(/([\d.]+)\s*([A-Za-z]+)/);
@@ -1823,6 +1960,7 @@ function parseBytesFmt(s){
   const mult={B:1,KB:1024,MB:1024**2,GB:1024**3,TB:1024**4};
   return n*(mult[u]||1);
 }
+
 async function loadConns(){
   try{
     const r=await authF('/api/connections'),d=await r.json();
@@ -1889,6 +2027,7 @@ async function loadConns(){
   }catch(e){console.error(e)}
   loadTopUsage();
 }
+
 async function loadTopUsage(){
   try{
     const r=await authF('/api/top-usage?limit=8'),d=await r.json();
@@ -1908,12 +2047,13 @@ async function loadTopUsage(){
   }catch(e){}
 }
 async function loadErrs(){try{const r=await authF('/stats'),d=await r.json();renderErrs(d.recent_errors||[]);}catch(e){}}
+
+// ── لینک پیش‌فرض ────────────────────────────────────────────────────────────
 async function fetchDefaultVless(){
   try{const r=await authF('/api/links'),d=await r.json();const links=d.links||[];const def=links.find(l=>l.limit_bytes===0&&l.active&&!l.expired)||links.find(l=>l.active&&!l.expired)||links[0];document.getElementById('vless-main').textContent=def?def.vless_link:'هنوز کانفیگی وجود ندارد';}catch(e){}
 }
-function cpText(id){navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>toast('کپی شد ✓','ok'))}
-function qrFor(id){showQR(document.getElementById(id).textContent)}
-function refreshAll(){fetchStats();fetchDefaultVless();loadLinks();if(document.getElementById('pg-subgroups').classList.contains('on'))loadSubs();if(document.getElementById('pg-subscriptions').classList.contains('on'))loadSubsPage();if(document.getElementById('pg-connections').classList.contains('on'))loadConns();if(document.getElementById('pg-logs').classList.contains('on'))loadActivity();toast('رفرش شد','ok')}
+
+// ── تغییر رمز ─────────────────────────────────────────────────────────────────
 async function changePw(){
   const cur=document.getElementById('cp-cur').value,nw=document.getElementById('cp-new').value,cf=document.getElementById('cp-cf').value;
   if(!cur||!nw||!cf){toast('همه فیلدها را پر کنید','err');return}
@@ -1938,7 +2078,7 @@ function checkPwStrength(val){
   const segs=document.querySelectorAll('#pw-strength-bar .pw-strength-seg');
   const label=document.getElementById('pw-strength-label');
   const reqLen=document.getElementById('req-len'),reqNum=document.getElementById('req-num'),reqCase=document.getElementById('req-case');
-  const hasLen=val.length>=4,hasNum=/\d/.test(val),hasCase=/[a-z]/.test(val)&&/[A-Z]/.test(val),hasLong=val.length>=8;
+  const hasLen=val.length>=4,hasNum=/\\d/.test(val),hasCase=/[a-z]/.test(val)&&/[A-Z]/.test(val),hasLong=val.length>=8;
   reqLen.classList.toggle('met',hasLen);
   reqNum.classList.toggle('met',hasNum);
   reqCase.classList.toggle('met',hasCase);
@@ -1948,90 +2088,8 @@ function checkPwStrength(val){
   if(val.length===0){label.innerHTML='<i class="ti ti-shield"></i> قدرت رمز';return}
   label.innerHTML=`<i class="ti ti-shield-check" style="color:${colors[Math.max(0,score-1)]}"></i> ${labels[Math.max(0,score-1)]}`;
 }
-function makeGradient(ctx,color1,color2){
-  const g=ctx.createLinearGradient(0,0,0,260);
-  g.addColorStop(0,color1);g.addColorStop(1,color2);
-  return g;
-}
-function initCharts(){
-  const c1=document.getElementById('ch1').getContext('2d');
-  const grad1=makeGradient(c1,'rgba(59,130,246,.38)','rgba(59,130,246,0)');
-  const opts={
-    responsive:true,maintainAspectRatio:false,
-    interaction:{mode:'index',intersect:false},
-    plugins:{
-      legend:{display:false},
-      tooltip:{
-        backgroundColor:'rgba(13,27,46,.96)',borderColor:'rgba(59,130,246,.3)',borderWidth:1,
-        titleColor:'#E8F4FF',bodyColor:'#7BAED4',padding:11,cornerRadius:10,displayColors:false,
-        titleFont:{family:'Vazirmatn',size:11,weight:'700'},bodyFont:{family:'Vazirmatn',size:11},
-        callbacks:{label:v=>`${v.parsed.y.toFixed(2)} مگابایت`}
-      }
-    },
-    scales:{
-      x:{grid:{display:false},border:{display:false},ticks:{color:'#3D6B8E',font:{size:9,family:'Vazirmatn'}}},
-      y:{grid:{color:'rgba(59,130,246,.06)'},border:{display:false},ticks:{color:'#3D6B8E',font:{size:9,family:'Vazirmatn'},callback:v=>v+' MB'}}
-    },
-    elements:{line:{capBezierPoints:true}}
-  };
-  const ds1={label:'MB',data:[],borderColor:'#3B82F6',backgroundColor:grad1,fill:true,tension:.42,pointRadius:0,pointHoverRadius:6,pointHoverBackgroundColor:'#3B82F6',pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,borderWidth:2.5};
-  ch1=new Chart(document.getElementById('ch1'),{type:'line',data:{labels:[],datasets:[ds1]},options:opts});
 
-  function makeGradientV2(ctx,c1,c2,c3){
-    const g=ctx.createLinearGradient(0,0,0,320);
-    g.addColorStop(0,c1);g.addColorStop(.6,c2);g.addColorStop(1,c3);
-    return g;
-  }
-  const c3ctx=document.getElementById('ch3').getContext('2d');
-  const gradFill3=makeGradientV2(c3ctx,'rgba(59,130,246,.45)','rgba(59,130,246,.08)','rgba(59,130,246,0)');
-  ch3=new Chart(document.getElementById('ch3'),{
-    type:'line',
-    data:{labels:[],datasets:[
-      {label:'مصرف',data:[],borderColor:'#3B82F6',backgroundColor:gradFill3,fill:true,tension:.45,pointRadius:0,pointHoverRadius:7,pointHoverBackgroundColor:'#fff',pointHoverBorderColor:'#3B82F6',pointHoverBorderWidth:3,borderWidth:3,order:2},
-      {label:'میانگین',data:[],borderColor:'#F59E0B',borderDash:[6,5],borderWidth:1.6,pointRadius:0,fill:false,tension:0,order:1}
-    ]},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{
-        legend:{display:false},
-        tooltip:{
-          backgroundColor:'rgba(13,27,46,.97)',borderColor:'rgba(59,130,246,.35)',borderWidth:1,
-          titleColor:'#E8F4FF',bodyColor:'#9DC3E8',padding:13,cornerRadius:12,displayColors:true,boxPadding:4,
-          titleFont:{family:'Vazirmatn',size:11.5,weight:'700'},bodyFont:{family:'Vazirmatn',size:11},
-          callbacks:{label:v=>` ${v.dataset.label}: ${v.parsed.y.toFixed(2)} MB`}
-        }
-      },
-      scales:{
-        x:{grid:{display:false},border:{display:false},ticks:{color:'#3D6B8E',font:{size:9.5,family:'Vazirmatn'},maxRotation:0}},
-        y:{grid:{color:'rgba(59,130,246,.05)'},border:{display:false},ticks:{color:'#3D6B8E',font:{size:9.5,family:'Vazirmatn'},callback:v=>v+' MB'}}
-      }
-    }
-  });
-
-  ch2=new Chart(document.getElementById('ch2'),{
-    type:'doughnut',
-    data:{labels:['VLESS/WS','XHTTP Ultra','HTTP Proxy'],datasets:[{
-      data:[55,35,10],
-      backgroundColor:['#3B82F6','#10B981','#8B5CF6'],
-      borderColor:getComputedStyle(document.documentElement).getPropertyValue('--card')||'#0d1b2e',
-      borderWidth:4,hoverOffset:10,borderRadius:6,spacing:3
-    }]},
-    options:{
-      responsive:true,maintainAspectRatio:false,cutout:'72%',
-      plugins:{
-        legend:{position:'bottom',labels:{color:'var(--t2)',font:{size:10,family:'Vazirmatn'},padding:12,usePointStyle:true,pointStyle:'circle'}},
-        tooltip:{backgroundColor:'rgba(13,27,46,.96)',borderColor:'rgba(59,130,246,.3)',borderWidth:1,padding:10,cornerRadius:10,bodyFont:{family:'Vazirmatn'},titleFont:{family:'Vazirmatn'}}
-      }
-    }
-  });
-}
-let ws;
-function wsLog(c,m){const l=document.getElementById('ws-log'),p=document.createElement('p');const colors={ok:'#34D399',err:'#F87171',info:'#7BAED4',sent:'#FCD34D'};p.style.color=colors[c]||'#fff';p.textContent='['+new Date().toLocaleTimeString('fa-IR')+'] '+m;l.appendChild(p);l.scrollTop=l.scrollHeight}
-function wsConn(){const u=document.getElementById('ws-uuid').value.trim();if(!u){toast('UUID را وارد کنید','err');return}const url=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws/'+u;wsLog('info','اتصال: '+url);ws=new WebSocket(url);ws.onopen=()=>wsLog('ok','✓ متصل - UUID معتبر');ws.onerror=()=>wsLog('err','✗ خطا - UUID نامعتبر یا غیرفعال');ws.onmessage=m=>wsLog('info','دریافت '+(m.data.size||m.data.length)+' byte');ws.onclose=e=>wsLog('err','قطع ('+e.code+')'+(e.code===1008?' - دسترسی رد شد':''))}
-function wsSend(){const m=document.getElementById('ws-msg').value;if(!m||!ws||ws.readyState!==1)return;ws.send(m);wsLog('sent','ارسال: '+m);document.getElementById('ws-msg').value=''}
-function wsDisc(){if(ws)ws.close()}
-
+// ── تنظیمات تلگرام ──────────────────────────────────────────────────────────
 async function loadTelegramSettings(){
   try{
     const r=await authF('/api/settings/telegram'),d=await r.json();
@@ -2068,54 +2126,130 @@ async function testTelegram(){
     toast('پیام تست ارسال شد ✓ چک کن تلگرامت','ok');
   }catch(e){toast('خطا در ارسال تست','err')}
 }
-
-// ── توابع سیستم رفرال ──────────────────────────────────────────────────────
-
-async function loadReferralSettings() {
-  try {
-    const r = await authF('/api/settings/referral');
-    const d = await r.json();
-    document.getElementById('ref-enabled').checked = !!d.enabled;
-    document.getElementById('ref-channel').value = d.channel_username || 'TimAzadi';
-    document.getElementById('ref-channel-required').checked = d.channel_required !== false;
-    document.getElementById('ref-reward-gb').value = d.referral_reward_gb || 1;
-    document.getElementById('ref-reward-days').value = d.referral_reward_days || 7;
-    document.getElementById('ref-limit').value = d.referral_limit || 5;
-    document.getElementById('ref-max-links').value = d.max_links_per_user || 3;
-    document.getElementById('ref-bot-token').value = d.bot_token_masked || '';
-    document.getElementById('ref-bot-username').value = d.bot_username || '';
-  } catch(e) {
-    console.error('loadReferralSettings error:', e);
-  }
+async function resolveTelegramIp(){
+  try{
+    const r=await authF('/api/settings/telegram/resolve'),d=await r.json();
+    if(d.ok&&d.ips&&d.ips.length){document.getElementById('tg-api-ip').value=d.ips[0];toast('IP پیدا شد: '+d.ips[0],'ok')}
+    else toast(d.detail||'IP پیدا نشد','err');
+  }catch(e){toast('خطا در دریافت IP','err')}
 }
 
-async function saveReferralSettings() {
-  const body = {
-    enabled: document.getElementById('ref-enabled').checked,
-    channel_username: document.getElementById('ref-channel').value.trim(),
-    channel_required: document.getElementById('ref-channel-required').checked,
-    referral_reward_gb: Number(document.getElementById('ref-reward-gb').value) || 1,
-    referral_reward_days: Number(document.getElementById('ref-reward-days').value) || 7,
-    referral_limit: Number(document.getElementById('ref-limit').value) || 5,
-    max_links_per_user: Number(document.getElementById('ref-max-links').value) || 3,
-    bot_token: document.getElementById('ref-bot-token').value.trim(),
-    bot_username: document.getElementById('ref-bot-username').value.trim(),
+// ── تنظیمات رفرال ────────────────────────────────────────────────────────────
+async function loadReferralSettings(){
+  try{
+    const r=await authF('/api/settings/referral'),d=await r.json();
+    document.getElementById('ref-enabled').checked=!!d.enabled;
+    document.getElementById('ref-channel').value=d.channel_username||'TimAzadi';
+    document.getElementById('ref-channel-required').checked=d.channel_required!==false;
+    document.getElementById('ref-reward-gb').value=d.referral_reward_gb||1;
+    document.getElementById('ref-reward-days').value=d.referral_reward_days||7;
+    document.getElementById('ref-limit').value=d.referral_limit||5;
+    document.getElementById('ref-max-links').value=d.max_links_per_user||3;
+    document.getElementById('ref-bot-token').value=d.bot_token_masked||'';
+    document.getElementById('ref-bot-username').value=d.bot_username||'';
+  }catch(e){}
+}
+async function saveReferralSettings(){
+  const body={
+    enabled:document.getElementById('ref-enabled').checked,
+    channel_username:document.getElementById('ref-channel').value.trim(),
+    channel_required:document.getElementById('ref-channel-required').checked,
+    referral_reward_gb:Number(document.getElementById('ref-reward-gb').value)||1,
+    referral_reward_days:Number(document.getElementById('ref-reward-days').value)||7,
+    referral_limit:Number(document.getElementById('ref-limit').value)||5,
+    max_links_per_user:Number(document.getElementById('ref-max-links').value)||3,
+    bot_token:document.getElementById('ref-bot-token').value.trim(),
+    bot_username:document.getElementById('ref-bot-username').value.trim(),
   };
-  
-  try {
-    const r = await authF('/api/settings/referral', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) throw new Error();
-    toast('تنظیمات رفرال ذخیره شد ✓', 'ok');
+  try{
+    const r=await authF('/api/settings/referral',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error();
+    toast('تنظیمات رفرال ذخیره شد ✓','ok');
     loadReferralSettings();
-  } catch(e) {
-    toast('خطا در ذخیره', 'err');
-  }
+  }catch(e){toast('خطا در ذخیره','err')}
 }
 
+// ── مدیریت بات ──────────────────────────────────────────────────────────────
+let botUsersCache=[];
+
+async function loadBotStats(){
+  try{
+    const [statsR, usersR, settingsR] = await Promise.all([
+      authF('/api/bot/stats'),
+      authF('/api/bot/users?limit=50'),
+      authF('/api/bot/settings'),
+    ]);
+    const stats=await statsR.json();
+    const users=await usersR.json();
+    const settings=await settingsR.json();
+    
+    document.getElementById('bs-users').textContent=toFa(stats.total_users||0);
+    document.getElementById('bs-links').textContent=toFa(stats.total_links_created||0);
+    document.getElementById('bs-messages').textContent=toFa(stats.total_messages||0);
+    document.getElementById('bs-uptime').textContent=stats.uptime||'—';
+    document.getElementById('bot-nb').textContent=toFa(stats.total_users||0);
+    document.getElementById('bot-status').innerHTML=(settings.enabled?'<span class="dot dg pulse"></span> فعال':'<span class="dot dr"></span> غیرفعال');
+    
+    document.getElementById('bot-enabled').checked=settings.enabled!==false;
+    document.getElementById('bot-public').checked=settings.allow_public!==false;
+    document.getElementById('bot-max-links').value=settings.max_links_per_user||5;
+    document.getElementById('bot-default-quota').value=settings.default_quota_gb||1;
+    document.getElementById('bot-default-expiry').value=settings.default_expiry_days||7;
+    
+    document.getElementById('bc-count').textContent=toFa(stats.total_users||0);
+    
+    botUsersCache=users.users||[];
+    const list=document.getElementById('bot-users-list');
+    if(!botUsersCache.length){
+      list.innerHTML='<div class="empty"><i class="ti ti-users"></i><p>هیچ کاربری ثبت نشده</p></div>';
+      return;
+    }
+    list.innerHTML=botUsersCache.map(u=>`
+      <div class="sr">
+        <span class="sr-k">${esc(u.first_name||'کاربر')} ${u.username?'@'+esc(u.username):''}</span>
+        <span class="sr-v" style="font-size:10px">${u.links?toFa(u.links.length)+' کانفیگ':''} · ${u.joined_at?new Date(u.joined_at).toLocaleDateString('fa-IR'):''}</span>
+      </div>
+    `).join('');
+  }catch(e){console.error(e)}
+}
+
+async function saveBotSettings(){
+  const body={
+    enabled:document.getElementById('bot-enabled').checked,
+    allow_public:document.getElementById('bot-public').checked,
+    max_links_per_user:Number(document.getElementById('bot-max-links').value)||5,
+    default_quota_gb:Number(document.getElementById('bot-default-quota').value)||1,
+    default_expiry_days:Number(document.getElementById('bot-default-expiry').value)||7,
+  };
+  try{
+    const r=await authF('/api/bot/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error();
+    toast('تنظیمات بات ذخیره شد ✓','ok');
+    loadBotStats();
+  }catch(e){toast('خطا در ذخیره','err')}
+}
+
+async function sendBroadcast(){
+  const msg=document.getElementById('broadcast-msg').value.trim();
+  if(!msg){toast('لطفاً پیام را وارد کنید','err');return}
+  if(!confirm('ارسال پیام به همه کاربران؟'))return;
+  try{
+    const r=await authF('/api/bot/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'خطا');
+    toast(`✅ پیام به ${d.sent} کاربر ارسال شد. ${d.failed} کاربر دریافت نکردند.`,'ok');
+    document.getElementById('broadcast-msg').value='';
+  }catch(e){toast('خطا در ارسال پیام','err')}
+}
+
+// ── تست WebSocket ────────────────────────────────────────────────────────────
+let ws;
+function wsLog(c,m){const l=document.getElementById('ws-log'),p=document.createElement('p');const colors={ok:'#34D399',err:'#F87171',info:'#7BAED4',sent:'#FCD34D'};p.style.color=colors[c]||'#fff';p.textContent='['+new Date().toLocaleTimeString('fa-IR')+'] '+m;l.appendChild(p);l.scrollTop=l.scrollHeight}
+function wsConn(){const u=document.getElementById('ws-uuid').value.trim();if(!u){toast('UUID را وارد کنید','err');return}const url=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws/'+u;wsLog('info','اتصال: '+url);ws=new WebSocket(url);ws.onopen=()=>wsLog('ok','✓ متصل - UUID معتبر');ws.onerror=()=>wsLog('err','✗ خطا - UUID نامعتبر یا غیرفعال');ws.onmessage=m=>wsLog('info','دریافت '+(m.data.size||m.data.length)+' byte');ws.onclose=e=>wsLog('err','قطع ('+e.code+')'+(e.code===1008?' - دسترسی رد شد':''))}
+function wsSend(){const m=document.getElementById('ws-msg').value;if(!m||!ws||ws.readyState!==1)return;ws.send(m);wsLog('sent','ارسال: '+m);document.getElementById('ws-msg').value=''}
+function wsDisc(){if(ws)ws.close()}
+
+// ── نمودار مصرف روزانه ──────────────────────────────────────────────────────
 let dailyChartInstance=null;
 async function openDailyChart(uuid,label){
   document.getElementById('dc-title').textContent=label;
@@ -2126,14 +2260,24 @@ async function openDailyChart(uuid,label){
     if(dailyChartInstance)dailyChartInstance.destroy();
     dailyChartInstance=new Chart(ctx,{
       type:'bar',
-      data:{
-        labels:days.map(d=>new Date(d.date).toLocaleDateString('fa-IR',{month:'short',day:'numeric'})),
-        datasets:[{label:'مصرف روزانه',data:days.map(d=>d.bytes/1024/1024),backgroundColor:'rgba(124,92,255,.55)',borderRadius:6}]
-      },
+      data:{labels:days.map(d=>new Date(d.date).toLocaleDateString('fa-IR',{month:'short',day:'numeric'})),datasets:[{label:'مصرف روزانه',data:days.map(d=>d.bytes/1024/1024),backgroundColor:'rgba(124,92,255,.55)',borderRadius:6}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+' MB'}}}}
     });
   }catch(e){}
 }
+
+// ── رفرش همه ──────────────────────────────────────────────────────────────────
+function refreshAll(){
+  fetchStats();fetchDefaultVless();loadLinks();
+  if(document.getElementById('pg-subgroups').classList.contains('on'))loadSubs();
+  if(document.getElementById('pg-subscriptions').classList.contains('on'))loadSubsPage();
+  if(document.getElementById('pg-connections').classList.contains('on'))loadConns();
+  if(document.getElementById('pg-logs').classList.contains('on'))loadActivity();
+  if(document.getElementById('pg-bot').classList.contains('on'))loadBotStats();
+  toast('رفرش شد','ok');
+}
+
+// ── راه‌اندازی اولیه ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',async()=>{
   await checkAuth();
   initCharts();
@@ -2141,7 +2285,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   document.getElementById('sub-all-url')&&(document.getElementById('sub-all-url').textContent=location.protocol+'//'+location.host+'/sub-all');
   loadTelegramSettings();
   loadReferralSettings();
-  fetchStats();fetchDefaultVless();loadLinks();loadSubs();
+  fetchStats();fetchDefaultVless();loadLinks();loadSubs();loadBotStats();
   setInterval(fetchStats,4000);
   setInterval(()=>{
     if(document.getElementById('pg-links').classList.contains('on'))loadLinks();
@@ -2149,6 +2293,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     if(document.getElementById('pg-subscriptions').classList.contains('on'))loadSubsPage();
     if(document.getElementById('pg-connections').classList.contains('on'))loadConns();
     if(document.getElementById('pg-logs').classList.contains('on'))loadActivity();
+    if(document.getElementById('pg-bot').classList.contains('on'))loadBotStats();
   },5000);
 });
 </script>
