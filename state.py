@@ -1,751 +1,215 @@
-# state.py — تیم آزادی Gateway v10.0
+# assets.py - لوگو و assets های تیم آزادی Gateway
 # ══════════════════════════════════════════════════════════════════════════════
-# تمام state مشترک (LINKS، SUBS، stats، connections، ...) و توابع کمکی
+# شامل لوگوهای SVG به صورت base64 برای استفاده در صفحات مختلف
 # ══════════════════════════════════════════════════════════════════════════════
 
-import asyncio
-import ipaddress
-import json
-import os
-import hashlib
-import hmac
-import secrets
-import time
-import aiofiles
-import logging
-from datetime import datetime, timedelta
-from urllib.parse import urlparse
-from zoneinfo import ZoneInfo
-from collections import deque, defaultdict
-from pathlib import Path
+# ── لوگوی اصلی تیم آزادی (SVG) ──────────────────────────────────────────────
+LOGO_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#EC4899;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="logoGrad2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1E40AF;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:0.3" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  
+  <!-- پس‌زمینه -->
+  <rect width="100" height="100" rx="22" fill="url(#logoGrad)"/>
+  <rect width="100" height="100" rx="22" fill="url(#logoGrad2)"/>
+  
+  <!-- حلقه‌های تزئینی -->
+  <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+  <circle cx="50" cy="50" r="28" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  
+  <!-- نماد اصلی - حرف "ت" به صورت خلاقانه -->
+  <g filter="url(#glow)">
+    <text x="50" y="68" font-family="'Vazirmatn', 'Arial', sans-serif" 
+          font-size="52" font-weight="900" text-anchor="middle" 
+          fill="white" letter-spacing="-2">
+      ت
+    </text>
+  </g>
+  
+  <!-- نقطه‌ی تزئینی زیر حرف -->
+  <circle cx="50" cy="82" r="3" fill="rgba(255,255,255,0.6)"/>
+  
+  <!-- خط‌های موج‌دار تزئینی -->
+  <path d="M15 88 Q30 82 45 88 Q60 94 75 88 Q85 84 90 88" 
+        fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+</svg>"""
 
-from fastapi import Request, HTTPException
+# ── لوگوی کوچک (برای favicon و هدر) ──────────────────────────────────────
+LOGO_SVG_SMALL = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="logoSmall" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6" />
+      <stop offset="100%" style="stop-color:#8B5CF6" />
+    </linearGradient>
+  </defs>
+  <rect width="40" height="40" rx="10" fill="url(#logoSmall)"/>
+  <text x="20" y="28" font-family="'Arial', sans-serif" font-size="22" font-weight="bold" text-anchor="middle" fill="white">ت</text>
+</svg>"""
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("تیم-آزادی-Gateway")
+# ── لوگوی سفید (برای تم تاریک) ─────────────────────────────────────────────
+LOGO_SVG_WHITE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="logoWhite" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60A5FA" />
+      <stop offset="100%" style="stop-color:#A78BFA" />
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="22" fill="#0a1628" stroke="rgba(96,165,250,0.2)" stroke-width="1.5"/>
+  <rect width="94" height="94" x="3" y="3" rx="19" fill="none" stroke="rgba(96,165,250,0.08)" stroke-width="1"/>
+  <text x="50" y="68" font-family="'Vazirmatn', 'Arial', sans-serif" font-size="52" font-weight="900" text-anchor="middle" fill="url(#logoWhite)">ت</text>
+</svg>"""
 
-IRAN_TZ = ZoneInfo("Asia/Tehran")
+# ── لوگوی برند (برای صفحات سفید-برند) ──────────────────────────────────────
+LOGO_SVG_BRANDLESS = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="brandless" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6B7280" />
+      <stop offset="100%" style="stop-color:#9CA3AF" />
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="22" fill="#1F2937" stroke="rgba(107,114,128,0.2)" stroke-width="1"/>
+  <circle cx="50" cy="40" r="16" fill="none" stroke="url(#brandless)" stroke-width="2"/>
+  <path d="M50 56 L50 80" stroke="url(#brandless)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M35 70 L65 70" stroke="url(#brandless)" stroke-width="2" stroke-linecap="round"/>
+</svg>"""
 
-# ── Secret / Config ──────────────────────────────────────────────────────────
-def _load_or_create_secret() -> str:
-    env_secret = os.environ.get("SECRET_KEY")
-    if env_secret:
-        return env_secret
-    secret_dir = Path(os.environ.get("DATA_DIR", "/data"))
-    secret_file = secret_dir / ".secret_key"
-    try:
-        secret_dir.mkdir(parents=True, exist_ok=True)
-        if secret_file.exists():
-            return secret_file.read_text(encoding="utf-8").strip()
-        new_secret = secrets.token_urlsafe(32)
-        secret_file.write_text(new_secret, encoding="utf-8")
-        return new_secret
-    except Exception:
-        return secrets.token_urlsafe(32)
+# ── تبدیل به Data URI ──────────────────────────────────────────────────────
+import base64
+from urllib.parse import quote
 
-CONFIG = {
-    "port": int(os.environ.get("PORT", 8000)),
-    "secret": _load_or_create_secret(),
-    "host": os.environ.get("RAILWAY_PUBLIC_DOMAIN", "localhost"),
+def svg_to_data_uri(svg: str) -> str:
+    """تبدیل SVG به Data URI"""
+    # حذف فاصله‌های اضافی و فشرده‌سازی
+    svg_min = svg.replace('\n', '').replace('  ', ' ').replace('> <', '><')
+    encoded = quote(svg_min, safe='')
+    return f"data:image/svg+xml,{encoded}"
+
+LOGO_DATA_URI = svg_to_data_uri(LOGO_SVG)
+LOGO_SMALL_URI = svg_to_data_uri(LOGO_SVG_SMALL)
+LOGO_WHITE_URI = svg_to_data_uri(LOGO_SVG_WHITE)
+LOGO_BRANDLESS_URI = svg_to_data_uri(LOGO_SVG_BRANDLESS)
+
+# ── Favicon (Base64) ──────────────────────────────────────────────────────
+FAVICON_BASE64 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233B82F6'/%3E%3Cstop offset='100%25' style='stop-color:%238B5CF6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' rx='8' fill='url(%23f)'/%3E%3Ctext x='20' y='28' font-family='Arial' font-size='22' font-weight='bold' text-anchor='middle' fill='white'%3Eت%3C/text%3E%3C/svg%3E"
+
+# ── رنگ‌های برند ──────────────────────────────────────────────────────────
+BRAND_COLORS = {
+    "primary": "#3B82F6",
+    "primary_dark": "#2563EB",
+    "primary_light": "#60A5FA",
+    "secondary": "#8B5CF6",
+    "secondary_dark": "#7C3AED",
+    "secondary_light": "#A78BFA",
+    "accent": "#EC4899",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "danger": "#EF4444",
+    "dark_bg": "#060f1d",
+    "card_bg": "#0d1b2e",
 }
 
-# ── Persistence ───────────────────────────────────────────────────────────────
-DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
-DATA_FILE = DATA_DIR / "rvg_state.json"
-SAVE_LOCK = asyncio.Lock()
-
-# ── In-memory state ───────────────────────────────────────────────────────────
-connections: dict = {}
-stats = {
-    "total_bytes": 0,
-    "total_requests": 0,
-    "total_errors": 0,
-    "start_time": time.time(),
-}
-error_logs: deque = deque(maxlen=50)
-activity_logs: deque = deque(maxlen=200)
-hourly_traffic: dict = defaultdict(int)
-daily_traffic: dict = defaultdict(int)
-link_daily_traffic: dict = defaultdict(lambda: defaultdict(int))
-LINKS: dict = {}
-LINKS_LOCK = asyncio.Lock()
-SUBS: dict = {}
-SUBS_LOCK = asyncio.Lock()
-
-# ── Telegram Settings ─────────────────────────────────────────────────────────
-TELEGRAM_SETTINGS = {
-    "enabled": False,
-    "bot_token": "",
-    "chat_id": "",
-    "notify_quota_pct": 90,
-    "notify_expiry_hours": 24,
-    "api_ip": "",
-    "bot_username": "",
+# ── فونت‌ها ────────────────────────────────────────────────────────────────
+FONTS = {
+    "primary": "'Vazirmatn', sans-serif",
+    "mono": "ui-monospace, 'JetBrains Mono', monospace",
 }
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ✅ تنظیمات سیستم رفرال و عضویت اجباری در کانال
-# ══════════════════════════════════════════════════════════════════════════════
-
-REFERRAL_SETTINGS = {
-    "enabled": False,
-    "channel_username": "TimAzadi",
-    "channel_required": True,
-    "referral_reward_gb": 1,
-    "referral_reward_days": 7,
-    "referral_limit": 5,
-    "max_links_per_user": 3,
-    "bot_token": "",
-    "bot_username": "",
+# ── متادیتا ─────────────────────────────────────────────────────────────────
+META = {
+    "name": "تیم آزادی Gateway",
+    "version": "10.0",
+    "description": "پنل مدیریت VPN با قابلیت‌های پیشرفته",
+    "author": "تیم آزادی",
+    "telegram": "https://t.me/TimAzadi",
+    "github": "https://github.com/timazadi/gateway",
 }
 
-REFERRALS: dict = {}
-REFERRALS_LOCK = asyncio.Lock()
-USER_LINKS: dict = {}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ✅ تنظیمات و آمار بات (اضافه شده)
-# ══════════════════════════════════════════════════════════════════════════════
-
-BOT_SETTINGS = {
-    "enabled": True,
-    "allow_public": True,
-    "max_links_per_user": 5,
-    "default_quota_gb": 1,
-    "default_expiry_days": 7,
+# ── استایل‌های مشترک (CSS) ────────────────────────────────────────────────
+COMMON_STYLES = """
+:root {
+  --bg-primary: #060f1d;
+  --bg-secondary: #0a1628;
+  --bg-card: #0d1b2e;
+  --bg-card-hover: #12243f;
+  --text-primary: #E8F4FF;
+  --text-secondary: #7BAED4;
+  --text-muted: #3D6B8E;
+  --accent: #3B82F6;
+  --accent-hover: #2563EB;
+  --accent-light: #60A5FA;
+  --accent-dark: #1D4ED8;
+  --accent-glow: rgba(59,130,246,0.3);
+  --border-color: rgba(59,130,246,0.12);
+  --border-hover: rgba(59,130,246,0.25);
+  --shadow: 0 4px 24px rgba(0,0,0,0.35);
+  --radius: 16px;
+  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
+"""
 
-BOT_USERS: dict = {}  # user_id -> {"first_name", "username", "joined_at", "links": [], "last_active"}
-BOT_STATS = {
-    "total_users": 0,
-    "total_links_created": 0,
-    "total_messages": 0,
-    "started_at": time.time(),
+# ── استایل‌های Glassmorphism ──────────────────────────────────────────────
+GLASS_STYLES = """
+.glass {
+  background: rgba(13, 27, 46, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
-BOT_USERS_LOCK = asyncio.Lock()
-
-def add_bot_user(user_id: str, first_name: str = "", username: str = ""):
-    """افزودن یا به‌روزرسانی کاربر بات"""
-    async def _add():
-        async with BOT_USERS_LOCK:
-            if user_id not in BOT_USERS:
-                BOT_USERS[user_id] = {
-                    "first_name": first_name,
-                    "username": username,
-                    "joined_at": datetime.now().isoformat(),
-                    "links": [],
-                    "last_active": datetime.now().isoformat(),
-                }
-                BOT_STATS["total_users"] = len(BOT_USERS)
-            else:
-                BOT_USERS[user_id]["last_active"] = datetime.now().isoformat()
-                if first_name:
-                    BOT_USERS[user_id]["first_name"] = first_name
-                if username:
-                    BOT_USERS[user_id]["username"] = username
-    return _add()
-
-def get_bot_stats() -> dict:
-    """گرفتن آمار بات"""
-    return {
-        **BOT_STATS,
-        "total_users": len(BOT_USERS),
-        "uptime": f"{int((time.time() - BOT_STATS['started_at']) // 3600)}h",
-    }
-
-def get_bot_users() -> list:
-    """گرفتن لیست کاربران بات"""
-    return list(BOT_USERS.values())
-
-def update_bot_settings(data: dict) -> dict:
-    """به‌روزرسانی تنظیمات بات"""
-    for key, value in data.items():
-        if key in BOT_SETTINGS:
-            if isinstance(BOT_SETTINGS[key], bool):
-                BOT_SETTINGS[key] = bool(value)
-            elif isinstance(BOT_SETTINGS[key], int):
-                BOT_SETTINGS[key] = int(value)
-            else:
-                BOT_SETTINGS[key] = str(value).strip()
-    return dict(BOT_SETTINGS)
-
-async def send_broadcast(message: str) -> tuple[bool, int, int]:
-    """ارسال پیام گروهی به همه‌ی کاربران بات"""
-    from main import send_telegram_message, http_client
-    
-    if not BOT_SETTINGS.get("enabled"):
-        return False, 0, 0
-    
-    token = TELEGRAM_SETTINGS.get("bot_token")
-    if not token or http_client is None:
-        return False, 0, 0
-    
-    sent = 0
-    failed = 0
-    
-    async with BOT_USERS_LOCK:
-        users = list(BOT_USERS.keys())
-    
-    for user_id in users:
-        try:
-            ok, _ = await send_telegram_message(message, user_id)
-            if ok:
-                sent += 1
-                BOT_STATS["total_messages"] += 1
-            else:
-                failed += 1
-        except Exception:
-            failed += 1
-        
-        # برای جلوگیری از محدودیت Rate Limit
-        await asyncio.sleep(0.05)
-    
-    return True, sent, failed
-
-# ══════════════════════════════════════════════════════════════════════════════
-
-def record_traffic(uid: str, n: int):
-    day_key = now_ir().strftime("%Y-%m-%d")
-    daily_traffic[day_key] += n
-    link_daily_traffic[uid][day_key] += n
-
-PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one", "trojan-ws")
-DEFAULT_PROTOCOL = "vless-ws"
-
-def log_activity(kind: str, message: str, level: str = "info"):
-    activity_logs.append({
-        "kind": kind,
-        "level": level,
-        "message": message,
-        "time": datetime.now().isoformat(),
-    })
-
-# ── Auth ──────────────────────────────────────────────────────────────────────
-SESSION_COOKIE = "rvg_session"
-SESSION_TTL = 60 * 60 * 24 * 7
-PBKDF2_ITERATIONS = 260_000
-
-def hash_password(pw: str, salt: bytes | None = None) -> str:
-    if salt is None:
-        salt = secrets.token_bytes(16)
-    dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, PBKDF2_ITERATIONS)
-    return f"pbkdf2${PBKDF2_ITERATIONS}${salt.hex()}${dk.hex()}"
-
-def _hash_password_legacy(pw: str) -> str:
-    return hashlib.sha256(f"{pw}{CONFIG['secret']}".encode()).hexdigest()
-
-def verify_password(pw: str, stored: str | None) -> bool:
-    if not stored:
-        return False
-    if stored.startswith("pbkdf2$"):
-        try:
-            _, iters_s, salt_hex, hash_hex = stored.split("$")
-            salt = bytes.fromhex(salt_hex)
-            dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, int(iters_s))
-            return hmac.compare_digest(dk.hex(), hash_hex)
-        except Exception:
-            return False
-    return hmac.compare_digest(_hash_password_legacy(pw), stored)
-
-def is_legacy_hash(stored: str | None) -> bool:
-    return bool(stored) and not stored.startswith("pbkdf2$")
-
-AUTH = {"password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "TimAzadi"))}
-SESSIONS: dict = {}
-SESSIONS_LOCK = asyncio.Lock()
-
-# ── Login rate limiting ───────────────────────────────────────────────────────
-LOGIN_MAX_ATTEMPTS = 5
-LOGIN_WINDOW_SECONDS = 300
-LOGIN_ATTEMPTS: dict = defaultdict(deque)
-LOGIN_RATE_LOCK = asyncio.Lock()
-
-async def check_login_rate_limit(ip: str) -> bool:
-    now = time.time()
-    async with LOGIN_RATE_LOCK:
-        dq = LOGIN_ATTEMPTS[ip]
-        while dq and now - dq[0] > LOGIN_WINDOW_SECONDS:
-            dq.popleft()
-        return len(dq) < LOGIN_MAX_ATTEMPTS
-
-async def record_login_attempt(ip: str):
-    async with LOGIN_RATE_LOCK:
-        LOGIN_ATTEMPTS[ip].append(time.time())
-
-async def create_session() -> str:
-    token = secrets.token_urlsafe(32)
-    async with SESSIONS_LOCK:
-        SESSIONS[token] = time.time() + SESSION_TTL
-    return token
-
-async def is_valid_session(token: str | None) -> bool:
-    if not token:
-        return False
-    async with SESSIONS_LOCK:
-        exp = SESSIONS.get(token)
-        if exp is None:
-            return False
-        if exp < time.time():
-            SESSIONS.pop(token, None)
-            return False
-        return True
-
-async def destroy_session(token: str | None):
-    if not token:
-        return
-    async with SESSIONS_LOCK:
-        SESSIONS.pop(token, None)
-
-async def require_auth(request: Request):
-    token = request.cookies.get(SESSION_COOKIE)
-    if not await is_valid_session(token):
-        raise HTTPException(status_code=401, detail="unauthorized")
-    return token
-
-# ── Persistence I/O ───────────────────────────────────────────────────────────
-async def load_state():
-    global LINKS, AUTH, SUBS, REFERRALS, USER_LINKS, REFERRAL_SETTINGS, BOT_USERS, BOT_STATS, BOT_SETTINGS
-    try:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        if DATA_FILE.exists():
-            async with aiofiles.open(DATA_FILE, "r", encoding="utf-8") as f:
-                raw = await f.read()
-            data = json.loads(raw)
-            LINKS.update(data.get("links", {}))
-            SUBS.update(data.get("subs", {}))
-            if "password_hash" in data:
-                AUTH["password_hash"] = data["password_hash"]
-            if "telegram_settings" in data:
-                TELEGRAM_SETTINGS.update(data["telegram_settings"])
-            if "referral_settings" in data:
-                REFERRAL_SETTINGS.update(data["referral_settings"])
-            if "referrals" in data:
-                REFERRALS.update(data["referrals"])
-            if "user_links" in data:
-                USER_LINKS.update(data["user_links"])
-            if "bot_users" in data:
-                BOT_USERS.update(data["bot_users"])
-            if "bot_stats" in data:
-                BOT_STATS.update(data["bot_stats"])
-            if "bot_settings" in data:
-                BOT_SETTINGS.update(data["bot_settings"])
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(REFERRALS)} referrals, {len(BOT_USERS)} bot users")
-    except Exception as e:
-        logger.warning(f"Could not load state: {e}")
-
-async def save_state():
-    async with SAVE_LOCK:
-        try:
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-            data = {
-                "links": dict(LINKS),
-                "subs": dict(SUBS),
-                "password_hash": AUTH["password_hash"],
-                "telegram_settings": TELEGRAM_SETTINGS,
-                "referral_settings": REFERRAL_SETTINGS,
-                "referrals": REFERRALS,
-                "user_links": USER_LINKS,
-                "bot_users": BOT_USERS,
-                "bot_stats": BOT_STATS,
-                "bot_settings": BOT_SETTINGS,
-                "saved_at": datetime.now().isoformat(),
-            }
-            tmp = DATA_FILE.with_suffix(".tmp")
-            async with aiofiles.open(tmp, "w", encoding="utf-8") as f:
-                await f.write(json.dumps(data, ensure_ascii=False, indent=2))
-            tmp.replace(DATA_FILE)
-        except Exception as e:
-            logger.warning(f"Could not save state: {e}")
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def get_host() -> str:
-    return os.environ.get("RAILWAY_PUBLIC_DOMAIN", CONFIG["host"])
-
-def generate_uuid() -> str:
-    h = secrets.token_hex(16)
-    return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
-
-def now_ir() -> datetime:
-    return datetime.now(IRAN_TZ)
-
-# کش برای بهبود سرعت
-_vless_cache: dict = {}
-
-def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی", protocol: str = DEFAULT_PROTOCOL) -> str:
-    from urllib.parse import quote
-    cache_key = f"{uuid}:{host}:{remark}:{protocol}"
-    if cache_key in _vless_cache:
-        return _vless_cache[cache_key]
-    
-    if protocol == "trojan-ws":
-        path = f"/ws/{uuid}"
-        params = {
-            "security": "tls",
-            "type": "ws",
-            "host": host,
-            "path": path,
-            "sni": host,
-            "fp": "chrome",
-            "alpn": "http/1.1",
-        }
-        query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
-        result = f"trojan://{uuid}@{host}:443?{query}#{quote(remark)}"
-    elif protocol == "vless-ws":
-        path = f"/ws/{uuid}"
-        params = {
-            "encryption": "none",
-            "security": "tls",
-            "type": "ws",
-            "host": host,
-            "path": path,
-            "sni": host,
-            "fp": "chrome",
-            "alpn": "http/1.1",
-        }
-        query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
-        result = f"vless://{uuid}@{host}:443?{query}#{quote(remark)}"
-    else:
-        mode = protocol.replace("xhttp-", "")
-        path = f"/xhttp-siz10/{mode}/{uuid}"
-        params = {
-            "encryption": "none",
-            "security": "tls",
-            "type": "xhttp",
-            "mode": mode,
-            "host": host,
-            "path": path,
-            "sni": host,
-            "fp": "chrome",
-            "alpn": "h2,http/1.1",
-        }
-        query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
-        result = f"vless://{uuid}@{host}:443?{query}#{quote(remark)}"
-    
-    # کش کردن به‌صورت محدود
-    if len(_vless_cache) > 1000:
-        _vless_cache.clear()
-    _vless_cache[cache_key] = result
-    return result
-
-def uptime() -> str:
-    secs = int(time.time() - stats["start_time"])
-    h, m, s = secs // 3600, (secs % 3600) // 60, secs % 60
-    return f"{h:02d}:{m:02d}:{s:02d}"
-
-def fmt_bytes(b: int) -> str:
-    if b < 1024: return f"{b} B"
-    if b < 1024**2: return f"{b/1024:.1f} KB"
-    if b < 1024**3: return f"{b/1024**2:.2f} MB"
-    return f"{b/1024**3:.2f} GB"
-
-ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "trojan-ws")
-_PROTOCOL_TAG = {"vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S", "trojan-ws": "TROJAN"}
-
-def quota_suffix(used_bytes: int, limit_bytes: int) -> str:
-    used = fmt_bytes(used_bytes).replace(" ", "")
-    limit = "∞" if not limit_bytes else fmt_bytes(limit_bytes).replace(" ", "")
-    return f"{used}/{limit}"
-
-def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int = 0, limit_bytes: int = 0, brand: bool = True, flag: str = "") -> list[dict]:
-    quota = quota_suffix(used_bytes, limit_bytes)
-    prefix = "تیم-آزادی-" if brand else ""
-    flag_prefix = f"{flag}-" if flag else ""
-    out = []
-    for proto in ACTIVE_PROTOCOLS:
-        remark = f"{flag_prefix}{prefix}{label}-{_PROTOCOL_TAG[proto]}-{quota}"
-        out.append({
-            "protocol": proto,
-            "vless_link": generate_vless_link(uuid, host, remark=remark, protocol=proto),
-        })
-    return out
-
-def parse_size_to_bytes(value: float, unit: str) -> int:
-    unit = unit.upper()
-    if unit == "GB": return int(value * 1024 ** 3)
-    if unit == "MB": return int(value * 1024 ** 2)
-    if unit == "KB": return int(value * 1024)
-    return int(value)
-
-def parse_expiry_to_timedelta(value: float, unit: str):
-    from datetime import timedelta as _td
-    unit = (unit or "days").lower()
-    if value is None or value <= 0:
-        return None
-    if unit in ("hour", "hours", "h", "ساعت"):
-        return _td(hours=value)
-    if unit in ("day", "days", "d", "روز"):
-        return _td(days=value)
-    if unit in ("minute", "minutes", "m", "دقیقه"):
-        return _td(minutes=value)
-    return _td(days=value)
-
-def is_link_expired(link: dict) -> bool:
-    exp = link.get("expires_at")
-    if not exp:
-        return False
-    try:
-        return datetime.now() > datetime.fromisoformat(exp)
-    except Exception:
-        return False
-
-def is_link_allowed(link: dict | None) -> bool:
-    if link is None:
-        return False
-    if not link.get("active", True):
-        return False
-    if is_link_expired(link):
-        return False
-    lb = link.get("limit_bytes", 0)
-    if lb > 0 and link.get("used_bytes", 0) >= lb:
-        return False
-    sub_id = link.get("sub_id")
-    if sub_id:
-        sub = SUBS.get(sub_id)
-        if sub and sub.get("locked"):
-            return False
-    return True
-
-def is_device_allowed(uid: str, ip: str) -> bool:
-    link = LINKS.get(uid)
-    if not link:
-        return False
-    max_devices = int(link.get("max_devices") or 0)
-    if max_devices <= 0:
-        return True
-    current_ips = {c.get("ip") for c in connections.values() if c.get("uuid") == uid}
-    if ip in current_ips:
-        return True
-    return len(current_ips) < max_devices
-
-def sub_permissions(sub_id: str | None) -> dict:
-    if not sub_id:
-        return {"client_can_delete": True, "client_can_disable": True}
-    sub = SUBS.get(sub_id)
-    if not sub:
-        return {"client_can_delete": True, "client_can_disable": True}
-    return {
-        "client_can_delete": sub.get("client_can_delete", True),
-        "client_can_disable": sub.get("client_can_disable", True),
-    }
-
-def client_ip(conn) -> str:
-    fwd = conn.headers.get("x-forwarded-for")
-    if fwd:
-        parts = [p.strip() for p in fwd.split(",") if p.strip()]
-        if parts:
-            return parts[-1]
-    real_ip = conn.headers.get("x-real-ip")
-    if real_ip:
-        return real_ip.strip()
-    client = getattr(conn, "client", None)
-    return client.host if client else "نامشخص"
-
-# ── SSRF protection ────────────────────────────────────────────────────────────
-_BLOCKED_PROXY_HOSTNAMES = {
-    "metadata.google.internal", "metadata", "metadata.azure.com",
-    "instance-data", "localhost",
+.glass-light {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
+.glass-dark {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+"""
 
-def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
-    return (
-        ip.is_private or ip.is_loopback or ip.is_link_local or
-        ip.is_reserved or ip.is_multicast or ip.is_unspecified
-    )
-
-async def is_blocked_proxy_target(url: str) -> bool:
-    try:
-        host = (urlparse(url).hostname or "").lower()
-    except Exception:
-        return True
-    if not host:
-        return True
-    if host in _BLOCKED_PROXY_HOSTNAMES:
-        return True
-    try:
-        ip = ipaddress.ip_address(host)
-        return _is_blocked_ip(ip)
-    except ValueError:
-        pass
-    try:
-        loop = asyncio.get_event_loop()
-        infos = await loop.getaddrinfo(host, None)
-        for info in infos:
-            addr = info[4][0]
-            try:
-                if _is_blocked_ip(ipaddress.ip_address(addr)):
-                    return True
-            except ValueError:
-                continue
-        return False
-    except Exception:
-        return True
-
-# ── Default link ──────────────────────────────────────────────────────────────
-_default_link_created = False
-
-async def ensure_default_link():
-    global _default_link_created
-    if _default_link_created:
-        return
-    async with LINKS_LOCK:
-        if not any(l.get("is_default") for l in LINKS.values()):
-            uid = hashlib.sha256(f"default{CONFIG['secret']}".encode()).hexdigest()
-            uid = f"{uid[:8]}-{uid[8:12]}-{uid[12:16]}-{uid[16:20]}-{uid[20:32]}"
-            if uid not in LINKS:
-                LINKS[uid] = {
-                    "label": "لینک پیش‌فرض",
-                    "limit_bytes": 0,
-                    "used_bytes": 0,
-                    "created_at": datetime.now().isoformat(),
-                    "active": True,
-                    "expires_at": None,
-                    "note": "",
-                    "is_default": True,
-                    "sub_id": None,
-                    "protocol": DEFAULT_PROTOCOL,
-                    "parent_id": None,
-                    "white_label": False,
-                    "flag": "🇺🇸",
-                }
-                asyncio.create_task(save_state())
-        _default_link_created = True
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ✅ توابع سیستم رفرال و عضویت در کانال
-# ══════════════════════════════════════════════════════════════════════════════
-
-def generate_referral_code(user_id: str) -> str:
-    return secrets.token_urlsafe(8)
-
-def get_referral_settings() -> dict:
-    return dict(REFERRAL_SETTINGS)
-
-def update_referral_settings(data: dict):
-    for key, value in data.items():
-        if key in REFERRAL_SETTINGS:
-            if isinstance(REFERRAL_SETTINGS[key], bool):
-                REFERRAL_SETTINGS[key] = bool(value)
-            elif isinstance(REFERRAL_SETTINGS[key], int):
-                REFERRAL_SETTINGS[key] = int(value)
-            else:
-                REFERRAL_SETTINGS[key] = str(value).strip()
-
-async def check_channel_membership(user_id: str) -> bool:
-    if not REFERRAL_SETTINGS.get("channel_required", True):
-        return True
-    
-    bot_token = REFERRAL_SETTINGS.get("bot_token", "")
-    channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
-    
-    if not bot_token:
-        return True
-    
-    try:
-        import httpx
-        async with httpx.AsyncClient() as client:
-            url = f"https://api.telegram.org/bot{bot_token}/getChatMember"
-            resp = await client.post(url, json={
-                "chat_id": f"@{channel}",
-                "user_id": int(user_id)
-            }, timeout=10.0)
-            
-            data = resp.json()
-            if data.get("ok"):
-                status = data.get("result", {}).get("status")
-                return status in ["member", "administrator", "creator"]
-            return False
-    except Exception:
-        return True
-
-async def create_link_from_referral(user_id: str, label: str = None) -> str | None:
-    if not REFERRAL_SETTINGS.get("enabled", False):
-        return None
-    
-    user_links = USER_LINKS.get(user_id, [])
-    max_links = REFERRAL_SETTINGS.get("max_links_per_user", 3)
-    if len(user_links) >= max_links:
-        return None
-    
-    uid = generate_uuid()
-    
-    reward_gb = REFERRAL_SETTINGS.get("referral_reward_gb", 1)
-    reward_days = REFERRAL_SETTINGS.get("referral_reward_days", 7)
-    
-    limit_bytes = reward_gb * 1024 * 1024 * 1024
-    expires_at = (datetime.now() + timedelta(days=reward_days)).isoformat()
-    
-    async with LINKS_LOCK:
-        LINKS[uid] = {
-            "label": label or f"کانفیگ رفرال {user_id[:8]}",
-            "limit_bytes": limit_bytes,
-            "used_bytes": 0,
-            "created_at": datetime.now().isoformat(),
-            "active": True,
-            "expires_at": expires_at,
-            "note": f"ساخته‌شده از طریق رفرال - کاربر {user_id}",
-            "is_default": False,
-            "sub_id": None,
-            "protocol": DEFAULT_PROTOCOL,
-            "parent_id": None,
-            "white_label": False,
-            "flag": "🇺🇸",
-            "max_devices": 1,
-            "quota_notified": False,
-            "expiry_notified": False,
-            "referral_user": user_id,
-        }
-    
-    if user_id not in USER_LINKS:
-        USER_LINKS[user_id] = []
-    USER_LINKS[user_id].append(uid)
-    
-    await save_state()
-    return uid
-
-# ── توابع کمکی برای بات ──────────────────────────────────────────────────────
-def user_can_create_link(user_id: str) -> tuple[bool, str]:
-    """بررسی اینکه آیا کاربر می‌تواند کانفیگ جدید بسازد"""
-    if not BOT_SETTINGS.get("enabled", True):
-        return False, "بات غیرفعال است"
-    
-    if not BOT_SETTINGS.get("allow_public", True):
-        return False, "ساخت کانفیگ عمومی غیرفعال است"
-    
-    user_data = BOT_USERS.get(user_id, {})
-    links = user_data.get("links", [])
-    max_links = BOT_SETTINGS.get("max_links_per_user", 5)
-    
-    if len(links) >= max_links:
-        return False, f"شما به حداکثر تعداد کانفیگ مجاز ({max_links}) رسیده‌اید"
-    
-    return True, ""
-
-def get_user_links(user_id: str) -> list:
-    """گرفتن لیست کانفیگ‌های یک کاربر"""
-    user_data = BOT_USERS.get(user_id, {})
-    return user_data.get("links", [])
-
-def add_user_link(user_id: str, link_uuid: str):
-    """افزودن کانفیگ به کاربر"""
-    async def _add():
-        async with BOT_USERS_LOCK:
-            if user_id not in BOT_USERS:
-                BOT_USERS[user_id] = {
-                    "first_name": "",
-                    "username": "",
-                    "joined_at": datetime.now().isoformat(),
-                    "links": [],
-                    "last_active": datetime.now().isoformat(),
-                }
-            if link_uuid not in BOT_USERS[user_id]["links"]:
-                BOT_USERS[user_id]["links"].append(link_uuid)
-                BOT_STATS["total_links_created"] += 1
-    return _add()
-
-def remove_user_link(user_id: str, link_uuid: str):
-    """حذف کانفیگ از کاربر"""
-    async def _remove():
-        async with BOT_USERS_LOCK:
-            if user_id in BOT_USERS and link_uuid in BOT_USERS[user_id]["links"]:
-                BOT_USERS[user_id]["links"].remove(link_uuid)
-    return _remove()
+# ── استایل‌های انیمیشن ──────────────────────────────────────────────────
+ANIMATION_STYLES = """
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes gradientMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+"""
