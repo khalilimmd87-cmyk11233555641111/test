@@ -86,22 +86,18 @@ TELEGRAM_SETTINGS = {
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ✅ تنظیمات سیستم رفرال و عضویت اجباری در کانال
+# ✅ تنظیمات عضویت اجباری در کانال + هدیه‌ی خودکار ورود (۱۰۰ گیگ به هرکسی که وارد شود)
 # ══════════════════════════════════════════════════════════════════════════════
-REFERRAL_SETTINGS = {
-    "enabled": True,  # ← تغییر: قابلیت ساخت کانفیگ توسط همه‌ی کاربران از ابتدا فعال است
+JOIN_SETTINGS = {
+    "enabled": True,
     "channel_username": "TimAzadi",
     "channel_required": True,
-    "referral_reward_gb": 1,
-    "referral_reward_days": 7,
-    "referral_limit": 5,
-    "max_links_per_user": 3,
-    "bot_token": "",
+    "grant_gb": 100,     # حجم هدیه به هر کاربر جدید
+    "grant_days": 0,     # 0 یعنی بدون انقضا
+    "max_devices": 1,
     "bot_username": "",
 }
-REFERRALS: dict = {}
-REFERRALS_LOCK = asyncio.Lock()
-USER_LINKS: dict = {}
+USER_LINKS: dict = {}   # user_id (str) -> uid لینک اختصاصی همان کاربر
 # ══════════════════════════════════════════════════════════════════════════════
 
 
@@ -221,7 +217,7 @@ async def require_auth(request: Request):
 
 # ── Persistence I/O ───────────────────────────────────────────────────────────
 async def load_state():
-    global LINKS, AUTH, SUBS, REFERRALS, USER_LINKS, REFERRAL_SETTINGS
+    global LINKS, AUTH, SUBS, USER_LINKS, JOIN_SETTINGS
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -234,13 +230,22 @@ async def load_state():
                 AUTH["password_hash"] = data["password_hash"]
             if "telegram_settings" in data:
                 TELEGRAM_SETTINGS.update(data["telegram_settings"])
-            if "referral_settings" in data:
-                REFERRAL_SETTINGS.update(data["referral_settings"])
-            if "referrals" in data:
-                REFERRALS.update(data["referrals"])
+            if "join_settings" in data:
+                JOIN_SETTINGS.update(data["join_settings"])
+            elif "referral_settings" in data:
+                # سازگاری با state.json های قدیمی که هنوز referral_settings دارند
+                old = data["referral_settings"]
+                JOIN_SETTINGS["channel_username"] = old.get("channel_username", JOIN_SETTINGS["channel_username"])
+                JOIN_SETTINGS["channel_required"] = old.get("channel_required", JOIN_SETTINGS["channel_required"])
             if "user_links" in data:
-                USER_LINKS.update(data["user_links"])
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(REFERRALS)} referrals")
+                loaded_ul = data["user_links"]
+                # سازگاری: نسخه‌ی قدیمی برای هر کاربر لیستی از uid ذخیره می‌کرد،
+                # نسخه‌ی جدید فقط یک uid واحد (آخرین لینک) برای هر کاربر نگه می‌دارد.
+                fixed_ul = {}
+                for uid_key, val in loaded_ul.items():
+                    fixed_ul[uid_key] = val[-1] if isinstance(val, list) and val else val
+                USER_LINKS.update(fixed_ul)
+            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(USER_LINKS)} user_links")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
 
@@ -254,8 +259,7 @@ async def save_state():
                 "subs": dict(SUBS),
                 "password_hash": AUTH["password_hash"],
                 "telegram_settings": TELEGRAM_SETTINGS,
-                "referral_settings": REFERRAL_SETTINGS,
-                "referrals": REFERRALS,
+                "join_settings": JOIN_SETTINGS,
                 "user_links": USER_LINKS,
                 "saved_at": datetime.now().isoformat(),
             }
@@ -534,45 +538,44 @@ async def ensure_default_link():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ✅ توابع سیستم رفرال و عضویت در کانال
+# ✅ توابع عضویت اجباری در کانال + هدیه‌ی خودکار ۱۰۰ گیگ به هر کاربر جدید
 # ══════════════════════════════════════════════════════════════════════════════
-def generate_referral_code(user_id: str) -> str:
-    return secrets.token_urlsafe(8)
+def get_join_settings() -> dict:
+    return dict(JOIN_SETTINGS)
 
 
-def get_referral_settings() -> dict:
-    return dict(REFERRAL_SETTINGS)
-
-
-def update_referral_settings(data: dict):
+def update_join_settings(data: dict):
     for key, value in data.items():
-        if key in REFERRAL_SETTINGS:
-            if isinstance(REFERRAL_SETTINGS[key], bool):
-                REFERRAL_SETTINGS[key] = bool(value)
-            elif isinstance(REFERRAL_SETTINGS[key], int):
-                REFERRAL_SETTINGS[key] = int(value)
+        if key in JOIN_SETTINGS:
+            if isinstance(JOIN_SETTINGS[key], bool):
+                JOIN_SETTINGS[key] = bool(value)
+            elif isinstance(JOIN_SETTINGS[key], int):
+                JOIN_SETTINGS[key] = int(value)
             else:
-                REFERRAL_SETTINGS[key] = str(value).strip()
+                JOIN_SETTINGS[key] = str(value).strip()
 
 
-async def check_channel_membership(user_id: str) -> bool:
-    if not REFERRAL_SETTINGS.get("channel_required", True):
+async def check_channel_membership(user_id: str, bot_token: str | None = None) -> bool:
+    if not JOIN_SETTINGS.get("channel_required", True):
         return True
 
-    # ← رفع باگ: اگر توکن مخصوص رفرال ست نشده بود، از توکن اصلی بات
-    # (همان TELEGRAM_SETTINGS.bot_token) استفاده کن تا چک عضویت واقعاً اجرا شود
-    # و بدون توکن، به‌اشتباه «عضو» در نظر گرفته نشود.
-    bot_token = REFERRAL_SETTINGS.get("bot_token") or TELEGRAM_SETTINGS.get("bot_token", "")
-    channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
+    # ← رفع باگ اصلی: قبلاً این تابع فقط دنبال یک bot_token جداگانه‌ی
+    # مخصوص رفرال می‌گشت که هیچ‌وقت در پنل پر نشده بود، پس همیشه با
+    # "توکن نیست" از تابع خارج می‌شد و به اشتباه می‌گفت کاربر عضو نیست.
+    # حالا اول از توکنِ واقعیِ در حال اجرای بات (پاس داده‌شده توسط
+    # telegram_bot.py) استفاده می‌کنیم، و اگر پاس داده نشده بود، از
+    # همان TELEGRAM_SETTINGS.bot_token که در پنل تنظیم می‌شود می‌خوانیم.
+    token = bot_token or TELEGRAM_SETTINGS.get("bot_token", "")
+    channel = JOIN_SETTINGS.get("channel_username", "TimAzadi").strip().lstrip("@")
 
-    if not bot_token:
-        logger.warning("check_channel_membership: هیچ bot_token ای تنظیم نشده؛ عضویت اجباری قابل بررسی نیست.")
+    if not token:
+        logger.warning("check_channel_membership: هیچ bot_token ای در دسترس نیست؛ عضویت اجباری قابل بررسی نیست.")
         return False
 
     try:
         import httpx
         async with httpx.AsyncClient() as client:
-            url = f"https://api.telegram.org/bot{bot_token}/getChatMember"
+            url = f"https://api.telegram.org/bot{token}/getChatMember"
             resp = await client.post(url, json={
                 "chat_id": f"@{channel}",
                 "user_id": int(user_id)
@@ -580,51 +583,55 @@ async def check_channel_membership(user_id: str) -> bool:
             data = resp.json()
             if data.get("ok"):
                 status = data.get("result", {}).get("status")
-                return status in ["member", "administrator", "creator"]
+                return status in ("member", "administrator", "creator")
+            # این لاگ خیلی مهمه: اگر ok=false بود، معمولاً یعنی بات
+            # هنوز به‌عنوان ادمین به کانال اضافه نشده — دلیل رایج این باگ.
+            logger.warning(f"check_channel_membership: تلگرام ok=false برگردوند → {data.get('description')}")
             return False
     except Exception as e:
         logger.warning(f"check_channel_membership error: {e}")
         return False
 
 
-async def create_link_from_referral(user_id: str, label: str = None) -> str | None:
-    if not REFERRAL_SETTINGS.get("enabled", False):
+async def create_join_link(user_id: str, label: str = None) -> str | None:
+    """به هر کاربر جدیدی که وارد بات می‌شود، دقیقاً یک لینک اختصاصی (پیش‌فرض ۱۰۰ گیگ) می‌دهد."""
+    if not JOIN_SETTINGS.get("enabled", True):
         return None
 
-    user_links = USER_LINKS.get(user_id, [])
-    max_links = REFERRAL_SETTINGS.get("max_links_per_user", 3)
-    if len(user_links) >= max_links:
-        return None
+    # اگر قبلاً برای این کاربر لینک ساخته شده، همان را برگردان (دوباره نساز)
+    existing = USER_LINKS.get(user_id)
+    if existing and existing in LINKS:
+        return existing
 
     uid = generate_uuid()
-    reward_gb = REFERRAL_SETTINGS.get("referral_reward_gb", 1)
-    reward_days = REFERRAL_SETTINGS.get("referral_reward_days", 7)
-    limit_bytes = reward_gb * 1024 * 1024 * 1024
-    expires_at = (datetime.now() + timedelta(days=reward_days)).isoformat()
+    grant_gb = JOIN_SETTINGS.get("grant_gb", 100)
+    grant_days = JOIN_SETTINGS.get("grant_days", 0)
+    limit_bytes = int(grant_gb * 1024 * 1024 * 1024)
+    expires_at = None
+    if grant_days and grant_days > 0:
+        expires_at = (datetime.now() + timedelta(days=grant_days)).isoformat()
 
     async with LINKS_LOCK:
         LINKS[uid] = {
-            "label": label or f"کانفیگ رفرال {user_id[:8]}",
+            "label": label or f"کاربر-{user_id[:8]}",
             "limit_bytes": limit_bytes,
             "used_bytes": 0,
             "created_at": datetime.now().isoformat(),
             "active": True,
             "expires_at": expires_at,
-            "note": f"ساخته‌شده از طریق رفرال - کاربر {user_id}",
+            "note": f"ساخته‌شده هنگام ورود به بات - کاربر {user_id}",
             "is_default": False,
             "sub_id": None,
             "protocol": DEFAULT_PROTOCOL,
             "parent_id": None,
             "white_label": False,
             "flag": "🇺🇸",
-            "max_devices": 1,
+            "max_devices": JOIN_SETTINGS.get("max_devices", 1),
             "quota_notified": False,
             "expiry_notified": False,
-            "referral_user": user_id,
+            "join_user": user_id,
         }
-        if user_id not in USER_LINKS:
-            USER_LINKS[user_id] = []
-        USER_LINKS[user_id].append(uid)
+        USER_LINKS[user_id] = uid
 
     await save_state()
     return uid
