@@ -29,11 +29,10 @@ from state import (
     is_blocked_proxy_target,
     parse_expiry_to_timedelta, sub_permissions,
     is_device_allowed, TELEGRAM_SETTINGS, daily_traffic, link_daily_traffic,
-    # ✅ اضافه شده برای رفرال
-    REFERRAL_SETTINGS, REFERRALS, USER_LINKS,
-    get_referral_settings, update_referral_settings,
-    generate_referral_code, create_link_from_referral,
-    check_channel_membership,
+    # ✅ عضویت اجباری در کانال + هدیه‌ی خودکار ورود (۱۰۰ گیگ به هرکسی که وارد بات شود)
+    JOIN_SETTINGS, USER_LINKS,
+    get_join_settings, update_join_settings,
+    create_join_link, check_channel_membership,
 )
 
 _public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
@@ -944,60 +943,34 @@ async def test_telegram(_=Depends(require_auth)):
     return {"ok": True}
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ✅ API جدید: تنظیمات رفرال و عضویت در کانال
+# ✅ API: تنظیمات عضویت اجباری در کانال + هدیه‌ی خودکار ورود
 # ══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/settings/referral")
-async def get_referral_settings_api(_=Depends(require_auth)):
-    s = dict(REFERRAL_SETTINGS)
-    if s.get("bot_token"):
-        s["bot_token_masked"] = s["bot_token"][:6] + "…" + s["bot_token"][-4:]
-    return s
+@app.get("/api/settings/join")
+async def get_join_settings_api(_=Depends(require_auth)):
+    return get_join_settings()
 
-@app.post("/api/settings/referral")
-async def set_referral_settings_api(request: Request, _=Depends(require_auth)):
+@app.post("/api/settings/join")
+async def set_join_settings_api(request: Request, _=Depends(require_auth)):
     body = await request.json()
-    
-    for key, value in body.items():
-        if key in REFERRAL_SETTINGS:
-            if isinstance(REFERRAL_SETTINGS[key], bool):
-                REFERRAL_SETTINGS[key] = bool(value)
-            elif isinstance(REFERRAL_SETTINGS[key], int):
-                REFERRAL_SETTINGS[key] = int(value)
-            else:
-                REFERRAL_SETTINGS[key] = str(value).strip()
-    
+    update_join_settings(body)
     await schedule_save()
-    log_activity("system", "تنظیمات سیستم رفرال بروزرسانی شد", "ok")
+    log_activity("system", "تنظیمات عضویت اجباری/هدیه‌ی ورود بروزرسانی شد", "ok")
     return {"ok": True}
 
-@app.get("/api/referrals/stats")
-async def get_referral_stats(_=Depends(require_auth)):
-    total_codes = len(REFERRALS)
-    total_used = sum(len(data.get("used_by", [])) for data in REFERRALS.values())
-    total_users = len(USER_LINKS)
-    total_links = sum(len(links) for links in USER_LINKS.values())
-    
-    return {
-        "total_codes": total_codes,
-        "total_used": total_used,
-        "total_users": total_users,
-        "total_links": total_links,
-        "referrals": REFERRALS,
-    }
+@app.get("/api/join/stats")
+async def get_join_stats(_=Depends(require_auth)):
+    return {"total_users": len(USER_LINKS)}
 
-@app.get("/api/referrals/user/{user_id}")
-async def get_user_referral_links(user_id: str, _=Depends(require_auth)):
-    links = USER_LINKS.get(user_id, [])
-    result = []
-    async with LINKS_LOCK:
-        for uid in links:
+@app.get("/api/join/user/{user_id}")
+async def get_user_join_link(user_id: str, _=Depends(require_auth)):
+    uid = USER_LINKS.get(user_id)
+    link = None
+    if uid:
+        async with LINKS_LOCK:
             if uid in LINKS:
-                result.append({
-                    "uuid": uid,
-                    **LINKS[uid]
-                })
-    return {"user_id": user_id, "links": result}
+                link = {"uuid": uid, **LINKS[uid]}
+    return {"user_id": user_id, "link": link}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # VLESS Relay
