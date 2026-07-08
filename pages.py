@@ -103,7 +103,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تیم آزادی Gateway</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -1261,9 +1261,49 @@ a{color:inherit;text-decoration:none}
         <div class="cl" style="margin-top:12px"><i class="ti ti-info-circle"></i><span>برای ساخت بات، به @BotFather پیام بده و دستور /newbot را بزن؛ برای گرفتن چت‌آیدی خودت، به @userinfobot پیام بده.</span></div>
       </div>
     </div>
-    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!-- ============================================================ -->
+    <!-- 🌐 تنظیمات عمومی ساب -->
+    <!-- ============================================================ -->
+    <div class="pw-panel" style="margin-top:16px">
+      <div class="pw-hero">
+        <div class="pw-hero-icon" style="background:rgba(251,191,36,.14);color:#fbbf24">
+          <i class="ti ti-world"></i>
+        </div>
+        <div class="pw-hero-text">
+          <div class="pw-hero-title">🌐 تنظیمات عمومی ساب</div>
+          <div class="pw-hero-sub">کنترل اینکه کاربران عادی اجازهی ساخت/حذف کانفیگ دارند یا نه</div>
+        </div>
+      </div>
+      <div class="pw-body">
+        <div class="pw-field" style="margin-bottom:12px">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span><i class="ti ti-plus"></i> ساخت کانفیگ توسط کاربران</span>
+            <label class="switch"><input type="checkbox" id="pub-create" checked><span class="slider"></span></label>
+          </label>
+        </div>
+        <div class="pw-field" style="margin-bottom:12px">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span><i class="ti ti-trash"></i> حذف کانفیگ توسط کاربران</span>
+            <label class="switch"><input type="checkbox" id="pub-delete" checked><span class="slider"></span></label>
+          </label>
+        </div>
+        <div class="pw-field" style="margin-bottom:14px">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span><i class="ti ti-power"></i> تغییر وضعیت (فعال/غیرفعال) توسط کاربران</span>
+            <label class="switch"><input type="checkbox" id="pub-toggle" checked><span class="slider"></span></label>
+          </label>
+        </div>
+        <div class="cl amber"><i class="ti ti-alert-triangle"></i>
+          <span>اگر این گزینه‌ها را غیرفعال کنید، کاربران فقط <b>کانفیگ‌های موجود</b> را از ساب دریافت می‌کنند و نمی‌توانند کانفیگ جدید بسازند یا کانفیگ خود را حذف کنند. این کار <b>فشار روی سرور را تا ۸۰٪ کاهش</b> می‌دهد.</span>
+        </div>
+        <button class="pw-submit" style="margin-top:14px;background:linear-gradient(135deg,#fbbf24,#f59e0b)" onclick="savePublicSettings()">
+          <i class="ti ti-device-floppy"></i> ذخیره تنظیمات
+        </button>
+      </div>
+    </div>
+    <!-- ============================================================ -->
     <!-- ✅ بخش تنظیمات عضویت اجباری در کانال + هدیه‌ی خودکار ورود -->
-    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!-- ============================================================ -->
     <div class="pw-panel" style="margin-top:16px">
       <div class="pw-hero">
         <div class="pw-hero-icon" style="background:rgba(251,191,36,.14);color:#fbbf24"><i class="ti ti-gift"></i></div>
@@ -1279,40 +1319,33 @@ a{color:inherit;text-decoration:none}
             <label class="switch"><input type="checkbox" id="join-enabled"><span class="slider"></span></label>
           </label>
         </div>
-
         <div class="pw-field">
           <label>نام کاربری کانال اجباری (بدون @)</label>
           <input class="pw-input" type="text" id="join-channel" placeholder="TimAzadi" value="TimAzadi">
         </div>
-
         <div class="pw-field" style="margin-bottom:14px">
           <label style="display:flex;align-items:center;justify-content:space-between">
             <span>عضویت در کانال اجباری باشد؟</span>
             <label class="switch"><input type="checkbox" id="join-channel-required" checked><span class="slider"></span></label>
           </label>
         </div>
-
         <div class="form-row" style="margin-bottom:14px">
           <div class="fg" style="flex:1"><label>حجم هدیه (GB)</label><input class="fi" id="join-grant-gb" type="number" min="0" step="1" value="100"></div>
           <div class="fg" style="flex:1"><label>مدت اعتبار (روز، ۰ = بدون انقضا)</label><input class="fi" id="join-grant-days" type="number" min="0" value="0"></div>
         </div>
-
         <div class="pw-field" style="margin-bottom:6px">
           <label>نام کاربری بات (بدون @)</label>
           <input class="pw-input" type="text" id="join-bot-username" placeholder="مثلاً: timazadi_bot">
         </div>
-
         <div style="display:flex;gap:8px;margin-top:14px">
           <button class="pw-submit" style="flex:1" onclick="saveJoinSettings()"><i class="ti ti-device-floppy"></i> ذخیره تنظیمات</button>
           <button class="btn btn-g" onclick="loadJoinSettings()"><i class="ti ti-refresh"></i></button>
         </div>
-
         <div class="cl" style="margin-top:12px"><i class="ti ti-info-circle"></i>
           <span>هر کاربری با زدن /start روی بات، بعد از تایید عضویت در کانال بالا، یک کانفیگ اختصاصی با حجم مشخص‌شده می‌گیرد. یادت نره بات باید <b>ادمین</b> کانال باشد تا چک عضویت درست کار کند.</span>
         </div>
       </div>
     </div>
-    <!-- ══════════════════════════════════════════════════════════════════════════ -->
   </div>
 </section>
 </main>
@@ -2059,7 +2092,35 @@ async function testTelegram(){
   }catch(e){toast('خطا در ارسال تست','err')}
 }
 
-// ── توابع هدیه‌ی خودکار ورود + عضویت اجباری ─────────────────────────────────
+// 🌐 تنظیمات عمومی - جدید
+async function loadPublicSettings() {
+  try {
+    const r = await authF('/api/settings/public');
+    const d = await r.json();
+    document.getElementById('pub-create').checked = d.allow_public_create !== false;
+    document.getElementById('pub-delete').checked = d.allow_public_delete !== false;
+    document.getElementById('pub-toggle').checked = d.allow_public_toggle !== false;
+  } catch(e) { console.error(e); }
+}
+
+async function savePublicSettings() {
+  const body = {
+    allow_public_create: document.getElementById('pub-create').checked,
+    allow_public_delete: document.getElementById('pub-delete').checked,
+    allow_public_toggle: document.getElementById('pub-toggle').checked,
+  };
+  try {
+    const r = await authF('/api/settings/public', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error();
+    toast('تنظیمات ذخیره شد ✓', 'ok');
+  } catch(e) {
+    toast('خطا در ذخیره', 'err');
+  }
+}
 
 async function loadJoinSettings() {
   try {
@@ -2125,6 +2186,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   document.getElementById('sub-all-url')&&(document.getElementById('sub-all-url').textContent=location.protocol+'//'+location.host+'/sub-all');
   loadTelegramSettings();
   loadJoinSettings();
+  loadPublicSettings();
   fetchStats();fetchDefaultVless();loadLinks();loadSubs();
   setInterval(fetchStats,4000);
   setInterval(()=>{
@@ -2140,11 +2202,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
 
 
 def get_public_page_html(uuid_key: str, white_label: bool = False) -> str:
-    """صفحه پابلیک ساب v3 — طراحی حرفه‌ای‌تر: لینک کانفیگ پنهان با دکمه نمایش، صفحه‌ی رمز با طراحی ویژه
-
-    white_label=True → برای ساب‌های تقسیم‌شده/هدیه‌داده‌شده: هیچ نام برند،
-    لوگو، یا لینک تلگرام هیچ‌جای صفحه (حتی در <title>) نمایش داده نمی‌شود؛
-    فقط خودِ کانفیگ‌ها و حجم دقیقشان."""
     page_title = "کانفیگ‌های من" if white_label else "تیم آزادی Sub"
     header_html = "" if white_label else f"""
     <div class="brand">
@@ -2755,7 +2812,6 @@ init();
 
 
 def get_single_link_page_html(uuid: str, link_data: dict) -> str:
-    """صفحه‌ی عمومی یک کانفیگ تکی – نمایش حجم مصرف، سهمیه، لینک و QR"""
     import json as _json
     label = link_data.get("label", "بدون نام")
     vless_link = link_data.get("vless_link", "")
