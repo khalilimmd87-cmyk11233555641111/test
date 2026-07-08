@@ -32,6 +32,10 @@ from state import (
     get_join_settings, update_join_settings,
     create_join_link, check_channel_membership,
     PUBLIC_SETTINGS,
+    USERS, USER_REFERRALS, WITHDRAW_REQUESTS, REFERRAL_SETTINGS,
+    get_or_create_user, create_referral_link, get_user_stats,
+    create_withdraw_request, get_referral_settings, update_referral_settings,
+    format_money,
 )
 
 from rate_limiter import check_rate_limit
@@ -685,6 +689,9 @@ async def get_stats(_=Depends(require_auth)):
         "active_links": sum(1 for l in snap.values() if is_link_allowed(l)),
         "expired_links": sum(1 for l in snap.values() if is_link_expired(l)),
         "subs_count": len(SUBS),
+        "users_count": len(USERS),
+        "total_referrals": sum(u.get("referrals_count", 0) for u in USERS.values()),
+        "referral_enabled": REFERRAL_SETTINGS.get("enabled", True),
     }
 
 @app.get("/api/activity")
@@ -945,6 +952,10 @@ async def link_daily_usage(uid: str, days: int = 14, _=Depends(require_auth)):
         out.append({"date": key, "bytes": hist.get(key, 0), "fmt": fmt_bytes(hist.get(key, 0))})
     return {"days": out}
 
+# ═══════════════════════════════════════════════════════════════
+# ✅ APIهای تنظیمات تلگرام
+# ═══════════════════════════════════════════════════════════════
+
 @app.get("/api/settings/telegram")
 async def get_telegram_settings(_=Depends(require_auth)):
     s = dict(TELEGRAM_SETTINGS)
@@ -990,20 +1001,207 @@ async def test_telegram(_=Depends(require_auth)):
         raise HTTPException(status_code=400, detail=msg)
     return {"ok": True}
 
-@app.get("/api/settings/public")
-async def get_public_settings(_=Depends(require_auth)):
-    return PUBLIC_SETTINGS
+# ═══════════════════════════════════════════════════════════════
+# 🔥 APIهای رفرال و مدیریت کاربران
+# ═══════════════════════════════════════════════════════════════
 
-@app.post("/api/settings/public")
-async def set_public_settings(request: Request, _=Depends(require_auth)):
+@app.get("/api/settings/referral")
+async def get_referral_settings_api(_=Depends(require_auth)):
+    """دریافت تنظیمات رفرال"""
+    return get_referral_settings()
+
+@app.post("/api/settings/referral")
+async def set_referral_settings_api(request: Request, _=Depends(require_auth)):
+    """ذخیره تنظیمات رفرال"""
     body = await request.json()
-    for key in ["allow_public_create", "allow_public_delete", "allow_public_toggle"]:
-        if key in body:
-            PUBLIC_SETTINGS[key] = bool(body[key])
-    clear_sub_cache()
+    update_referral_settings(body)
     await schedule_save()
-    log_activity("system", f"تنظیمات عمومی بروزرسانی شد: {body}", "ok")
+    log_activity("system", "تنظیمات رفرال بروزرسانی شد", "ok")
     return {"ok": True}
+
+@app.get("/api/users")
+async def get_users_list(_=Depends(require_auth)):
+    """دریافت لیست کاربران"""
+    result = []
+    for uid, u in USERS.items():
+        result.append({
+            "user_id": uid,
+            "referral_code": u.get("referral_code"),
+            "referrer_id": u.get("referrer_id"),
+            "referrals_count": u.get("referrals_count", 0),
+            "total_volume_gb": u.get("total_volume_gb", 0),
+            "total_money": u.get("total_money", 0),
+            "balance": u.get("balance", 0),
+            "is_banned": u.get("is_banned", False),
+            "created_at": u.get("created_at"),
+            "last_activity": u.get("last_activity"),
+        })
+    result.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return {"users": result, "total": len(result)}
+
+@app.get("/api/users/{user_id}")
+async def get_user_detail(user_id: str, _=Depends(require_auth)):
+    """دریافت اطلاعات کامل یک کاربر"""
+    stats = await get_user_stats(user_id)
+    return stats
+
+@app.post("/api/users/{user_id}/ban")
+async def ban_user(user_id: str, request: Request, _=Depends(require_auth)):
+    """مسدود کردن کاربر"""
+    body = await request.json()
+    banned = bool(body.get("banned", True))
+    if user_id not in USERS:
+        raise HTTPException(status_code=404, detail="کاربر پیدا نشد")
+    USERS[user_id]["is_banned"] = banned
+    await save_state()
+    log_activity("user", f"کاربر {user_id} {'مسدود' if banned else 'رفع مسدودیت'} شد", "warn" if banned else "ok")
+    return {"ok": True, "banned": banned}
+
+@app.get("/api/withdrawals")
+async def get_withdrawals(_=Depends(require_auth)):
+    """دریافت لیست درخواست‌های برداشت"""
+    result = []
+    for rid, w in WITHDRAW_REQUESTS.items():
+        result.append({
+            "request_id": rid,
+            **w,
+            "amount_fmt": format_money(w.get("amount", 0)),
+        })
+    result.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"withdrawals": result}
+
+@app.post("/api/withdrawals/{request_id}/approve")
+async def approve_withdrawal(request_id: str, _=Depends(require_auth)):
+    """تایید درخواست برداشت"""
+    if request_id not in WITHDRAW_REQUESTS:
+        raise HTTPException(status_code=404, detail="درخواست پیدا نشد")
+    w = WITHDRAW_REQUESTS[request_id]
+    if w.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="این درخواست قبلاً پردازش شده")
+    
+    w["status"] = "approved"
+    w["processed_at"] = datetime.now().isoformat()
+    await save_state()
+    log_activity("withdraw", f"درخواست برداشت {format_money(w['amount'])} تومان کاربر {w['user_id']} تایید شد", "ok")
+    
+    # ارسال پیام به کاربر
+    await send_withdraw_notification(w["user_id"], w["amount"], "approved")
+    return {"ok": True}
+
+@app.post("/api/withdrawals/{request_id}/reject")
+async def reject_withdrawal(request_id: str, request: Request, _=Depends(require_auth)):
+    """رد درخواست برداشت"""
+    body = await request.json()
+    reason = body.get("reason", "بدون دلیل")
+    
+    if request_id not in WITHDRAW_REQUESTS:
+        raise HTTPException(status_code=404, detail="درخواست پیدا نشد")
+    w = WITHDRAW_REQUESTS[request_id]
+    if w.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="این درخواست قبلاً پردازش شده")
+    
+    # برگردوندن پول به حساب کاربر
+    user_id = w["user_id"]
+    if user_id in USERS:
+        USERS[user_id]["balance"] = USERS[user_id].get("balance", 0) + w["amount"]
+    
+    w["status"] = "rejected"
+    w["processed_at"] = datetime.now().isoformat()
+    w["note"] = reason
+    await save_state()
+    log_activity("withdraw", f"درخواست برداشت {format_money(w['amount'])} تومان کاربر {user_id} رد شد", "warn")
+    
+    # ارسال پیام به کاربر
+    await send_withdraw_notification(user_id, w["amount"], "rejected", reason)
+    return {"ok": True}
+
+@app.post("/api/withdrawals/{request_id}/pay")
+async def pay_withdrawal(request_id: str, _=Depends(require_auth)):
+    """پرداخت انجام شد"""
+    if request_id not in WITHDRAW_REQUESTS:
+        raise HTTPException(status_code=404, detail="درخواست پیدا نشد")
+    w = WITHDRAW_REQUESTS[request_id]
+    if w.get("status") != "approved":
+        raise HTTPException(status_code=400, detail="این درخواست تایید نشده")
+    
+    w["status"] = "paid"
+    w["processed_at"] = datetime.now().isoformat()
+    await save_state()
+    log_activity("withdraw", f"پرداخت {format_money(w['amount'])} تومان به کاربر {w['user_id']} انجام شد", "ok")
+    
+    # ارسال پیام به کاربر
+    await send_withdraw_notification(w["user_id"], w["amount"], "paid")
+    return {"ok": True}
+
+async def send_withdraw_notification(user_id: str, amount: int, status: str, reason: str = ""):
+    """ارسال پیام وضعیت برداشت به کاربر"""
+    token = TELEGRAM_SETTINGS.get("bot_token")
+    if not token:
+        return
+    
+    status_text = {
+        "pending": "در انتظار تایید",
+        "approved": "✅ تایید شد",
+        "rejected": "❌ رد شد",
+        "paid": "💚 پرداخت شد"
+    }.get(status, status)
+    
+    text = f"""💰 وضعیت برداشت شما
+
+مبلغ: {format_money(amount)} تومان
+وضعیت: {status_text}
+{f'دلیل: {reason}' if reason else ''}
+
+تیم آزادی"""
+    
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": user_id, "text": text, "parse_mode": "Markdown"},
+                timeout=10
+            )
+    except Exception as e:
+        logger.warning(f"send_withdraw_notification error: {e}")
+
+@app.get("/api/ref-stats")
+async def get_ref_stats(_=Depends(require_auth)):
+    """آمار کلی رفرال"""
+    total_users = len(USERS)
+    total_refs = sum(u.get("referrals_count", 0) for u in USERS.values())
+    total_money = sum(u.get("total_money", 0) for u in USERS.values())
+    total_volume = sum(u.get("total_volume_gb", 0) for u in USERS.values())
+    total_balance = sum(u.get("balance", 0) for u in USERS.values())
+    
+    return {
+        "total_users": total_users,
+        "total_referrals": total_refs,
+        "total_money": total_money,
+        "total_money_fmt": format_money(total_money),
+        "total_volume_gb": total_volume,
+        "total_balance": total_balance,
+        "total_balance_fmt": format_money(total_balance),
+        "referral_enabled": REFERRAL_SETTINGS.get("enabled", True),
+    }
+
+@app.get("/api/ref-top")
+async def get_top_referrers(limit: int = 10, _=Depends(require_auth)):
+    """لیست برترین رفرال‌دهندگان"""
+    users = []
+    for uid, u in USERS.items():
+        users.append({
+            "user_id": uid,
+            "referrals_count": u.get("referrals_count", 0),
+            "total_money": u.get("total_money", 0),
+            "balance": u.get("balance", 0),
+        })
+    users.sort(key=lambda x: x["referrals_count"], reverse=True)
+    return {"top": users[:limit]}
+
+# ═══════════════════════════════════════════════════════════════
+# ✅ APIهای عضویت اجباری
+# ═══════════════════════════════════════════════════════════════
 
 @app.get("/api/settings/join")
 async def get_join_settings_api(_=Depends(require_auth)):
@@ -1031,11 +1229,42 @@ async def get_user_join_link(user_id: str, _=Depends(require_auth)):
                 link = {"uuid": uid, **LINKS[uid]}
     return {"user_id": user_id, "link": link}
 
+# ═══════════════════════════════════════════════════════════════
+# 🌐 APIهای تنظیمات عمومی
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/settings/public")
+async def get_public_settings(_=Depends(require_auth)):
+    return PUBLIC_SETTINGS
+
+@app.post("/api/settings/public")
+async def set_public_settings(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    for key in ["allow_public_create", "allow_public_delete", "allow_public_toggle"]:
+        if key in body:
+            PUBLIC_SETTINGS[key] = bool(body[key])
+    clear_sub_cache()
+    await schedule_save()
+    log_activity("system", f"تنظیمات عمومی بروزرسانی شد: {body}", "ok")
+    return {"ok": True}
+
+# ═══════════════════════════════════════════════════════════════
+# VLESS Relay
+# ═══════════════════════════════════════════════════════════════
+
 from relay_vless import websocket_tunnel
 app.add_api_websocket_route("/ws/{uuid}", websocket_tunnel)
 
+# ═══════════════════════════════════════════════════════════════
+# XHTTP
+# ═══════════════════════════════════════════════════════════════
+
 from xhttp_siz10 import router as xhttp_router
 app.include_router(xhttp_router)
+
+# ═══════════════════════════════════════════════════════════════
+# HTTP Proxy
+# ═══════════════════════════════════════════════════════════════
 
 _HOP = {"connection","keep-alive","proxy-authenticate","proxy-authorization",
         "te","trailers","transfer-encoding","upgrade","content-encoding","content-length"}
@@ -1077,6 +1306,10 @@ async def http_proxy(target_url: str, request: Request, _=Depends(require_auth))
         stats["total_errors"] += 1
         error_logs.append({"error": str(exc), "url": target_url, "time": datetime.now().isoformat()})
         raise HTTPException(status_code=502, detail=f"Proxy error: {exc}")
+
+# ═══════════════════════════════════════════════════════════════
+# Public Sub Pages
+# ═══════════════════════════════════════════════════════════════
 
 @app.get("/p/{uuid_key}", response_class=HTMLResponse)
 async def public_sub_page(uuid_key: str, request: Request):
@@ -1227,6 +1460,10 @@ async def split_sub_quota(uuid_key: str, request: Request):
         "amount_fmt": fmt_bytes(amount_bytes),
         "pool_available_fmt": fmt_bytes(max(0, pool_limit - sub['pool_allocated_bytes'])),
     }
+
+# ═══════════════════════════════════════════════════════════════
+# HTML Pages (login + dashboard)
+# ═══════════════════════════════════════════════════════════════
 
 from pages import LOGIN_HTML, DASHBOARD_HTML
 
