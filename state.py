@@ -2,7 +2,6 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # تمام state مشترک (LINKS، SUBS، stats، connections، ...) و توابع کمکی
 # ══════════════════════════════════════════════════════════════════════════════
-
 import asyncio
 import ipaddress
 import json
@@ -18,13 +17,13 @@ from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 from collections import deque, defaultdict
 from pathlib import Path
-
 from fastapi import Request, HTTPException
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("تیم-آزادی-Gateway")
 
 IRAN_TZ = ZoneInfo("Asia/Tehran")
+
 
 # ── Secret / Config ──────────────────────────────────────────────────────────
 def _load_or_create_secret() -> str:
@@ -42,6 +41,7 @@ def _load_or_create_secret() -> str:
         return new_secret
     except Exception:
         return secrets.token_urlsafe(32)
+
 
 CONFIG = {
     "port": int(os.environ.get("PORT", 8000)),
@@ -67,8 +67,10 @@ activity_logs: deque = deque(maxlen=200)
 hourly_traffic: dict = defaultdict(int)
 daily_traffic: dict = defaultdict(int)
 link_daily_traffic: dict = defaultdict(lambda: defaultdict(int))
+
 LINKS: dict = {}
 LINKS_LOCK = asyncio.Lock()
+
 SUBS: dict = {}
 SUBS_LOCK = asyncio.Lock()
 
@@ -86,9 +88,8 @@ TELEGRAM_SETTINGS = {
 # ══════════════════════════════════════════════════════════════════════════════
 # ✅ تنظیمات سیستم رفرال و عضویت اجباری در کانال
 # ══════════════════════════════════════════════════════════════════════════════
-
 REFERRAL_SETTINGS = {
-    "enabled": False,
+    "enabled": True,  # ← تغییر: قابلیت ساخت کانفیگ توسط همه‌ی کاربران از ابتدا فعال است
     "channel_username": "TimAzadi",
     "channel_required": True,
     "referral_reward_gb": 1,
@@ -98,20 +99,21 @@ REFERRAL_SETTINGS = {
     "bot_token": "",
     "bot_username": "",
 }
-
 REFERRALS: dict = {}
 REFERRALS_LOCK = asyncio.Lock()
 USER_LINKS: dict = {}
-
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def record_traffic(uid: str, n: int):
     day_key = now_ir().strftime("%Y-%m-%d")
     daily_traffic[day_key] += n
     link_daily_traffic[uid][day_key] += n
 
+
 PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one", "trojan-ws")
 DEFAULT_PROTOCOL = "vless-ws"
+
 
 def log_activity(kind: str, message: str, level: str = "info"):
     activity_logs.append({
@@ -121,10 +123,12 @@ def log_activity(kind: str, message: str, level: str = "info"):
         "time": datetime.now().isoformat(),
     })
 
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
 SESSION_COOKIE = "rvg_session"
 SESSION_TTL = 60 * 60 * 24 * 7
 PBKDF2_ITERATIONS = 260_000
+
 
 def hash_password(pw: str, salt: bytes | None = None) -> str:
     if salt is None:
@@ -132,8 +136,10 @@ def hash_password(pw: str, salt: bytes | None = None) -> str:
     dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, PBKDF2_ITERATIONS)
     return f"pbkdf2${PBKDF2_ITERATIONS}${salt.hex()}${dk.hex()}"
 
+
 def _hash_password_legacy(pw: str) -> str:
     return hashlib.sha256(f"{pw}{CONFIG['secret']}".encode()).hexdigest()
+
 
 def verify_password(pw: str, stored: str | None) -> bool:
     if not stored:
@@ -148,10 +154,13 @@ def verify_password(pw: str, stored: str | None) -> bool:
             return False
     return hmac.compare_digest(_hash_password_legacy(pw), stored)
 
+
 def is_legacy_hash(stored: str | None) -> bool:
     return bool(stored) and not stored.startswith("pbkdf2$")
 
+
 AUTH = {"password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "TimAzadi"))}
+
 SESSIONS: dict = {}
 SESSIONS_LOCK = asyncio.Lock()
 
@@ -161,6 +170,7 @@ LOGIN_WINDOW_SECONDS = 300
 LOGIN_ATTEMPTS: dict = defaultdict(deque)
 LOGIN_RATE_LOCK = asyncio.Lock()
 
+
 async def check_login_rate_limit(ip: str) -> bool:
     now = time.time()
     async with LOGIN_RATE_LOCK:
@@ -169,15 +179,18 @@ async def check_login_rate_limit(ip: str) -> bool:
             dq.popleft()
         return len(dq) < LOGIN_MAX_ATTEMPTS
 
+
 async def record_login_attempt(ip: str):
     async with LOGIN_RATE_LOCK:
         LOGIN_ATTEMPTS[ip].append(time.time())
+
 
 async def create_session() -> str:
     token = secrets.token_urlsafe(32)
     async with SESSIONS_LOCK:
         SESSIONS[token] = time.time() + SESSION_TTL
     return token
+
 
 async def is_valid_session(token: str | None) -> bool:
     if not token:
@@ -191,17 +204,20 @@ async def is_valid_session(token: str | None) -> bool:
             return False
         return True
 
+
 async def destroy_session(token: str | None):
     if not token:
         return
     async with SESSIONS_LOCK:
         SESSIONS.pop(token, None)
 
+
 async def require_auth(request: Request):
     token = request.cookies.get(SESSION_COOKIE)
     if not await is_valid_session(token):
         raise HTTPException(status_code=401, detail="unauthorized")
     return token
+
 
 # ── Persistence I/O ───────────────────────────────────────────────────────────
 async def load_state():
@@ -228,6 +244,7 @@ async def load_state():
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
 
+
 async def save_state():
     async with SAVE_LOCK:
         try:
@@ -249,16 +266,20 @@ async def save_state():
         except Exception as e:
             logger.warning(f"Could not save state: {e}")
 
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def get_host() -> str:
     return os.environ.get("RAILWAY_PUBLIC_DOMAIN", CONFIG["host"])
+
 
 def generate_uuid() -> str:
     h = secrets.token_hex(16)
     return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
 
+
 def now_ir() -> datetime:
     return datetime.now(IRAN_TZ)
+
 
 def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی", protocol: str = DEFAULT_PROTOCOL) -> str:
     from urllib.parse import quote
@@ -275,6 +296,7 @@ def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی",
         }
         query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
         return f"trojan://{uuid}@{host}:443?{query}#{quote(remark)}"
+
     if protocol == "vless-ws":
         path = f"/ws/{uuid}"
         params = {
@@ -304,24 +326,32 @@ def generate_vless_link(uuid: str, host: str, remark: str = "تیم-آزادی",
     query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
     return f"vless://{uuid}@{host}:443?{query}#{quote(remark)}"
 
+
 def uptime() -> str:
     secs = int(time.time() - stats["start_time"])
     h, m, s = secs // 3600, (secs % 3600) // 60, secs % 60
     return f"{h:02d}:{m:02d}:{s:02d}"
 
+
 def fmt_bytes(b: int) -> str:
-    if b < 1024: return f"{b} B"
-    if b < 1024**2: return f"{b/1024:.1f} KB"
-    if b < 1024**3: return f"{b/1024**2:.2f} MB"
+    if b < 1024:
+        return f"{b} B"
+    if b < 1024**2:
+        return f"{b/1024:.1f} KB"
+    if b < 1024**3:
+        return f"{b/1024**2:.2f} MB"
     return f"{b/1024**3:.2f} GB"
+
 
 ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "trojan-ws")
 _PROTOCOL_TAG = {"vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S", "trojan-ws": "TROJAN"}
+
 
 def quota_suffix(used_bytes: int, limit_bytes: int) -> str:
     used = fmt_bytes(used_bytes).replace(" ", "")
     limit = "∞" if not limit_bytes else fmt_bytes(limit_bytes).replace(" ", "")
     return f"{used}/{limit}"
+
 
 def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int = 0, limit_bytes: int = 0, brand: bool = True, flag: str = "") -> list[dict]:
     quota = quota_suffix(used_bytes, limit_bytes)
@@ -336,12 +366,17 @@ def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int =
         })
     return out
 
+
 def parse_size_to_bytes(value: float, unit: str) -> int:
     unit = unit.upper()
-    if unit == "GB": return int(value * 1024 ** 3)
-    if unit == "MB": return int(value * 1024 ** 2)
-    if unit == "KB": return int(value * 1024)
+    if unit == "GB":
+        return int(value * 1024 ** 3)
+    if unit == "MB":
+        return int(value * 1024 ** 2)
+    if unit == "KB":
+        return int(value * 1024)
     return int(value)
+
 
 def parse_expiry_to_timedelta(value: float, unit: str):
     from datetime import timedelta as _td
@@ -356,6 +391,7 @@ def parse_expiry_to_timedelta(value: float, unit: str):
         return _td(minutes=value)
     return _td(days=value)
 
+
 def is_link_expired(link: dict) -> bool:
     exp = link.get("expires_at")
     if not exp:
@@ -364,6 +400,7 @@ def is_link_expired(link: dict) -> bool:
         return datetime.now() > datetime.fromisoformat(exp)
     except Exception:
         return False
+
 
 def is_link_allowed(link: dict | None) -> bool:
     if link is None:
@@ -382,6 +419,7 @@ def is_link_allowed(link: dict | None) -> bool:
             return False
     return True
 
+
 def is_device_allowed(uid: str, ip: str) -> bool:
     link = LINKS.get(uid)
     if not link:
@@ -394,6 +432,7 @@ def is_device_allowed(uid: str, ip: str) -> bool:
         return True
     return len(current_ips) < max_devices
 
+
 def sub_permissions(sub_id: str | None) -> dict:
     if not sub_id:
         return {"client_can_delete": True, "client_can_disable": True}
@@ -404,6 +443,7 @@ def sub_permissions(sub_id: str | None) -> dict:
         "client_can_delete": sub.get("client_can_delete", True),
         "client_can_disable": sub.get("client_can_disable", True),
     }
+
 
 def client_ip(conn) -> str:
     fwd = conn.headers.get("x-forwarded-for")
@@ -417,17 +457,20 @@ def client_ip(conn) -> str:
     client = getattr(conn, "client", None)
     return client.host if client else "نامشخص"
 
+
 # ── SSRF protection ────────────────────────────────────────────────────────────
 _BLOCKED_PROXY_HOSTNAMES = {
     "metadata.google.internal", "metadata", "metadata.azure.com",
     "instance-data", "localhost",
 }
 
+
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
     return (
         ip.is_private or ip.is_loopback or ip.is_link_local or
         ip.is_reserved or ip.is_multicast or ip.is_unspecified
     )
+
 
 async def is_blocked_proxy_target(url: str) -> bool:
     try:
@@ -457,8 +500,10 @@ async def is_blocked_proxy_target(url: str) -> bool:
     except Exception:
         return True
 
+
 # ── Default link ──────────────────────────────────────────────────────────────
 _default_link_created = False
+
 
 async def ensure_default_link():
     global _default_link_created
@@ -485,17 +530,19 @@ async def ensure_default_link():
                     "flag": "🇺🇸",
                 }
                 asyncio.create_task(save_state())
-        _default_link_created = True
+    _default_link_created = True
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ✅ توابع سیستم رفرال و عضویت در کانال
 # ══════════════════════════════════════════════════════════════════════════════
-
 def generate_referral_code(user_id: str) -> str:
     return secrets.token_urlsafe(8)
 
+
 def get_referral_settings() -> dict:
     return dict(REFERRAL_SETTINGS)
+
 
 def update_referral_settings(data: dict):
     for key, value in data.items():
@@ -507,16 +554,21 @@ def update_referral_settings(data: dict):
             else:
                 REFERRAL_SETTINGS[key] = str(value).strip()
 
+
 async def check_channel_membership(user_id: str) -> bool:
     if not REFERRAL_SETTINGS.get("channel_required", True):
         return True
-    
-    bot_token = REFERRAL_SETTINGS.get("bot_token", "")
+
+    # ← رفع باگ: اگر توکن مخصوص رفرال ست نشده بود، از توکن اصلی بات
+    # (همان TELEGRAM_SETTINGS.bot_token) استفاده کن تا چک عضویت واقعاً اجرا شود
+    # و بدون توکن، به‌اشتباه «عضو» در نظر گرفته نشود.
+    bot_token = REFERRAL_SETTINGS.get("bot_token") or TELEGRAM_SETTINGS.get("bot_token", "")
     channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
-    
+
     if not bot_token:
-        return True
-    
+        logger.warning("check_channel_membership: هیچ bot_token ای تنظیم نشده؛ عضویت اجباری قابل بررسی نیست.")
+        return False
+
     try:
         import httpx
         async with httpx.AsyncClient() as client:
@@ -525,32 +577,31 @@ async def check_channel_membership(user_id: str) -> bool:
                 "chat_id": f"@{channel}",
                 "user_id": int(user_id)
             }, timeout=10.0)
-            
             data = resp.json()
             if data.get("ok"):
                 status = data.get("result", {}).get("status")
                 return status in ["member", "administrator", "creator"]
             return False
-    except Exception:
-        return True
+    except Exception as e:
+        logger.warning(f"check_channel_membership error: {e}")
+        return False
+
 
 async def create_link_from_referral(user_id: str, label: str = None) -> str | None:
     if not REFERRAL_SETTINGS.get("enabled", False):
         return None
-    
+
     user_links = USER_LINKS.get(user_id, [])
     max_links = REFERRAL_SETTINGS.get("max_links_per_user", 3)
     if len(user_links) >= max_links:
         return None
-    
+
     uid = generate_uuid()
-    
     reward_gb = REFERRAL_SETTINGS.get("referral_reward_gb", 1)
     reward_days = REFERRAL_SETTINGS.get("referral_reward_days", 7)
-    
     limit_bytes = reward_gb * 1024 * 1024 * 1024
     expires_at = (datetime.now() + timedelta(days=reward_days)).isoformat()
-    
+
     async with LINKS_LOCK:
         LINKS[uid] = {
             "label": label or f"کانفیگ رفرال {user_id[:8]}",
@@ -571,10 +622,9 @@ async def create_link_from_referral(user_id: str, label: str = None) -> str | No
             "expiry_notified": False,
             "referral_user": user_id,
         }
-    
-    if user_id not in USER_LINKS:
-        USER_LINKS[user_id] = []
-    USER_LINKS[user_id].append(uid)
-    
+        if user_id not in USER_LINKS:
+            USER_LINKS[user_id] = []
+        USER_LINKS[user_id].append(uid)
+
     await save_state()
     return uid
