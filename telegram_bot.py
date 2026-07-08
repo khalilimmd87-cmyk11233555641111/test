@@ -2,8 +2,8 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # مدیریت پنل از طریق بات تلگرام — دو-طرفه (نه فقط نوتیفیکیشن)
 # با سیستم رفرال و عضویت اجباری در کانال
+# پنل مدیریتی فقط برای ادمین (chat_id های تنظیم‌شده) — بخش رفرال برای همه باز است
 # ══════════════════════════════════════════════════════════════════════════════
-
 import asyncio
 from datetime import datetime
 from urllib.parse import quote as _urlquote
@@ -33,9 +33,43 @@ def _allowed_chats() -> set[str]:
     return {p.strip() for p in raw.replace(";", ",").split(",") if p.strip()}
 
 
+def _is_admin(chat_id) -> bool:
+    """ادمین یعنی chat_id داخل لیست TELEGRAM_SETTINGS.chat_id باشد."""
+    return str(chat_id) in _allowed_chats()
+
+
+# ── یوزرنیم بات: خودکار از API تلگرام (getMe) گرفته می‌شود ─────────────────────
+# قبلاً از یک فیلد دستی (TELEGRAM_SETTINGS["bot_username"]) خونده می‌شد که اگر
+# خالی می‌ماند، لینک رفرال به‌صورت t.me/bot?start=... یا t.me/?start=... ساخته
+# می‌شد که آدرس معتبری نیست و مرورگر آن را به گوگل هدایت می‌کرد. این تابع به‌جای
+# آن، یوزرنیم واقعی بات را مستقیماً از تلگرام می‌گیرد و کش می‌کند.
+_bot_username_cache: str | None = None
+
+
+async def _get_bot_username() -> str | None:
+    global _bot_username_cache
+    if _bot_username_cache:
+        return _bot_username_cache
+    result = await _api("getMe")
+    if result and result.get("username"):
+        _bot_username_cache = result["username"]
+        return _bot_username_cache
+    return None
+
+
+# دسته‌بندی‌های callback که فقط مخصوص ادمین است (مدیریت کانفیگ‌ها، آمار، گروه‌های ساب و ...)
+ADMIN_ONLY_PREFIXES = (
+    "m:new", "m:list:", "m:stats", "m:search", "m:subs:",
+    "q:", "e:", "l:", "lt:", "lr:", "li:", "lg:", "ld", "st:",
+)
+
+
+def _is_admin_only_action(data: str) -> bool:
+    return any(data == p or data.startswith(p) for p in ADMIN_ONLY_PREFIXES)
+
+
 async def _api(method: str, payload: dict | None = None) -> dict | None:
     from main import http_client
-
     token = TELEGRAM_SETTINGS.get("bot_token")
     if not token or http_client is None:
         return None
@@ -106,10 +140,8 @@ def _main_menu_kb():
         [{"text": "📊 آمار سیستم", "callback_data": "m:stats"}, {"text": "🔍 جستجو", "callback_data": "m:search"}],
         [{"text": "📂 گروه‌های ساب", "callback_data": "m:subs:0"}],
     ]
-    
     if REFERRAL_SETTINGS.get("enabled", False):
         kb.append([{"text": "🎁 دریافت کانفیگ رفرال", "callback_data": "m:referral"}])
-    
     return kb
 
 
@@ -129,7 +161,6 @@ async def _show_list(chat_id, message_id, page: int):
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     page = max(0, min(page, pages - 1))
     chunk = items[page * PAGE_SIZE:(page + 1) * PAGE_SIZE]
-
     kb = [[{"text": _link_line(uid, d), "callback_data": f"l:{uid}"}] for uid, d in chunk]
     nav = []
     if page > 0:
@@ -139,7 +170,6 @@ async def _show_list(chat_id, message_id, page: int):
         nav.append({"text": "بعدی ▶️", "callback_data": f"m:list:{page+1}"})
     kb.append(nav)
     kb.append([{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}])
-
     text = f"📋 <b>لیست کانفیگ‌ها</b> ({total} مورد)\nروی هرکدام بزن برای مدیریت:" if total else "هیچ کانفیگی هنوز ساخته نشده."
     await _edit(chat_id, message_id, text, kb)
 
@@ -191,19 +221,14 @@ async def _send_link_and_qr(chat_id, uid: str):
         if not d:
             await _send(chat_id, "❌ این کانفیگ دیگر وجود ندارد.")
             return
-        
         host = get_host()
         if not host or host == "localhost":
             host = "mmd-mimi-mikham.up.railway.app"
-        
         label = d.get("label", "کانفیگ")
         sub_url = f"https://{host}/sub/{uid}"
-        
         text = f"🔗 <b>{label}</b>\n\n📡 لینک ساب:\n<code>{sub_url}</code>"
-        
         kb = [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
         await _send(chat_id, text, kb)
-            
     except Exception:
         await _send(chat_id, "❌ خطا در دریافت لینک. لطفاً دوباره تلاش کنید.")
 
@@ -252,7 +277,6 @@ async def _wizard_finish(chat_id, message_id=None):
         td = parse_expiry_to_timedelta(float(exp_days), "days")
         if td:
             expires_at = (datetime.now() + td).isoformat()
-
     uid = generate_uuid()
     async with LINKS_LOCK:
         LINKS[uid] = {
@@ -266,7 +290,6 @@ async def _wizard_finish(chat_id, message_id=None):
     from main import schedule_save
     await schedule_save()
     log_activity("link", f"کانفیگ «{label}» از بات تلگرام ساخته شد", "ok")
-
     limit_txt = "∞" if not limit_bytes else fmt_bytes(limit_bytes)
     exp_txt = "بدون انقضا" if not expires_at else f"{exp_days} روز دیگر"
     text = f"✅ کانفیگ ساخته شد!\n\n<b>{label}</b>\nحجم: {limit_txt}\nانقضا: {exp_txt}"
@@ -295,49 +318,48 @@ async def _show_stats(chat_id, message_id):
 
 async def _show_referral_menu(chat_id, message_id=None):
     user_id = str(chat_id)
-    
+
     if REFERRAL_SETTINGS.get("channel_required", True):
         is_member = await check_channel_membership(user_id)
         if not is_member:
             channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
-            text = f"""❌ برای دریافت کانفیگ رفرال، ابتدا باید در کانال تیم آزادی عضو شوید.
-
-📢 لطفاً ابتدا عضو کانال شوید:
-👉 https://t.me/{channel}
-
-سپس دوباره روی دکمه کلیک کنید."""
+            text = (
+                "❌ برای دریافت کانفیگ رفرال، ابتدا باید در کانال تیم آزادی عضو شوید.\n\n"
+                "📢 لطفاً ابتدا عضو کانال شوید:\n"
+                f"👉 https://t.me/{channel}\n\n"
+                "سپس دوباره روی دکمه کلیک کنید."
+            )
             kb = [[{"text": "🔄 بررسی مجدد", "callback_data": "m:referral_check"}]]
             if message_id:
                 await _edit(chat_id, message_id, text, kb)
             else:
                 await _send(chat_id, text, kb)
             return
-    
+
     user_links = USER_LINKS.get(user_id, [])
     max_links = REFERRAL_SETTINGS.get("max_links_per_user", 3)
     remaining = max(0, max_links - len(user_links))
-    
+
     if remaining <= 0:
-        text = f"""❌ شما به حداکثر تعداد کانفیگ مجاز رسیده‌اید.
-
-حداکثر تعداد کانفیگ برای هر کاربر: {max_links}
-تعداد کانفیگ‌های شما: {len(user_links)}
-
-برای دریافت کانفیگ جدید، باید یکی از کانفیگ‌های قبلی خود را حذف کنید."""
+        text = (
+            "❌ شما به حداکثر تعداد کانفیگ مجاز رسیده‌اید.\n\n"
+            f"حداکثر تعداد کانفیگ برای هر کاربر: {max_links}\n"
+            f"تعداد کانفیگ‌های شما: {len(user_links)}\n\n"
+            "برای دریافت کانفیگ جدید، باید یکی از کانفیگ‌های قبلی خود را حذف کنید."
+        )
         kb = [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
         if message_id:
             await _edit(chat_id, message_id, text, kb)
         else:
             await _send(chat_id, text, kb)
         return
-    
+
     async with REFERRALS_LOCK:
         existing_code = None
         for code, data in REFERRALS.items():
             if data.get("user_id") == user_id:
                 existing_code = code
                 break
-        
         if not existing_code:
             existing_code = generate_referral_code(user_id)
             REFERRALS[existing_code] = {
@@ -345,42 +367,48 @@ async def _show_referral_menu(chat_id, message_id=None):
                 "used_by": [],
                 "created_at": datetime.now().isoformat()
             }
+            from main import schedule_save
             await schedule_save()
-    
+
     used_count = len(REFERRALS.get(existing_code, {}).get("used_by", []))
     referral_limit = REFERRAL_SETTINGS.get("referral_limit", 5)
-    
-    bot_username = TELEGRAM_SETTINGS.get("bot_username", "bot")
-    
-    text = f"""🎁 <b>سیستم رفرال تیم آزادی</b>
+    bot_username = await _get_bot_username()
+    if not bot_username:
+        text = (
+            "⚠️ لینک رفرال موقتاً در دسترس نیست.\n\n"
+            "توکن بات هنوز به‌درستی با تلگرام تأیید نشده. لطفاً چند لحظه دیگر دوباره امتحان کن، "
+            "یا به ادمین اطلاع بده که bot_token رو بررسی کند."
+        )
+        kb = [[{"text": "🔄 تلاش مجدد", "callback_data": "m:referral"}], [{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
+        if message_id:
+            await _edit(chat_id, message_id, text, kb)
+        else:
+            await _send(chat_id, text, kb)
+        return
 
-👤 شناسه شما: <code>{user_id}</code>
-
-🔗 <b>لینک رفرال شما:</b>
-<code>https://t.me/{bot_username}?start=ref_{existing_code}</code>
-
-📊 <b>آمار شما:</b>
-• تعداد رفرال‌های استفاده‌شده: {used_count} از {referral_limit}
-• کانفیگ‌های باقی‌مانده: {remaining} از {max_links}
-• حجم هر کانفیگ: {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} GB
-• مدت اعتبار: {REFERRAL_SETTINGS.get('referral_reward_days', 7)} روز
-
-📌 <b>نحوه استفاده:</b>
-1. لینک رفرال خود را برای دوستان خود ارسال کنید
-2. هر کاربر جدید با لینک شما وارد شود، یک رفرال برای شما ثبت می‌شود
-3. به ازای هر {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} رفرال، یک کانفیگ جدید دریافت می‌کنید
-
-💡 <b>سقف رفرال:</b> {referral_limit} نفر
-
-📢 <b>کانال تیم آزادی:</b>
-https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"""
-    
+    text = (
+        "🎁 <b>سیستم رفرال تیم آزادی</b>\n\n"
+        f"👤 شناسه شما: <code>{user_id}</code>\n\n"
+        "🔗 <b>لینک رفرال شما:</b>\n"
+        f"<code>https://t.me/{bot_username}?start=ref_{existing_code}</code>\n\n"
+        "📊 <b>آمار شما:</b>\n"
+        f"• تعداد رفرال‌های استفاده‌شده: {used_count} از {referral_limit}\n"
+        f"• کانفیگ‌های باقی‌مانده: {remaining} از {max_links}\n"
+        f"• حجم هر کانفیگ: {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} GB\n"
+        f"• مدت اعتبار: {REFERRAL_SETTINGS.get('referral_reward_days', 7)} روز\n\n"
+        "📌 <b>نحوه استفاده:</b>\n"
+        "1. لینک رفرال خود را برای دوستان خود ارسال کنید\n"
+        "2. هر کاربر جدید با لینک شما وارد شود، یک رفرال برای شما ثبت می‌شود\n"
+        f"3. به ازای هر {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} رفرال، یک کانفیگ جدید دریافت می‌کنید\n\n"
+        f"💡 <b>سقف رفرال:</b> {referral_limit} نفر\n\n"
+        "📢 <b>کانال تیم آزادی:</b>\n"
+        f"https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"
+    )
     kb = [
         [{"text": "🔗 کپی لینک رفرال", "callback_data": f"m:referral_copy:{existing_code}"}],
         [{"text": "🔄 بررسی مجدد عضویت", "callback_data": "m:referral_check"}],
         [{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]
     ]
-    
     if message_id:
         await _edit(chat_id, message_id, text, kb)
     else:
@@ -389,66 +417,66 @@ https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"""
 
 async def _handle_referral_start(chat_id, ref_code: str):
     user_id = str(chat_id)
-    
+    admin = _is_admin(chat_id)
+
+    async def _back_to_menu():
+        if admin:
+            await _show_main_menu(chat_id)
+        else:
+            await _show_referral_menu(chat_id)
+
     async with REFERRALS_LOCK:
         ref_data = REFERRALS.get(ref_code)
         if not ref_data:
             await _send(chat_id, "❌ لینک رفرال نامعتبر است.")
-            await _show_main_menu(chat_id)
+            await _back_to_menu()
             return
-        
         if user_id in ref_data.get("used_by", []):
             await _send(chat_id, "⚠️ شما قبلاً با این لینک رفرال ثبت‌نام کرده‌اید.")
-            await _show_main_menu(chat_id)
+            await _back_to_menu()
             return
-        
         if len(ref_data.get("used_by", [])) >= REFERRAL_SETTINGS.get("referral_limit", 5):
             await _send(chat_id, "❌ این لینک رفرال به حداکثر تعداد خود رسیده است.")
-            await _show_main_menu(chat_id)
+            await _back_to_menu()
             return
-        
         ref_data.setdefault("used_by", []).append(user_id)
+        from main import schedule_save
         await schedule_save()
-    
+
     if REFERRAL_SETTINGS.get("channel_required", True):
         is_member = await check_channel_membership(user_id)
         if not is_member:
             channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
-            text = f"""🎉 <b>تبریک! رفرال شما ثبت شد!</b>
-
-✅ شما با موفقیت از لینک رفرال استفاده کردید.
-
-⚠️ اما برای دریافت کانفیگ، ابتدا باید در کانال تیم آزادی عضو شوید:
-
-📢 لطفاً عضو کانال شوید:
-👉 https://t.me/{channel}
-
-سپس روی دکمه زیر کلیک کنید."""
+            text = (
+                "🎉 <b>تبریک! رفرال شما ثبت شد!</b>\n\n"
+                "✅ شما با موفقیت از لینک رفرال استفاده کردید.\n\n"
+                "⚠️ اما برای دریافت کانفیگ، ابتدا باید در کانال تیم آزادی عضو شوید:\n\n"
+                "📢 لطفاً عضو کانال شوید:\n"
+                f"👉 https://t.me/{channel}\n\n"
+                "سپس روی دکمه زیر کلیک کنید."
+            )
             kb = [[{"text": "🔄 بررسی عضویت و دریافت کانفیگ", "callback_data": f"m:referral_claim:{ref_code}"}]]
             await _send(chat_id, text, kb)
             return
-    
+
     uid = await create_link_from_referral(user_id)
     if uid:
         host = get_host()
         if not host or host == "localhost":
             host = "mmd-mimi-mikham.up.railway.app"
-        
         sub_url = f"https://{host}/sub/{uid}"
-        text = f"""🎉 <b>تبریک! کانفیگ شما آماده شد!</b>
-
-✅ رفرال شما با موفقیت ثبت شد.
-🔗 لینک ساب شما:
-<code>{sub_url}</code>
-
-📌 نکات:
-• حجم: {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} GB
-• مدت اعتبار: {REFERRAL_SETTINGS.get('referral_reward_days', 7)} روز
-• حداکثر تعداد دستگاه: ۱
-
-📢 کانال تیم آزادی:
-https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"""
-        
+        text = (
+            "🎉 <b>تبریک! کانفیگ شما آماده شد!</b>\n\n"
+            "✅ رفرال شما با موفقیت ثبت شد.\n\n"
+            "🔗 لینک ساب شما:\n"
+            f"<code>{sub_url}</code>\n\n"
+            "📌 نکات:\n"
+            f"• حجم: {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} GB\n"
+            f"• مدت اعتبار: {REFERRAL_SETTINGS.get('referral_reward_days', 7)} روز\n"
+            "• حداکثر تعداد دستگاه: ۱\n\n"
+            "📢 کانال تیم آزادی:\n"
+            f"https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"
+        )
         kb = [
             [{"text": "🔗 کپی لینک ساب", "callback_data": f"m:copy:{uid}"}],
             [{"text": "🎁 دریافت کانفیگ رفرال", "callback_data": "m:referral"}],
@@ -459,10 +487,10 @@ https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"""
         await _send(chat_id, "❌ خطا در ساخت کانفیگ. لطفاً دوباره تلاش کنید.")
 
 
-async def _handle_text(chat_id, text):
+async def _handle_text(chat_id, text, is_admin: bool = False):
     w = _wizard.get(str(chat_id))
     text = (text or "").strip()
-    
+
     if text.startswith("/start"):
         parts = text.split()
         if len(parts) > 1:
@@ -470,8 +498,23 @@ async def _handle_text(chat_id, text):
             if ref_code.startswith("ref_"):
                 await _handle_referral_start(chat_id, ref_code)
                 return
-        
-        await _show_main_menu(chat_id)
+        if is_admin:
+            await _show_main_menu(chat_id)
+        else:
+            await _show_referral_menu(chat_id)
+        return
+
+    if text.startswith("/menu"):
+        if is_admin:
+            await _show_main_menu(chat_id)
+        else:
+            await _show_referral_menu(chat_id)
+        return
+
+    if not is_admin:
+        # مراحل ویزارد ساخت کانفیگ فقط برای ادمین است؛ کاربر عادی همیشه به منوی رفرال می‌رود
+        _wizard.pop(str(chat_id), None)
+        await _show_referral_menu(chat_id)
         return
 
     if not w:
@@ -530,14 +573,24 @@ async def _handle_text(chat_id, text):
         await _send(chat_id, f"✅ {extra_gb}GB اضافه شد.", [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]])
 
 
-async def _handle_callback(chat_id, message_id, cb_id, data):
+async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = False):
     await _answer_cb(cb_id)
     if data == "noop":
         return
 
+    if _is_admin_only_action(data) and not is_admin:
+        await _edit(
+            chat_id, message_id, "⛔️ این بخش فقط برای مدیر پنل در دسترس است.",
+            [[{"text": "🎁 دریافت کانفیگ رفرال", "callback_data": "m:referral"}]]
+        )
+        return
+
     if data == "m:main":
         _wizard.pop(str(chat_id), None)
-        await _show_main_menu(chat_id, message_id)
+        if is_admin:
+            await _show_main_menu(chat_id, message_id)
+        else:
+            await _show_referral_menu(chat_id, message_id)
     elif data == "m:new":
         await _wizard_start(chat_id, message_id)
     elif data.startswith("m:list:"):
@@ -561,37 +614,36 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
             await _edit(chat_id, message_id, f"❌ شما هنوز در کانال تیم آزادی عضو نشده‌اید.\n\n📢 لطفاً عضو شوید:\nhttps://t.me/{channel}", [[{"text": "🔄 بررسی مجدد", "callback_data": "m:referral_check"}]])
     elif data.startswith("m:referral_copy:"):
         code = data.split(":", 2)[2]
-        bot_username = TELEGRAM_SETTINGS.get("bot_username", "bot")
+        bot_username = await _get_bot_username()
+        if not bot_username:
+            await _send(chat_id, "⚠️ لینک رفرال موقتاً در دسترس نیست؛ چند لحظه دیگر دوباره امتحان کن.")
+            return
         await _send(chat_id, f"🔗 لینک رفرال شما کپی شد!\n\n<code>https://t.me/{bot_username}?start=ref_{code}</code>")
         await _show_referral_menu(chat_id, message_id)
     elif data.startswith("m:referral_claim:"):
         ref_code = data.split(":", 2)[2]
         user_id = str(chat_id)
-        
         if REFERRAL_SETTINGS.get("channel_required", True):
             is_member = await check_channel_membership(user_id)
             if not is_member:
                 channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
                 await _edit(chat_id, message_id, f"❌ شما هنوز در کانال عضو نشده‌اید.\n\n📢 لطفاً عضو شوید:\nhttps://t.me/{channel}", [[{"text": "🔄 بررسی مجدد", "callback_data": f"m:referral_claim:{ref_code}"}]])
                 return
-        
         uid = await create_link_from_referral(user_id)
         if uid:
             host = get_host()
             if not host or host == "localhost":
                 host = "mmd-mimi-mikham.up.railway.app"
-            
             sub_url = f"https://{host}/sub/{uid}"
-            text = f"""🎉 <b>تبریک! کانفیگ شما آماده شد!</b>
-
-🔗 لینک ساب شما:
-<code>{sub_url}</code>
-
-📌 نکات:
-• حجم: {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} GB
-• مدت اعتبار: {REFERRAL_SETTINGS.get('referral_reward_days', 7)} روز
-• حداکثر تعداد دستگاه: ۱"""
-            
+            text = (
+                "🎉 <b>تبریک! کانفیگ شما آماده شد!</b>\n\n"
+                "🔗 لینک ساب شما:\n"
+                f"<code>{sub_url}</code>\n\n"
+                "📌 نکات:\n"
+                f"• حجم: {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} GB\n"
+                f"• مدت اعتبار: {REFERRAL_SETTINGS.get('referral_reward_days', 7)} روز\n"
+                "• حداکثر تعداد دستگاه: ۱"
+            )
             kb = [
                 [{"text": "🔗 کپی لینک ساب", "callback_data": f"m:copy:{uid}"}],
                 [{"text": "🎁 دریافت کانفیگ رفرال", "callback_data": "m:referral"}],
@@ -671,7 +723,7 @@ async def _handle_callback(chat_id, message_id, cb_id, data):
     elif data.startswith("ld:"):
         uid = data[3:]
         await _edit(chat_id, message_id, "⚠️ مطمئنی این کانفیگ کامل حذف شود؟ این عمل قابل بازگشت نیست.",
-                    [[{"text": "✅ بله، حذف شود", "callback_data": f"ldc:{uid}"}, {"text": "❌ نه", "callback_data": f"ldn:{uid}"}]])
+                     [[{"text": "✅ بله، حذف شود", "callback_data": f"ldc:{uid}"}, {"text": "❌ نه", "callback_data": f"ldn:{uid}"}]])
     elif data.startswith("st:"):
         sub_id = data[3:]
         await _toggle_sub_lock(chat_id, message_id, sub_id)
@@ -684,7 +736,6 @@ async def _show_subs(chat_id, message_id, page: int):
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     page = max(0, min(page, pages - 1))
     chunk = items[page * PAGE_SIZE:(page + 1) * PAGE_SIZE]
-
     kb = []
     for sid, s in chunk:
         lock_icon = "🔒" if s.get("locked") else "🔓"
@@ -700,7 +751,6 @@ async def _show_subs(chat_id, message_id, page: int):
         nav.append({"text": "بعدی ▶️", "callback_data": f"m:subs:{page+1}"})
     kb.append(nav)
     kb.append([{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}])
-
     text = f"📂 <b>گروه‌های ساب</b> ({total} گروه)" if total else "هنوز هیچ گروه سابی ساخته نشده."
     await _edit(chat_id, message_id, text, kb)
 
@@ -713,7 +763,8 @@ async def _toggle_sub_lock(chat_id, message_id, sub_id):
             name, locked = s["name"], s["locked"]
     from main import schedule_save
     await schedule_save()
-    log_activity("sub", f"گروه «{name}» از بات تلگرام {'قفل' if locked else 'باز'} شد", "warn" if locked else "ok")
+    if s:
+        log_activity("sub", f"گروه «{name}» از بات تلگرام {'قفل' if locked else 'باز'} شد", "warn" if locked else "ok")
     await _show_subs(chat_id, message_id, 0)
 
 
@@ -722,15 +773,11 @@ async def _process_update(update: dict):
         if "callback_query" in update:
             cq = update["callback_query"]
             chat_id = cq["message"]["chat"]["id"]
-            if str(chat_id) not in _allowed_chats():
-                return
-            await _handle_callback(chat_id, cq["message"]["message_id"], cq["id"], cq.get("data", ""))
+            await _handle_callback(chat_id, cq["message"]["message_id"], cq["id"], cq.get("data", ""), _is_admin(chat_id))
         elif "message" in update:
             msg = update["message"]
             chat_id = msg["chat"]["id"]
-            if str(chat_id) not in _allowed_chats():
-                return
-            await _handle_text(chat_id, msg.get("text", ""))
+            await _handle_text(chat_id, msg.get("text", ""), _is_admin(chat_id))
     except Exception as e:
         logger.warning(f"telegram_bot: process_update error: {e}")
 
@@ -739,27 +786,27 @@ async def polling_loop():
     global _offset, _running
     _running = True
     logger.info("telegram_bot: polling loop started")
+    await _get_bot_username()  # پیش‌گرم کردن کش یوزرنیم بات تا لینک رفرال از همون اول درست باشد
     while True:
         try:
-            if not (TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token") and _allowed_chats()):
+            # توجه: دیگر نیازی به وجود chat_id ادمین نیست تا بات کار کند —
+            # کاربران عادی هم باید بتوانند از بخش رفرال استفاده کنند حتی اگر
+            # هیچ chat_id ادمینی تنظیم نشده باشد.
+            if not (TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token")):
                 await asyncio.sleep(5)
                 continue
-            
             result = await _api("getUpdates", {
-                "offset": _offset, 
-                "timeout": 25, 
+                "offset": _offset,
+                "timeout": 25,
                 "allowed_updates": ["message", "callback_query"],
                 "drop_pending_updates": True
             })
-            
             if result is None:
                 await asyncio.sleep(5)
                 continue
-                
             for update in result:
                 _offset = update["update_id"] + 1
                 await _process_update(update)
-                
         except asyncio.CancelledError:
             break
         except Exception as e:
