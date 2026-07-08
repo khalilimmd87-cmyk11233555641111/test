@@ -1,4 +1,10 @@
-# telegram_bot.py - نسخه کامل با رفرال و مدیریت کاربران
+# telegram_bot.py
+# ══════════════════════════════════════════════════════════════════════════════
+# مدیریت پنل از طریق بات تلگرام — دو-طرفه (نه فقط نوتیفیکیشن)
+# سیستم رفرال کامل حذف شده. هرکسی وارد بات شود (/start)، پس از تأیید عضویت
+# اجباری در کانال، به‌طور خودکار یک کانفیگ اختصاصی با حجم هدیه (پیش‌فرض ۱۰۰GB)
+# دریافت می‌کند. پنل مدیریتی فقط برای ادمین (chat_id های تنظیم‌شده) باز است.
+# ══════════════════════════════════════════════════════════════════════════════
 import asyncio
 from datetime import datetime
 from urllib.parse import quote as _urlquote
@@ -10,29 +16,35 @@ from state import (
     is_link_allowed, is_link_expired, fmt_bytes, parse_size_to_bytes,
     parse_expiry_to_timedelta, get_host, log_activity, logger,
     DEFAULT_PROTOCOL, uptime,
-    JOIN_SETTINGS, USER_LINKS, USERS, USER_REFERRALS, WITHDRAW_REQUESTS,
+    JOIN_SETTINGS, USER_LINKS,
     check_channel_membership, create_join_link,
-    get_or_create_user, create_referral_link, get_user_stats,
-    create_withdraw_request, get_referral_settings, update_referral_settings,
-    format_money, REFERRAL_SETTINGS,
 )
 
 PAGE_SIZE = 6
 _offset = 0
 _wizard: dict[str, dict] = {}
 _running = False
-ADMIN_IDS = set()
 
-def _get_admin_ids() -> set[str]:
+
+def _allowed_chats() -> set[str]:
     raw = (TELEGRAM_SETTINGS.get("chat_id") or "").strip()
     if not raw:
         return set()
     return {p.strip() for p in raw.replace(";", ",").split(",") if p.strip()}
 
-def _is_admin(chat_id) -> bool:
-    return str(chat_id) in _get_admin_ids()
 
+def _is_admin(chat_id) -> bool:
+    """ادمین یعنی chat_id داخل لیست TELEGRAM_SETTINGS.chat_id باشد."""
+    return str(chat_id) in _allowed_chats()
+
+
+# ── یوزرنیم بات: خودکار از API تلگرام (getMe) گرفته می‌شود ─────────────────────
+# قبلاً از یک فیلد دستی (TELEGRAM_SETTINGS["bot_username"]) خونده می‌شد که اگر
+# خالی می‌ماند، لینک رفرال به‌صورت t.me/bot?start=... یا t.me/?start=... ساخته
+# می‌شد که آدرس معتبری نیست و مرورگر آن را به گوگل هدایت می‌کرد. این تابع به‌جای
+# آن، یوزرنیم واقعی بات را مستقیماً از تلگرام می‌گیرد و کش می‌کند.
 _bot_username_cache: str | None = None
+
 
 async def _get_bot_username() -> str | None:
     global _bot_username_cache
@@ -44,18 +56,21 @@ async def _get_bot_username() -> str | None:
         return _bot_username_cache
     return None
 
+
+# دسته‌بندی‌های callback که فقط مخصوص ادمین است (مدیریت کانفیگ‌ها، آمار، گروه‌های ساب و ...)
 ADMIN_ONLY_PREFIXES = (
     "m:new", "m:list:", "m:stats", "m:search", "m:subs:",
     "q:", "e:", "l:", "lt:", "lr:", "li:", "lg:", "ld", "st:",
-    "admin:", "users:", "ban:", "unban:", "withdraw:", "approve:", "reject:",
-    "ref_settings:", "join_settings:",
 )
+
 
 def _is_admin_only_action(data: str) -> bool:
     return any(data == p or data.startswith(p) for p in ADMIN_ONLY_PREFIXES)
 
+
 def _channel_username() -> str:
     return (JOIN_SETTINGS.get("channel_username", "TimAzadi") or "TimAzadi").strip().lstrip("@")
+
 
 async def _api(method: str, payload: dict | None = None) -> dict | None:
     from main import http_client
@@ -78,11 +93,13 @@ async def _api(method: str, payload: dict | None = None) -> dict | None:
             resp = await http_client.post(url, json=payload or {}, timeout=35.0)
         data = resp.json()
         if not data.get("ok"):
+            logger.warning(f"telegram_bot: {method} failed: {data}")
             return None
         return data.get("result")
     except Exception as e:
         logger.warning(f"telegram_bot: {method} error: {e}")
         return None
+
 
 async def _send(chat_id, text, kb=None, photo=None):
     payload = {"chat_id": chat_id, "parse_mode": "HTML"}
@@ -95,6 +112,7 @@ async def _send(chat_id, text, kb=None, photo=None):
     payload["text"] = text
     return await _api("sendMessage", payload)
 
+
 async def _edit(chat_id, message_id, text, kb=None):
     payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "HTML"}
     if kb is not None:
@@ -103,12 +121,14 @@ async def _edit(chat_id, message_id, text, kb=None):
     if res is None:
         await _send(chat_id, text, kb)
 
+
 async def _answer_cb(cb_id, text=None):
     payload = {"callback_query_id": cb_id}
     if text:
         payload["text"] = text
         payload["show_alert"] = False
     await _api("answerCallbackQuery", payload)
+
 
 def _link_line(uid: str, d: dict) -> str:
     ok = is_link_allowed(d)
@@ -117,39 +137,23 @@ def _link_line(uid: str, d: dict) -> str:
     limit = "∞" if not d.get("limit_bytes") else fmt_bytes(d["limit_bytes"])
     return f"{dot} {d.get('label','?')} — {used}/{limit}"
 
+
 def _main_menu_kb():
     return [
         [{"text": "➕ کانفیگ جدید", "callback_data": "m:new"}, {"text": "📋 لیست کانفیگ‌ها", "callback_data": "m:list:0"}],
         [{"text": "📊 آمار سیستم", "callback_data": "m:stats"}, {"text": "🔍 جستجو", "callback_data": "m:search"}],
         [{"text": "📂 گروه‌های ساب", "callback_data": "m:subs:0"}],
-        [{"text": "👥 مدیریت کاربران", "callback_data": "admin:users"}],
-        [{"text": "💰 درخواست‌های برداشت", "callback_data": "admin:withdrawals"}],
-        [{"text": "⚙️ تنظیمات رفرال", "callback_data": "admin:ref_settings"}],
     ]
 
-def _user_menu_kb(user_id: str):
-    """کیبورد منوی کاربر عادی"""
-    return [
-        [{"text": "🔗 لینک رفرال من", "callback_data": f"user:ref_link:{user_id}"}],
-        [{"text": "📊 آمار من", "callback_data": f"user:stats:{user_id}"}],
-        [{"text": "💰 برداشت پول", "callback_data": f"user:withdraw:{user_id}"}],
-        [{"text": "🔄 بروزرسانی کانفیگ", "callback_data": "user:refresh"}],
-    ]
 
 async def _show_main_menu(chat_id, message_id=None):
-    if _is_admin(chat_id):
-        text = "🤖 <b>پنل مدیریت تیم آزادی</b>\nیکی از گزینه‌ها رو انتخاب کن:"
-        kb = _main_menu_kb()
-    else:
-        user_id = str(chat_id)
-        await get_or_create_user(user_id)
-        text = "🎯 <b>منوی کاربری</b>\nگزینه‌های خودت رو انتخاب کن:"
-        kb = _user_menu_kb(user_id)
-    
+    text = "🤖 <b>پنل مدیریت تیم آزادی</b>\nیکی از گزینه‌ها رو انتخاب کن:"
+    kb = _main_menu_kb()
     if message_id:
         await _edit(chat_id, message_id, text, kb)
     else:
         await _send(chat_id, text, kb)
+
 
 async def _show_list(chat_id, message_id, page: int):
     async with LINKS_LOCK:
@@ -167,8 +171,9 @@ async def _show_list(chat_id, message_id, page: int):
         nav.append({"text": "بعدی ▶️", "callback_data": f"m:list:{page+1}"})
     kb.append(nav)
     kb.append([{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}])
-    text = f"📋 <b>لیست کانفیگ‌ها</b> ({total} مورد)" if total else "هیچ کانفیگی هنوز ساخته نشده."
+    text = f"📋 <b>لیست کانفیگ‌ها</b> ({total} مورد)\nروی هرکدام بزن برای مدیریت:" if total else "هیچ کانفیگی هنوز ساخته نشده."
     await _edit(chat_id, message_id, text, kb)
+
 
 async def _show_link_detail(chat_id, message_id, uid: str):
     async with LINKS_LOCK:
@@ -209,6 +214,7 @@ async def _show_link_detail(chat_id, message_id, uid: str):
     ]
     await _edit(chat_id, message_id, text, kb)
 
+
 async def _send_link_and_qr(chat_id, uid: str):
     try:
         async with LINKS_LOCK:
@@ -225,14 +231,17 @@ async def _send_link_and_qr(chat_id, uid: str):
         kb = [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
         await _send(chat_id, text, kb)
     except Exception:
-        await _send(chat_id, "❌ خطا در دریافت لینک.")
+        await _send(chat_id, "❌ خطا در دریافت لینک. لطفاً دوباره تلاش کنید.")
+
 
 QUOTA_OPTIONS = [("1GB", 1), ("5GB", 5), ("10GB", 10), ("20GB", 20), ("50GB", 50), ("100GB", 100), ("∞ نامحدود", 0)]
 EXPIRY_OPTIONS = [("بدون انقضا", None), ("۱ روز", 1), ("۷ روز", 7), ("۳۰ روز", 30)]
 
+
 async def _wizard_start(chat_id, message_id):
     _wizard[str(chat_id)] = {"step": "label", "data": {}}
     await _edit(chat_id, message_id, "✏️ اسم این کانفیگ رو بفرست (مثلاً: کاربر علی):", [[{"text": "❌ انصراف", "callback_data": "m:main"}]])
+
 
 async def _wizard_ask_quota(chat_id, message_id=None):
     kb = [[{"text": t, "callback_data": f"q:{v}"} for t, v in QUOTA_OPTIONS[i:i+2]] for i in range(0, len(QUOTA_OPTIONS), 2)]
@@ -244,6 +253,7 @@ async def _wizard_ask_quota(chat_id, message_id=None):
     else:
         await _send(chat_id, text, kb)
 
+
 async def _wizard_ask_expiry(chat_id, message_id=None):
     kb = [[{"text": t, "callback_data": f"e:{v if v is not None else 0}"} for t, v in EXPIRY_OPTIONS[i:i+2]] for i in range(0, len(EXPIRY_OPTIONS), 2)]
     kb.append([{"text": "✏️ مقدار دلخواه (روز)", "callback_data": "e:custom"}])
@@ -253,6 +263,7 @@ async def _wizard_ask_expiry(chat_id, message_id=None):
         await _edit(chat_id, message_id, text, kb)
     else:
         await _send(chat_id, text, kb)
+
 
 async def _wizard_finish(chat_id, message_id=None):
     w = _wizard.pop(str(chat_id), None)
@@ -289,6 +300,7 @@ async def _wizard_finish(chat_id, message_id=None):
     else:
         await _send(chat_id, text, kb)
 
+
 async def _show_stats(chat_id, message_id):
     async with LINKS_LOCK:
         total = len(LINKS)
@@ -300,195 +312,22 @@ async def _show_stats(chat_id, message_id):
         f"اتصالات زنده: {len(connections)}\n"
         f"کل ترافیک: {fmt_bytes(stats.get('total_bytes', 0))}\n"
         f"کل درخواست‌ها: {stats.get('total_requests', 0)}\n"
-        f"آپ‌تایم: {uptime()}\n\n"
-        f"👥 کاربران کل: {len(USERS)}\n"
-        f"💰 مجموع پول توزیع‌شده: {format_money(sum(u.get('total_money', 0) for u in USERS.values()))} تومان\n"
-        f"📊 کل رفرال‌ها: {sum(u.get('referrals_count', 0) for u in USERS.values())}"
+        f"آپ‌تایم: {uptime()}"
     )
     await _edit(chat_id, message_id, text, [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]])
 
-# ═══════════════════════════════════════════════════════════════
-# 🔥 توابع مدیریت کاربران و رفرال
-# ═══════════════════════════════════════════════════════════════
 
-async def _show_users_list(chat_id, message_id, page: int = 0):
-    users_list = sorted(USERS.items(), key=lambda x: x[1].get("created_at", ""), reverse=True)
-    total = len(users_list)
-    pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-    page = max(0, min(page, pages - 1))
-    chunk = users_list[page * PAGE_SIZE:(page + 1) * PAGE_SIZE]
-    
-    kb = []
-    for uid, u in chunk:
-        status = "🚫" if u.get("is_banned") else "✅"
-        kb.append([{
-            "text": f"{status} {uid[:8]}... | {u.get('referrals_count', 0)} دعوت | {format_money(u.get('balance', 0))} تومان",
-            "callback_data": f"admin:user_detail:{uid}"
-        }])
-    
-    nav = []
-    if page > 0:
-        nav.append({"text": "◀️ قبلی", "callback_data": f"admin:users:{page-1}"})
-    nav.append({"text": f"{page+1}/{pages}", "callback_data": "noop"})
-    if page < pages - 1:
-        nav.append({"text": "بعدی ▶️", "callback_data": f"admin:users:{page+1}"})
-    kb.append(nav)
-    kb.append([{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}])
-    
-    text = f"👥 <b>لیست کاربران</b> ({total} کاربر)"
-    await _edit(chat_id, message_id, text, kb)
-
-async def _show_user_detail(chat_id, message_id, user_id: str):
-    stats = await get_user_stats(user_id)
-    text = f"""👤 <b>اطلاعات کاربر</b>
-
-🆔 آیدی: <code>{user_id}</code>
-🔑 کد رفرال: <code>{stats.get('referral_code')}</code>
-👥 تعداد دعوت‌ها: {stats.get('referrals_count', 0)}
-📦 حجم دریافت‌شده: {stats.get('total_volume_gb', 0)} GB
-💰 پول دریافت‌شده: {format_money(stats.get('total_money', 0))} تومان
-💳 موجودی قابل برداشت: {format_money(stats.get('balance', 0))} تومان
-🚦 وضعیت: {'🚫 مسدود' if stats.get('is_banned') else '✅ فعال'}
-📅 تاریخ عضویت: {stats.get('created_at', '').split('T')[0]}
-
-📊 <b>لیست دعوت‌شده‌ها:</b>
-{chr(10).join([f"- {r['user_id'][:8]}... ({r['status']})" for r in stats.get('referred_users', [])]) or 'هیچ کسی رو دعوت نکرده'}
-
-🔗 لینک رفرال:
-<code>{await create_referral_link(user_id)}</code>"""
-    
-    kb = [
-        [
-            {"text": "🚫 مسدود کن" if not stats.get('is_banned') else "✅ رفع مسدودیت", 
-             "callback_data": f"admin:ban:{user_id}"},
-        ],
-        [
-            {"text": "💰 برداشت‌های این کاربر", "callback_data": f"admin:user_withdrawals:{user_id}"},
-        ],
-        [{"text": "⬅️ بازگشت به لیست کاربران", "callback_data": "admin:users:0"}],
-        [{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}],
-    ]
-    await _edit(chat_id, message_id, text, kb)
-
-async def _show_withdrawals(chat_id, message_id, user_id: str = None):
-    """نمایش درخواست‌های برداشت"""
-    if user_id:
-        requests = {k: v for k, v in WITHDRAW_REQUESTS.items() if v.get("user_id") == user_id}
-    else:
-        requests = dict(WITHDRAW_REQUESTS)
-    
-    if not requests:
-        await _edit(chat_id, message_id, "هیچ درخواست برداشتی وجود ندارد.", [[{"text": "⬅️ بازگشت", "callback_data": "m:main"}]])
-        return
-    
-    text = "💰 <b>درخواست‌های برداشت</b>\n\n"
-    for rid, r in list(requests.items())[-10:]:
-        status_emoji = {
-            "pending": "⏳",
-            "approved": "✅",
-            "rejected": "❌",
-            "paid": "💚"
-        }.get(r.get("status"), "❓")
-        text += f"{status_emoji} {r['user_id'][:8]}... | {format_money(r['amount'])} تومان | {r['method']}\n"
-    
-    kb = [
-        [{"text": "⏳ در انتظار", "callback_data": "admin:withdrawals:pending"}],
-        [{"text": "✅ تاییدشده", "callback_data": "admin:withdrawals:approved"}],
-        [{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}],
-    ]
-    await _edit(chat_id, message_id, text, kb)
-
-async def _show_ref_settings(chat_id, message_id):
-    """تنظیمات رفرال"""
-    s = get_referral_settings()
-    text = f"""⚙️ <b>تنظیمات رفرال</b>
-
-🔄 وضعیت: {'🟢 فعال' if s.get('enabled') else '🔴 غیرفعال'}
-🎁 جایزه رفرال‌دهنده:
-  - {s.get('referrer_reward_gb', 50)} GB حجم
-  - {format_money(s.get('referrer_reward_money', 5000))} تومان پول
-
-🎁 جایزه رفرال‌گیرنده:
-  - {s.get('referee_reward_gb', 100)} GB حجم
-  - {format_money(s.get('referee_reward_money', 2000))} تومان پول
-
-⏰ اعتبار کانفیگ:
-  - رفرال‌دهنده: {s.get('referrer_expire_days', 30)} روز
-  - رفرال‌گیرنده: {s.get('referee_expire_days', 30)} روز
-
-💰 برداشت:
-  - حداقل مبلغ: {format_money(s.get('min_withdraw', 10000))} تومان
-  - وضعیت: {'🟢 فعال' if s.get('withdraw_enabled') else '🔴 غیرفعال'}
-
-📝 برای تغییر هرکدوم عدد جدید رو بفرست."""
-    
-    kb = [
-        [{"text": "🔄 فعال/غیرفعال", "callback_data": "admin:ref_settings:toggle"}],
-        [{"text": "✏️ تغییر جایزه رفرال‌دهنده", "callback_data": "admin:ref_settings:referrer"}],
-        [{"text": "✏️ تغییر جایزه رفرال‌گیرنده", "callback_data": "admin:ref_settings:referee"}],
-        [{"text": "✏️ تغییر حداقل برداشت", "callback_data": "admin:ref_settings:min_withdraw"}],
-        [{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}],
-    ]
-    await _edit(chat_id, message_id, text, kb)
-
-async def _handle_user_withdraw(chat_id, message_id, user_id: str):
-    """فرم برداشت برای کاربر"""
-    stats = await get_user_stats(user_id)
-    if not stats.get('can_withdraw'):
-        await _edit(chat_id, message_id, 
-            f"❌ امکان برداشت ندارید!\nموجودی: {format_money(stats.get('balance', 0))} تومان\nحداقل برداشت: {format_money(REFERRAL_SETTINGS.get('min_withdraw', 10000))} تومان",
-            [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]]
-        )
-        return
-    
-    methods = REFERRAL_SETTINGS.get("withdraw_methods", ["کارت به کارت"])
-    kb = [[{"text": m, "callback_data": f"user:withdraw_method:{user_id}:{m}"}] for m in methods]
-    kb.append([{"text": "❌ انصراف", "callback_data": "m:main"}])
-    
-    text = f"""💰 <b>برداشت پول</b>
-
-موجودی قابل برداشت: {format_money(stats.get('balance', 0))} تومان
-حداقل مبلغ برداشت: {format_money(REFERRAL_SETTINGS.get('min_withdraw', 10000))} تومان
-
-روش برداشت رو انتخاب کن:"""
-    await _edit(chat_id, message_id, text, kb)
-
-async def _handle_withdraw_amount(chat_id, message_id, user_id: str, method: str):
-    _wizard[str(chat_id)] = {
-        "step": "withdraw_amount",
-        "data": {"user_id": user_id, "method": method}
-    }
-    await _edit(chat_id, message_id, 
-        f"💰 مبلغ مورد نظر رو به تومان بفرست:\nروش: {method}\nحداقل: {format_money(REFERRAL_SETTINGS.get('min_withdraw', 10000))} تومان",
-        [[{"text": "❌ انصراف", "callback_data": "m:main"}]]
-    )
-
-async def _handle_withdraw_details(chat_id, message_id, user_id: str, amount: int, method: str):
-    _wizard[str(chat_id)] = {
-        "step": "withdraw_details",
-        "data": {"user_id": user_id, "method": method, "amount": amount}
-    }
-    await _edit(chat_id, message_id,
-        f"💰 اطلاعات واریز رو بفرست:\nمبلغ: {format_money(amount)} تومان\nمثلاً: شماره کارت یا شبا",
-        [[{"text": "❌ انصراف", "callback_data": "m:main"}]]
-    )
-
-async def _handle_join_start(chat_id, message_id=None, referrer_code: str = None):
+async def _handle_join_start(chat_id, message_id=None):
+    """هر کاربر عادی که /start یا /menu بزند از این مسیر عبور می‌کند."""
     user_id = str(chat_id)
-    
-    # بررسی بن بودن
-    user = await get_or_create_user(user_id)
-    if user.get("is_banned"):
-        await _send(chat_id, "🚫 شما توسط مدیر مسدود شده‌اید.")
-        return
 
-    # اگر کاربر قبلاً کانفیگ داره، نشون بده
+    # اگر کاربر قبلاً کانفیگ خودش را گرفته، دیگر لازم نیست دوباره چک عضویت شود؛
+    # مستقیم همان لینک قبلی‌اش را نشان بده.
     existing_uid = USER_LINKS.get(user_id)
     if existing_uid and existing_uid in LINKS:
-        await _grant_join_link(chat_id, message_id, referrer_code)
+        await _grant_join_link(chat_id, message_id)
         return
 
-    # چک عضویت در کانال
     if JOIN_SETTINGS.get("channel_required", True):
         is_member = await check_channel_membership(user_id, TELEGRAM_SETTINGS.get("bot_token"))
         if not is_member:
@@ -506,31 +345,25 @@ async def _handle_join_start(chat_id, message_id=None, referrer_code: str = None
                 await _send(chat_id, text, kb)
             return
 
-    await _grant_join_link(chat_id, message_id, referrer_code)
+    await _grant_join_link(chat_id, message_id)
 
-async def _grant_join_link(chat_id, message_id=None, referrer_code: str = None):
+
+async def _grant_join_link(chat_id, message_id=None):
+    """کانفیگ اختصاصی کاربر را می‌سازد (اگر قبلاً نساخته) و نشان می‌دهد."""
     user_id = str(chat_id)
-    
-    # اگر کاربر از طریق رفرال اومده
-    if referrer_code:
-        result = await process_referral(user_id, referrer_code)
-        if result.get("success"):
-            uid = result.get("link_uid")
-            if uid and uid in LINKS:
-                await _show_user_config(chat_id, message_id, uid, is_referral=True)
-                return
-    
-    # ساخت کانفیگ عادی
-    uid = await create_join_link(user_id)
-    if uid:
-        await _show_user_config(chat_id, message_id, uid, is_referral=False)
-
-async def _show_user_config(chat_id, message_id, uid: str, is_referral: bool = False):
-    d = LINKS.get(uid)
-    if not d:
-        await _send(chat_id, "❌ خطا در دریافت کانفیگ.")
+    uid = USER_LINKS.get(user_id)
+    if not uid or uid not in LINKS:
+        uid = await create_join_link(user_id)
+    d = LINKS.get(uid) if uid else None
+    if not uid or not d:
+        text = "❌ خطا در ساخت کانفیگ. لطفاً بعداً دوباره تلاش کنید."
+        kb = [[{"text": "🔄 تلاش مجدد", "callback_data": "j:check"}]]
+        if message_id:
+            await _edit(chat_id, message_id, text, kb)
+        else:
+            await _send(chat_id, text, kb)
         return
-    
+
     host = get_host()
     if not host or host == "localhost":
         host = "mmd-mimi-mikham.up.railway.app"
@@ -542,47 +375,33 @@ async def _show_user_config(chat_id, message_id, uid: str, is_referral: bool = F
             exp_txt = datetime.fromisoformat(d["expires_at"]).strftime("%Y-%m-%d %H:%M")
         except Exception:
             exp_txt = d["expires_at"]
-    
-    # متن خوش‌آمدگویی
-    if JOIN_SETTINGS.get("welcome_text_enabled", True):
-        welcome_text = JOIN_SETTINGS.get("welcome_text", "").format(
-            volume=limit_txt,
-            expiry=exp_txt,
-            channel=_channel_username(),
-            sub_link=sub_url,
-        )
-    else:
-        welcome_text = f"🎉 خوش اومدی!\n\n🔗 لینک ساب تو:\n<code>{sub_url}</code>"
-    
+    text = (
+        "🎉 <b>خوش اومدی به تیم آزادی!</b>\n\n"
+        "🔗 <b>لینک ساب اختصاصی شما:</b>\n"
+        f"<code>{sub_url}</code>\n\n"
+        f"📦 حجم اختصاصی: {limit_txt}\n"
+        f"⏰ انقضا: {exp_txt}\n\n"
+        f"📢 کانال تیم آزادی:\nhttps://t.me/{_channel_username()}"
+    )
     kb = [
         [{"text": "🔗 کپی لینک ساب", "callback_data": f"m:copy:{uid}"}],
         [{"text": "🔄 بروزرسانی وضعیت", "callback_data": "j:check"}],
-        [{"text": "🏠 منوی اصلی", "callback_data": "m:main"}],
     ]
-    
     if message_id:
-        await _edit(chat_id, message_id, welcome_text, kb)
+        await _edit(chat_id, message_id, text, kb)
     else:
-        await _send(chat_id, welcome_text, kb)
+        await _send(chat_id, text, kb)
+
 
 async def _handle_text(chat_id, text, is_admin: bool = False):
     w = _wizard.get(str(chat_id))
     text = (text or "").strip()
 
-    # دستورات ویژه
     if text.startswith("/start"):
-        # بررسی رفرال
-        parts = text.split()
-        referrer_code = None
-        if len(parts) > 1:
-            arg = parts[1]
-            if arg.startswith("ref_"):
-                referrer_code = arg[4:]
-        
         if is_admin:
             await _show_main_menu(chat_id)
         else:
-            await _handle_join_start(chat_id, referrer_code=referrer_code)
+            await _handle_join_start(chat_id)
         return
 
     if text.startswith("/menu"):
@@ -593,21 +412,20 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
         return
 
     if not is_admin:
+        # مراحل ویزارد ساخت کانفیگ فقط برای ادمین است؛ کاربر عادی همیشه به فلوی دریافت کانفیگ می‌رود
         _wizard.pop(str(chat_id), None)
         await _handle_join_start(chat_id)
         return
 
     if not w:
-        await _send(chat_id, "برای شروع /menu رو بزن یا از دکمه‌های پایین استفاده کن.")
+        await _send(chat_id, "برای شروع /menu رو بزن یا از دکمه‌های پایین پیام‌های قبلی استفاده کن.")
         return
 
     step = w["step"]
-    
     if step == "label":
         w["data"]["label"] = text[:60] or "کانفیگ جدید"
         w["step"] = "quota"
         await _wizard_ask_quota(chat_id)
-    
     elif step == "quota_custom":
         try:
             w["data"]["quota_gb"] = max(0.0, float(text.replace(",", ".")))
@@ -616,7 +434,6 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
             return
         w["step"] = "expiry"
         await _wizard_ask_expiry(chat_id)
-    
     elif step == "expiry_custom":
         try:
             w["data"]["expiry_days"] = max(0.0, float(text.replace(",", ".")))
@@ -624,7 +441,6 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
             await _send(chat_id, "عدد معتبر نبود؛ دوباره بفرست (مثلاً 3):")
             return
         await _wizard_finish(chat_id)
-    
     elif step == "search":
         _wizard.pop(str(chat_id), None)
         q = text.lower()
@@ -636,7 +452,6 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
         kb = [[{"text": _link_line(uid, d), "callback_data": f"l:{uid}"}] for uid, d in hits]
         kb.append([{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}])
         await _send(chat_id, f"🔍 {len(hits)} نتیجه:", kb)
-    
     elif step == "increase_quota":
         uid = w["data"]["uid"]
         try:
@@ -656,36 +471,7 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
         from main import schedule_save
         await schedule_save()
         await _send(chat_id, f"✅ {extra_gb}GB اضافه شد.", [[{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}]])
-    
-    elif step == "withdraw_amount":
-        try:
-            amount = int(text.replace(",", "").replace("٬", ""))
-            if amount < REFERRAL_SETTINGS.get("min_withdraw", 10000):
-                await _send(chat_id, f"❌ حداقل مبلغ {format_money(REFERRAL_SETTINGS.get('min_withdraw', 10000))} تومان است.")
-                return
-            await _handle_withdraw_details(chat_id, None, w["data"]["user_id"], amount, w["data"]["method"])
-        except ValueError:
-            await _send(chat_id, "❌ عدد معتبر بفرست.")
-    
-    elif step == "withdraw_details":
-        user_id = w["data"]["user_id"]
-        amount = w["data"]["amount"]
-        method = w["data"]["method"]
-        details = text
-        
-        result = await create_withdraw_request(user_id, amount, method, details)
-        if result.get("success"):
-            await _send(chat_id, f"""✅ درخواست برداشت ثبت شد!
 
-💰 مبلغ: {format_money(amount)} تومان
-🏦 روش: {method}
-📝 اطلاعات: {details}
-
-وضعیت: در انتظار تایید مدیر
-موجودی جدید: {format_money(result.get('new_balance', 0))} تومان""", [[{"text": "🏠 منوی اصلی", "callback_data": "m:main"}]])
-        else:
-            await _send(chat_id, f"❌ {result.get('message', 'خطا در ثبت درخواست')}", [[{"text": "🏠 منوی اصلی", "callback_data": "m:main"}]])
-        _wizard.pop(str(chat_id), None)
 
 async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = False):
     await _answer_cb(cb_id)
@@ -699,7 +485,6 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         )
         return
 
-    # --- Callback های عمومی ---
     if data == "j:check":
         await _handle_join_start(chat_id, message_id)
         return
@@ -710,38 +495,24 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
             await _show_main_menu(chat_id, message_id)
         else:
             await _handle_join_start(chat_id, message_id)
-        return
-
-    if data == "m:new":
+    elif data == "m:new":
         await _wizard_start(chat_id, message_id)
-        return
-
-    if data.startswith("m:list:"):
+    elif data.startswith("m:list:"):
         await _show_list(chat_id, message_id, int(data.split(":")[2]))
-        return
-
-    if data == "m:stats":
+    elif data == "m:stats":
         await _show_stats(chat_id, message_id)
-        return
-
-    if data == "m:search":
+    elif data == "m:search":
         _wizard[str(chat_id)] = {"step": "search", "data": {}}
         await _edit(chat_id, message_id, "🔍 بخشی از اسم کانفیگ رو بفرست:", [[{"text": "❌ انصراف", "callback_data": "m:main"}]])
-        return
-
-    if data.startswith("m:subs:"):
+    elif data.startswith("m:subs:"):
         await _show_subs(chat_id, message_id, int(data.split(":")[2]))
-        return
-
-    if data.startswith("m:copy:"):
+    elif data.startswith("m:copy:"):
         uid = data.split(":", 2)[2]
         host = get_host()
         if not host or host == "localhost":
             host = "mmd-mimi-mikham.up.railway.app"
         await _send(chat_id, f"✅ لینک ساب کپی شد!\n\n<code>https://{host}/sub/{uid}</code>")
-        return
-
-    if data.startswith("q:"):
+    elif data.startswith("q:"):
         val = data[2:]
         w = _wizard.get(str(chat_id))
         if not w:
@@ -753,9 +524,7 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
             w["data"]["quota_gb"] = float(val)
             w["step"] = "expiry"
             await _wizard_ask_expiry(chat_id, message_id)
-        return
-
-    if data.startswith("e:"):
+    elif data.startswith("e:"):
         val = data[2:]
         w = _wizard.get(str(chat_id))
         if not w:
@@ -766,13 +535,9 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         else:
             w["data"]["expiry_days"] = float(val) if val != "0" else None
             await _wizard_finish(chat_id, message_id)
-        return
-
-    if data.startswith("l:"):
+    elif data.startswith("l:"):
         await _show_link_detail(chat_id, message_id, data[2:])
-        return
-
-    if data.startswith("lt:"):
+    elif data.startswith("lt:"):
         uid = data[3:]
         async with LINKS_LOCK:
             link = LINKS.get(uid)
@@ -781,9 +546,7 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         from main import schedule_save
         await schedule_save()
         await _show_link_detail(chat_id, message_id, uid)
-        return
-
-    if data.startswith("lr:"):
+    elif data.startswith("lr:"):
         uid = data[3:]
         async with LINKS_LOCK:
             link = LINKS.get(uid)
@@ -794,19 +557,13 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         await schedule_save()
         await _answer_cb(cb_id, "مصرف ریست شد ✓")
         await _show_link_detail(chat_id, message_id, uid)
-        return
-
-    if data.startswith("li:"):
+    elif data.startswith("li:"):
         uid = data[3:]
         _wizard[str(chat_id)] = {"step": "increase_quota", "data": {"uid": uid}}
         await _edit(chat_id, message_id, "✏️ چند گیگابایت اضافه شود؟ (مثلاً 5):", [[{"text": "❌ انصراف", "callback_data": "m:main"}]])
-        return
-
-    if data.startswith("lg:"):
+    elif data.startswith("lg:"):
         await _send_link_and_qr(chat_id, data[3:])
-        return
-
-    if data.startswith("ldc:"):
+    elif data.startswith("ldc:"):
         uid = data[4:]
         async with LINKS_LOCK:
             label = LINKS.get(uid, {}).get("label", uid)
@@ -815,105 +572,16 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         await schedule_save()
         log_activity("link", f"کانفیگ «{label}» از بات تلگرام حذف شد", "warn")
         await _edit(chat_id, message_id, f"🗑 «{label}» حذف شد.", [[{"text": "⬅️ لیست", "callback_data": "m:list:0"}]])
-        return
-
-    if data.startswith("ldn:"):
+    elif data.startswith("ldn:"):
         await _show_link_detail(chat_id, message_id, data[4:])
-        return
-
-    if data.startswith("ld:"):
+    elif data.startswith("ld:"):
         uid = data[3:]
         await _edit(chat_id, message_id, "⚠️ مطمئنی این کانفیگ کامل حذف شود؟ این عمل قابل بازگشت نیست.",
                      [[{"text": "✅ بله، حذف شود", "callback_data": f"ldc:{uid}"}, {"text": "❌ نه", "callback_data": f"ldn:{uid}"}]])
-        return
-
-    if data.startswith("st:"):
+    elif data.startswith("st:"):
         sub_id = data[3:]
         await _toggle_sub_lock(chat_id, message_id, sub_id)
-        return
 
-    # --- Callback های رفرال و کاربران ---
-    if data.startswith("user:ref_link:"):
-        user_id = data.split(":")[2]
-        link = await create_referral_link(user_id)
-        text = f"🔗 <b>لینک رفرال شما:</b>\n\n<code>{link}</code>\n\nهر کس با این لینک وارد شود، به شما جایزه میده!"
-        await _edit(chat_id, message_id, text, [[{"text": "🏠 منوی اصلی", "callback_data": "m:main"}]])
-        return
-
-    if data.startswith("user:stats:"):
-        user_id = data.split(":")[2]
-        stats = await get_user_stats(user_id)
-        text = f"""📊 <b>آمار شما</b>
-
-👥 تعداد دعوت‌ها: {stats.get('referrals_count', 0)}
-📦 حجم دریافت‌شده: {stats.get('total_volume_gb', 0)} GB
-💰 پول دریافت‌شده: {format_money(stats.get('total_money', 0))} تومان
-💳 موجودی قابل برداشت: {format_money(stats.get('balance', 0))} تومان
-
-📊 <b>لیست دعوت‌شده‌ها:</b>
-{chr(10).join([f"- {r['user_id'][:8]}... ({r['status']})" for r in stats.get('referred_users', [])]) or 'هیچ کسی رو دعوت نکرده'}"""
-        await _edit(chat_id, message_id, text, [[{"text": "🏠 منوی اصلی", "callback_data": "m:main"}]])
-        return
-
-    if data.startswith("user:withdraw:"):
-        user_id = data.split(":")[2]
-        await _handle_user_withdraw(chat_id, message_id, user_id)
-        return
-
-    if data.startswith("user:withdraw_method:"):
-        parts = data.split(":")
-        user_id = parts[2]
-        method = parts[3]
-        await _handle_withdraw_amount(chat_id, message_id, user_id, method)
-        return
-
-    if data == "user:refresh":
-        await _handle_join_start(chat_id, message_id)
-        return
-
-    # --- Callback های مدیریتی ---
-    if data.startswith("admin:users"):
-        parts = data.split(":")
-        if len(parts) > 2 and parts[2] != "0":
-            await _show_user_detail(chat_id, message_id, parts[2])
-        else:
-            page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
-            await _show_users_list(chat_id, message_id, page)
-        return
-
-    if data.startswith("admin:ban:"):
-        user_id = data.split(":")[2]
-        user = USERS.get(user_id)
-        if user:
-            new_status = not user.get("is_banned", False)
-            user["is_banned"] = new_status
-            await save_state()
-            log_activity("user", f"کاربر {user_id} {'مسدود' if new_status else 'رفع مسدودیت'} شد", "warn" if new_status else "ok")
-            await _send(chat_id, f"✅ کاربر {user_id[:8]}... {'مسدود' if new_status else 'رفع مسدودیت'} شد")
-        await _show_user_detail(chat_id, message_id, user_id)
-        return
-
-    if data.startswith("admin:withdrawals"):
-        await _show_withdrawals(chat_id, message_id)
-        return
-
-    if data.startswith("admin:user_withdrawals:"):
-        user_id = data.split(":")[2]
-        await _show_withdrawals(chat_id, message_id, user_id)
-        return
-
-    if data.startswith("admin:ref_settings"):
-        await _show_ref_settings(chat_id, message_id)
-        return
-
-    if data == "admin:ref_settings:toggle":
-        s = get_referral_settings()
-        s["enabled"] = not s.get("enabled", True)
-        update_referral_settings(s)
-        await save_state()
-        await _send(chat_id, f"✅ سیستم رفرال {'فعال' if s['enabled'] else 'غیرفعال'} شد")
-        await _show_ref_settings(chat_id, message_id)
-        return
 
 async def _show_subs(chat_id, message_id, page: int):
     async with SUBS_LOCK:
@@ -940,6 +608,7 @@ async def _show_subs(chat_id, message_id, page: int):
     text = f"📂 <b>گروه‌های ساب</b> ({total} گروه)" if total else "هنوز هیچ گروه سابی ساخته نشده."
     await _edit(chat_id, message_id, text, kb)
 
+
 async def _toggle_sub_lock(chat_id, message_id, sub_id):
     async with SUBS_LOCK:
         s = SUBS.get(sub_id)
@@ -951,6 +620,7 @@ async def _toggle_sub_lock(chat_id, message_id, sub_id):
     if s:
         log_activity("sub", f"گروه «{name}» از بات تلگرام {'قفل' if locked else 'باز'} شد", "warn" if locked else "ok")
     await _show_subs(chat_id, message_id, 0)
+
 
 async def _process_update(update: dict):
     try:
@@ -965,13 +635,17 @@ async def _process_update(update: dict):
     except Exception as e:
         logger.warning(f"telegram_bot: process_update error: {e}")
 
+
 async def polling_loop():
     global _offset, _running
     _running = True
     logger.info("telegram_bot: polling loop started")
-    await _get_bot_username()
+    await _get_bot_username()  # پیش‌گرم کردن کش یوزرنیم بات تا لینک رفرال از همون اول درست باشد
     while True:
         try:
+            # توجه: دیگر نیازی به وجود chat_id ادمین نیست تا بات کار کند —
+            # کاربران عادی هم باید بتوانند از بخش رفرال استفاده کنند حتی اگر
+            # هیچ chat_id ادمینی تنظیم نشده باشد.
             if not (TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token")):
                 await asyncio.sleep(5)
                 continue
