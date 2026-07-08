@@ -5,12 +5,11 @@ import time
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
-from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import Response, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import httpx
-
 import os
 
 from state import (
@@ -29,11 +28,13 @@ from state import (
     is_blocked_proxy_target,
     parse_expiry_to_timedelta, sub_permissions,
     is_device_allowed, TELEGRAM_SETTINGS, daily_traffic, link_daily_traffic,
-    # ✅ عضویت اجباری در کانال + هدیه‌ی خودکار ورود (۱۰۰ گیگ به هرکسی که وارد بات شود)
     JOIN_SETTINGS, USER_LINKS,
     get_join_settings, update_join_settings,
     create_join_link, check_channel_membership,
+    PUBLIC_SETTINGS,
 )
+
+from rate_limiter import check_rate_limit
 
 _public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
 _extra_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
@@ -44,7 +45,30 @@ ALLOWED_ORIGINS = list({
 
 SECURE_COOKIES = os.environ.get("DISABLE_SECURE_COOKIE", "0") != "1"
 
+_sub_cache = {}
+CACHE_TTL = 30
+
+def get_cached_sub(key: str):
+    now = time.time()
+    if key in _sub_cache and _sub_cache[key]["expires"] > now:
+        return _sub_cache[key]["data"]
+    return None
+
+def set_cached_sub(key: str, content: bytes, media_type: str, headers: dict):
+    _sub_cache[key] = {
+        "data": {
+            "content": content,
+            "media_type": media_type,
+            "headers": headers
+        },
+        "expires": time.time() + CACHE_TTL
+    }
+
+def clear_sub_cache():
+    _sub_cache.clear()
+
 _save_task = None
+SAVE_DELAY = 10
 
 async def schedule_save():
     global _save_task
@@ -54,7 +78,11 @@ async def schedule_save():
             await _save_task
         except asyncio.CancelledError:
             pass
-    _save_task = asyncio.create_task(save_state())
+    _save_task = asyncio.create_task(delayed_save())
+
+async def delayed_save():
+    await asyncio.sleep(SAVE_DELAY)
+    await save_state()
 
 app = FastAPI(title="تیم آزادی Gateway", docs_url=None, redoc_url=None)
 
@@ -84,7 +112,6 @@ async def send_telegram_message(text: str) -> tuple[bool, str]:
         return False, "توکن بات یا چت‌آیدی تنظیم نشده"
     if http_client is None:
         return False, "سرور هنوز آماده نیست"
-
     api_ip = (TELEGRAM_SETTINGS.get("api_ip") or "").strip()
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     try:
@@ -103,9 +130,9 @@ async def send_telegram_message(text: str) -> tuple[bool, str]:
             resp = await http_client.post(url, json=payload, timeout=15.0)
         if resp.status_code == 200:
             return True, "ok"
-        return False, f"تلگرام خطا داد: {resp.status_code} — {resp.text[:200]}"
+        return False, f"تلگرام خطا داد: {resp.status_code}"
     except Exception as e:
-        return False, f"خطا در اتصال به تلگرام{' (IP دستی: ' + api_ip + ')' if api_ip else ''}: {e}"
+        return False, f"خطا در اتصال به تلگرام: {e}"
 
 async def telegram_notifier_loop():
     while True:
@@ -153,13 +180,11 @@ async def startup():
     )
     await load_state()
     if os.environ.get("ADMIN_PASSWORD") is None:
-        logger.warning("⚠️  ADMIN_PASSWORD در env تنظیم نشده؛ رمز پیش‌فرض در حال استفاده است. برای امنیت، آن را در متغیرهای محیطی ست کنید و/یا از پنل تغییر بدهید.")
+        logger.warning("ADMIN_PASSWORD در env تنظیم نشده")
     log_activity("system", "سرور راه‌اندازی شد", "ok")
     asyncio.create_task(telegram_notifier_loop())
-    
     import telegram_bot
     asyncio.create_task(telegram_bot.polling_loop())
-    
     logger.info(f"تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
@@ -168,7 +193,6 @@ async def shutdown():
     if http_client:
         await http_client.aclose()
 
-# ── Basic endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
     return JSONResponse({"status": "ok"})
@@ -181,10 +205,23 @@ async def health():
 async def health_admin(_=Depends(require_auth)):
     return {"status": "ok", "connections": len(connections), "uptime": uptime()}
 
-# ── Subscription (single link) ────────────────────────────────────────────────
 @app.get("/sub/{uuid}")
 async def subscription_single(uuid: str, request: Request):
     import base64
+    
+    ip = client_ip(request)
+    if not await check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="درخواست太多، لطفاً ۳۰ ثانیه صبر کنید")
+    
+    cache_key = f"sub_{uuid}_{request.query_params.get('pw', '')}"
+    cached = get_cached_sub(cache_key)
+    if cached:
+        return Response(
+            content=cached["content"],
+            media_type=cached["media_type"],
+            headers=cached["headers"]
+        )
+    
     async with LINKS_LOCK:
         link = LINKS.get(uuid)
     if not link or not is_link_allowed(link):
@@ -221,6 +258,8 @@ async def subscription_single(uuid: str, request: Request):
     headers = {"profile-title": quote(link["label"])}
     if not white_label:
         headers["support-url"] = "https://t.me/TimAzadi"
+    
+    set_cached_sub(cache_key, content.encode(), "text/plain", headers)
     return Response(content=content, media_type="text/plain", headers=headers)
 
 @app.get("/sub-all")
@@ -235,10 +274,6 @@ async def subscription_all(_=Depends(require_auth)):
                 lines.extend(b["vless_link"] for b in bundle)
     content = base64.b64encode("\n".join(lines).encode()).decode()
     return Response(content=content, media_type="text/plain")
-
-# ══════════════════════════════════════════════════════════════════════════════
-# QUOTA SPLIT
-# ══════════════════════════════════════════════════════════════════════════════
 
 MAX_CHILDREN_PER_LINK = 50
 MIN_SPLIT_BYTES = 1 * 1024 * 1024
@@ -263,6 +298,9 @@ def _child_view(uid: str, d: dict, host: str, perms: dict | None = None) -> dict
 
 @app.post("/api/public/split/{uuid}")
 async def create_split_child(uuid: str, request: Request):
+    if not PUBLIC_SETTINGS.get("allow_public_create", True):
+        raise HTTPException(status_code=403, detail="ساخت کانفیگ عمومی غیرفعال شده است")
+    
     body = await request.json()
     amount = float(body.get("amount") or 0)
     unit = body.get("unit") or "GB"
@@ -311,6 +349,7 @@ async def create_split_child(uuid: str, request: Request):
         parent_view = _child_view(uuid, parent, host, perms)
         child_view = _child_view(child_uid, LINKS[child_uid], host, perms)
 
+    clear_sub_cache()
     await schedule_save()
     log_activity("link", f"سهمیه‌ی «{fmt_bytes(amount_bytes)}» از «{parent['label']}» جدا و ساب جدید «{label}» ساخته شد", "ok")
     return {"child": child_view, "parent": parent_view}
@@ -329,6 +368,9 @@ async def list_split_children(uuid: str):
 
 @app.delete("/api/public/split/{uuid}/{child_uuid}")
 async def revoke_split_child(uuid: str, child_uuid: str):
+    if not PUBLIC_SETTINGS.get("allow_public_delete", True):
+        raise HTTPException(status_code=403, detail="حذف کانفیگ عمومی غیرفعال شده است")
+    
     host = get_host()
     async with LINKS_LOCK:
         parent = LINKS.get(uuid)
@@ -344,12 +386,16 @@ async def revoke_split_child(uuid: str, child_uuid: str):
         connections.pop(child_uuid, None)
         parent_view = _child_view(uuid, parent, host, sub_permissions(parent.get("sub_id")))
 
+    clear_sub_cache()
     await schedule_save()
-    log_activity("link", f"ساب «{child['label']}» لغو شد و سهمیه‌ی باقی‌مانده به «{parent['label']}» برگشت", "warn")
+    log_activity("link", f"ساب «{child['label']}» لغو شد", "warn")
     return {"parent": parent_view}
 
 @app.post("/api/public/split/{uuid}/{child_uuid}/toggle")
 async def toggle_split_child(uuid: str, child_uuid: str, request: Request):
+    if not PUBLIC_SETTINGS.get("allow_public_toggle", True):
+        raise HTTPException(status_code=403, detail="تغییر وضعیت کانفیگ عمومی غیرفعال شده است")
+    
     body = await request.json()
     active = bool(body.get("active", True))
     host = get_host()
@@ -362,13 +408,11 @@ async def toggle_split_child(uuid: str, child_uuid: str, request: Request):
             raise HTTPException(status_code=403, detail="فعال/غیرفعال‌کردن کانفیگ‌های هدیه‌ای توسط مدیر غیرفعال شده است")
         child["active"] = active
         child_view = _child_view(child_uuid, child, host, sub_permissions(parent.get("sub_id")))
+    
+    clear_sub_cache()
     await schedule_save()
     log_activity("link", f"کانفیگ هدیه‌ای «{child['label']}» {'فعال' if active else 'غیرفعال'} شد", "ok" if active else "warn")
     return {"child": child_view}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SUB GROUP endpoints
-# ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/api/subs")
 async def create_sub(request: Request, _=Depends(require_auth)):
@@ -398,6 +442,7 @@ async def create_sub(request: Request, _=Depends(require_auth)):
             "client_can_delete": bool(body.get("client_can_delete", True)),
             "client_can_disable": bool(body.get("client_can_disable", True)),
         }
+    clear_sub_cache()
     await schedule_save()
     log_activity("sub", f"گروه «{name}» ساخته شد", "ok")
     host = get_host()
@@ -469,6 +514,7 @@ async def update_sub(sub_id: str, request: Request, _=Depends(require_auth)):
             s["client_can_disable"] = bool(body["client_can_disable"])
         if "locked" in body:
             s["locked"] = bool(body["locked"])
+    clear_sub_cache()
     await schedule_save()
     return {"ok": True}
 
@@ -481,6 +527,7 @@ async def toggle_sub_lock(sub_id: str, request: Request, _=Depends(require_auth)
             raise HTTPException(status_code=404, detail="sub not found")
         SUBS[sub_id]["locked"] = locked
         name = SUBS[sub_id].get("name", sub_id)
+    clear_sub_cache()
     await schedule_save()
     log_activity("sub", f"گروه «{name}» {'قفل' if locked else 'باز'} شد", "warn" if locked else "ok")
     return {"ok": True, "locked": locked}
@@ -496,6 +543,7 @@ async def delete_sub(sub_id: str, _=Depends(require_auth)):
         for link in LINKS.values():
             if link.get("sub_id") == sub_id:
                 link["sub_id"] = None
+    clear_sub_cache()
     await schedule_save()
     log_activity("sub", f"گروه «{name}» حذف شد", "warn")
     return {"ok": True, "deleted": sub_id}
@@ -519,13 +567,27 @@ async def assign_link_to_sub(sub_id: str, request: Request, _=Depends(require_au
     async with LINKS_LOCK:
         if link_id in LINKS:
             LINKS[link_id]["sub_id"] = sub_id if action == "add" else None
+    clear_sub_cache()
     await schedule_save()
     return {"ok": True}
 
-# ── Public sub-group subscription file ───────────────────────────────────────
 @app.get("/sub-group/{uuid_key}")
 async def sub_group_subscription(uuid_key: str, request: Request):
     import base64
+    
+    ip = client_ip(request)
+    if not await check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="درخواست太多، لطفاً ۳۰ ثانیه صبر کنید")
+    
+    cache_key = f"subgroup_{uuid_key}_{request.query_params.get('pw', '')}"
+    cached = get_cached_sub(cache_key)
+    if cached:
+        return Response(
+            content=cached["content"],
+            media_type=cached["media_type"],
+            headers=cached["headers"]
+        )
+    
     async with SUBS_LOCK:
         sub = next((s for s in SUBS.values() if s.get("uuid_key") == uuid_key), None)
     if not sub:
@@ -551,29 +613,25 @@ async def sub_group_subscription(uuid_key: str, request: Request):
     headers = {"profile-title": quote(sub["name"]), "profile-update-interval": "12"}
     if not white_label:
         headers["support-url"] = "https://t.me/TimAzadi"
+    
+    set_cached_sub(cache_key, content.encode(), "text/plain", headers)
     return Response(content=content, media_type="text/plain", headers=headers)
 
-# ── Auth endpoints ────────────────────────────────────────────────────────────
 @app.post("/api/login")
 async def api_login(request: Request):
     ip = client_ip(request)
-
     if not await check_login_rate_limit(ip):
-        log_activity("auth", f"مسدود شدن موقت تلاش‌های ورود از {ip} (بیش از حد مجاز)", "err")
-        raise HTTPException(status_code=429, detail="تعداد تلاش‌ها بیش از حد است، چند دقیقه بعد دوباره تلاش کنید")
-
+        log_activity("auth", f"مسدود شدن موقت تلاش‌های ورود از {ip}", "err")
+        raise HTTPException(status_code=429, detail="تعداد تلاش‌ها بیش از حد است")
     body = await request.json()
     password = str(body.get("password", ""))
-
     if not verify_password(password, AUTH["password_hash"]):
         await record_login_attempt(ip)
         log_activity("auth", f"تلاش ورود ناموفق از {ip}", "err")
         raise HTTPException(status_code=401, detail="رمز عبور اشتباه است")
-
     if is_legacy_hash(AUTH["password_hash"]):
         AUTH["password_hash"] = hash_password(password)
         await schedule_save()
-
     token = await create_session()
     log_activity("auth", f"ورود موفق به پنل از {ip}", "ok")
     resp = JSONResponse({"ok": True})
@@ -610,7 +668,6 @@ async def api_change_password(request: Request, token=Depends(require_auth)):
     log_activity("auth", "رمز عبور پنل تغییر کرد", "ok")
     return {"ok": True}
 
-# ── Stats ─────────────────────────────────────────────────────────────────────
 @app.get("/stats")
 async def get_stats(_=Depends(require_auth)):
     async with LINKS_LOCK:
@@ -630,17 +687,14 @@ async def get_stats(_=Depends(require_auth)):
         "subs_count": len(SUBS),
     }
 
-# ── Activity Logs ─────────────────────────────────────────────────────────────
 @app.get("/api/activity")
 async def get_activity(_=Depends(require_auth)):
     return {"logs": list(activity_logs)[-150:]}
 
-# ── Live connections (with IP) ────────────────────────────────────────────────
 @app.get("/api/connections")
 async def get_connections(_=Depends(require_auth)):
     async with LINKS_LOCK:
         snap = dict(LINKS)
-
     grouped: dict[str, dict] = {}
     for conn_id, c in connections.items():
         ip = c.get("ip", "نامشخص")
@@ -668,7 +722,6 @@ async def get_connections(_=Depends(require_auth)):
                 g["first_connected_at"] = ca
             if not g["last_connected_at"] or ca > g["last_connected_at"]:
                 g["last_connected_at"] = ca
-
     result = []
     for ip, g in grouped.items():
         result.append({
@@ -683,14 +736,12 @@ async def get_connections(_=Depends(require_auth)):
             "last_connected_at": g["last_connected_at"],
         })
     result.sort(key=lambda x: x.get("last_connected_at") or "", reverse=True)
-
     return {
         "connections": result,
         "count": len(result),
         "raw_count": len(connections),
     }
 
-# ── Link Management ───────────────────────────────────────────────────────────
 @app.post("/api/links")
 async def create_link(request: Request, _=Depends(require_auth)):
     body = await request.json()
@@ -740,6 +791,7 @@ async def create_link(request: Request, _=Depends(require_auth)):
                 if uid not in ids:
                     ids.append(uid)
 
+    clear_sub_cache()
     await schedule_save()
     log_activity("link", f"کانفیگ «{label}» ساخته شد", "ok")
     host = get_host()
@@ -788,7 +840,6 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
         label = link.get("label")
         if "active" in body:
             link["active"] = bool(body["active"])
-            log_activity("link", f"کانفیگ «{label}» {'فعال' if link['active'] else 'غیرفعال'} شد", "ok" if link["active"] else "warn")
         if "label" in body:
             link["label"] = str(body["label"])[:60]
         if "note" in body:
@@ -796,7 +847,6 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
         if "reset_usage" in body and body["reset_usage"]:
             link["used_bytes"] = 0
             link["quota_notified"] = False
-            log_activity("link", f"مصرف کانفیگ «{label}» ریست شد", "info")
         if "limit_value" in body:
             lv = float(body.get("limit_value") or 0)
             lu = body.get("limit_unit") or "GB"
@@ -815,8 +865,6 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
             if exp_delta:
                 link["expires_at"] = (datetime.now() + exp_delta).isoformat()
                 link["expiry_notified"] = False
-        if any(k in body for k in ("label", "note", "limit_value", "expires_days", "expires_value")):
-            log_activity("link", f"کانفیگ «{link['label']}» ویرایش شد", "info")
         new_sub = body.get("sub_id", "UNCHANGED")
         if new_sub != "UNCHANGED":
             link["sub_id"] = new_sub or None
@@ -832,6 +880,7 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
                 if uid not in ids:
                     ids.append(uid)
 
+    clear_sub_cache()
     await schedule_save()
     return {"ok": True}
 
@@ -849,6 +898,7 @@ async def delete_link(uid: str, _=Depends(require_auth)):
                 ids = SUBS[sub_id].get("link_ids", [])
                 if uid in ids:
                     ids.remove(uid)
+    clear_sub_cache()
     await schedule_save()
     log_activity("link", f"کانفیگ «{label}» حذف شد", "err")
     return {"ok": True, "deleted": uid}
@@ -860,7 +910,6 @@ async def top_usage(limit: int = 10, _=Depends(require_auth)):
     conn_by_uid: dict[str, list] = {}
     for c in connections.values():
         conn_by_uid.setdefault(c.get("uuid"), []).append(c)
-
     rows = []
     for uid, d in snap.items():
         conns = conn_by_uid.get(uid, [])
@@ -896,7 +945,6 @@ async def link_daily_usage(uid: str, days: int = 14, _=Depends(require_auth)):
         out.append({"date": key, "bytes": hist.get(key, 0), "fmt": fmt_bytes(hist.get(key, 0))})
     return {"days": out}
 
-# ✅ API: تنظیمات تلگرام
 @app.get("/api/settings/telegram")
 async def get_telegram_settings(_=Depends(require_auth)):
     s = dict(TELEGRAM_SETTINGS)
@@ -933,18 +981,29 @@ async def resolve_telegram_ip(_=Depends(require_auth)):
         ips = sorted({info[4][0] for info in infos})
         return {"ok": True, "ips": ips}
     except Exception as e:
-        return {"ok": False, "detail": f"DNS این سرور نتوانست api.telegram.org را resolve کند: {e}"}
+        return {"ok": False, "detail": f"DNS error: {e}"}
 
 @app.post("/api/settings/telegram/test")
 async def test_telegram(_=Depends(require_auth)):
-    ok, msg = await send_telegram_message("🔔 این یک پیام تست از پنل تیم‌آزادی Gateway است. اگر این را می‌بینید، تنظیمات درست است.")
+    ok, msg = await send_telegram_message("🔔 این یک پیام تست از پنل تیم‌آزادی Gateway است.")
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
     return {"ok": True}
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ✅ API: تنظیمات عضویت اجباری در کانال + هدیه‌ی خودکار ورود
-# ══════════════════════════════════════════════════════════════════════════════
+@app.get("/api/settings/public")
+async def get_public_settings(_=Depends(require_auth)):
+    return PUBLIC_SETTINGS
+
+@app.post("/api/settings/public")
+async def set_public_settings(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    for key in ["allow_public_create", "allow_public_delete", "allow_public_toggle"]:
+        if key in body:
+            PUBLIC_SETTINGS[key] = bool(body[key])
+    clear_sub_cache()
+    await schedule_save()
+    log_activity("system", f"تنظیمات عمومی بروزرسانی شد: {body}", "ok")
+    return {"ok": True}
 
 @app.get("/api/settings/join")
 async def get_join_settings_api(_=Depends(require_auth)):
@@ -955,7 +1014,7 @@ async def set_join_settings_api(request: Request, _=Depends(require_auth)):
     body = await request.json()
     update_join_settings(body)
     await schedule_save()
-    log_activity("system", "تنظیمات عضویت اجباری/هدیه‌ی ورود بروزرسانی شد", "ok")
+    log_activity("system", "تنظیمات عضویت اجباری بروزرسانی شد", "ok")
     return {"ok": True}
 
 @app.get("/api/join/stats")
@@ -972,28 +1031,12 @@ async def get_user_join_link(user_id: str, _=Depends(require_auth)):
                 link = {"uuid": uid, **LINKS[uid]}
     return {"user_id": user_id, "link": link}
 
-# ══════════════════════════════════════════════════════════════════════════════
-# VLESS Relay
-# ══════════════════════════════════════════════════════════════════════════════
-
-from relay_vless import (
-    RELAY_BUF,
-    parse_vless_header,
-    check_and_use,
-    relay_ws_to_tcp,
-    relay_tcp_to_ws,
-    websocket_tunnel,
-)
-
+from relay_vless import websocket_tunnel
 app.add_api_websocket_route("/ws/{uuid}", websocket_tunnel)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# XHTTP
-# ══════════════════════════════════════════════════════════════════════════════
 from xhttp_siz10 import router as xhttp_router
 app.include_router(xhttp_router)
 
-# ── HTTP Proxy ────────────────────────────────────────────────────────────────
 _HOP = {"connection","keep-alive","proxy-authenticate","proxy-authorization",
         "te","trailers","transfer-encoding","upgrade","content-encoding","content-length"}
 
@@ -1001,10 +1044,8 @@ _HOP = {"connection","keep-alive","proxy-authenticate","proxy-authorization",
 async def http_proxy(target_url: str, request: Request, _=Depends(require_auth)):
     if not target_url.startswith("http"):
         target_url = "https://" + target_url
-
     if await is_blocked_proxy_target(target_url):
         raise HTTPException(status_code=400, detail="این آدرس مجاز نیست")
-
     MAX_REDIRECTS = 5
     try:
         body = await request.body()
@@ -1037,7 +1078,6 @@ async def http_proxy(target_url: str, request: Request, _=Depends(require_auth))
         error_logs.append({"error": str(exc), "url": target_url, "time": datetime.now().isoformat()})
         raise HTTPException(status_code=502, detail=f"Proxy error: {exc}")
 
-# ── Public sub page ───────────────────────────────────────────────────────────
 @app.get("/p/{uuid_key}", response_class=HTMLResponse)
 async def public_sub_page(uuid_key: str, request: Request):
     from pages import get_public_page_html
@@ -1054,13 +1094,11 @@ async def public_sub_data(uuid_key: str, request: Request):
     if not sub_entry:
         raise HTTPException(status_code=404, detail="not found")
     sub_id, sub = sub_entry
-
     has_pw = sub.get("password_hash") is not None
     if has_pw:
         pw = request.query_params.get("pw", "")
         if hash_password(pw) != sub["password_hash"]:
             return JSONResponse({"locked": True, "name": sub["name"]})
-
     host = get_host()
     link_ids = sub.get("link_ids", [])
     white_label = bool(sub.get("white_label"))
@@ -1068,7 +1106,6 @@ async def public_sub_data(uuid_key: str, request: Request):
     locked = bool(sub.get("locked"))
     async with LINKS_LOCK:
         snap = dict(LINKS)
-
     links_out = []
     active_conns = 0
     for lid in link_ids:
@@ -1101,7 +1138,6 @@ async def public_sub_data(uuid_key: str, request: Request):
             "flag": link.get("flag", ""),
             "children": children,
         })
-
     total_used = sum(l["used_bytes"] for l in links_out)
     pool_limit = sub.get("pool_limit_bytes", 0)
     pool_alloc = sub.get("pool_allocated_bytes", 0)
@@ -1133,7 +1169,6 @@ async def split_sub_quota(uuid_key: str, request: Request):
     amount_unit = str(body.get("amount_unit") or "GB")
     child_label = str(body.get("label") or "کانفیگ هدیه").strip()[:60]
     child_name = str(body.get("name") or "ساب هدیه").strip()[:60]
-
     async with SUBS_LOCK:
         sub_entry = next(((sid, s) for sid, s in SUBS.items() if s.get("uuid_key") == uuid_key), None)
         if not sub_entry:
@@ -1141,27 +1176,22 @@ async def split_sub_quota(uuid_key: str, request: Request):
         sub_id, sub = sub_entry
         if sub.get("password_hash") and hash_password(pw) != sub["password_hash"]:
             raise HTTPException(status_code=403, detail="رمز اشتباه است")
-
         pool_limit = sub.get("pool_limit_bytes", 0)
         if pool_limit <= 0:
             raise HTTPException(status_code=400, detail="این ساب قابلیت تقسیم حجم ندارد")
         pool_alloc = sub.get("pool_allocated_bytes", 0)
         available = max(0, pool_limit - pool_alloc)
-
         amount_bytes = parse_size_to_bytes(amount_value, amount_unit) if amount_value > 0 else 0
         if amount_bytes <= 0:
             raise HTTPException(status_code=400, detail="حجم نامعتبر است")
         if amount_bytes > available:
             raise HTTPException(status_code=400, detail=f"فقط {fmt_bytes(available)} از این ساب باقی مانده است")
-
         host = get_host()
         child_uuid = generate_uuid()
         child_sub_id = generate_uuid()
         child_uuid_key = secrets.token_urlsafe(16)
-
         sub["pool_allocated_bytes"] = pool_alloc + amount_bytes
         sub.setdefault("child_sub_ids", []).append(child_sub_id)
-
         SUBS[child_sub_id] = {
             "name": child_name,
             "desc": "",
@@ -1175,7 +1205,6 @@ async def split_sub_quota(uuid_key: str, request: Request):
             "child_sub_ids": [],
             "white_label": True,
         }
-
     async with LINKS_LOCK:
         LINKS[child_uuid] = {
             "label": child_label,
@@ -1188,10 +1217,9 @@ async def split_sub_quota(uuid_key: str, request: Request):
             "protocol": DEFAULT_PROTOCOL,
             "sub_id": child_sub_id,
         }
-
+    clear_sub_cache()
     await schedule_save()
-    log_activity("sub", f"«{sub['name']}» مقدار {fmt_bytes(amount_bytes)} را به یک ساب هدیه‌ی جدید تقسیم کرد", "ok")
-
+    log_activity("sub", f"«{sub['name']}» مقدار {fmt_bytes(amount_bytes)} را تقسیم کرد", "ok")
     return {
         "ok": True,
         "public_url": f"https://{host}/p/{child_uuid_key}",
@@ -1200,7 +1228,6 @@ async def split_sub_quota(uuid_key: str, request: Request):
         "pool_available_fmt": fmt_bytes(max(0, pool_limit - sub['pool_allocated_bytes'])),
     }
 
-# ── HTML Pages (login + dashboard) ───────────────────────────────────────────
 from pages import LOGIN_HTML, DASHBOARD_HTML
 
 @app.get("/login", response_class=HTMLResponse)
