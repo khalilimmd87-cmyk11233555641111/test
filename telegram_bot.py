@@ -68,6 +68,10 @@ def _is_admin_only_action(data: str) -> bool:
     return any(data == p or data.startswith(p) for p in ADMIN_ONLY_PREFIXES)
 
 
+def _channel_username() -> str:
+    return (REFERRAL_SETTINGS.get("channel_username", "TimAzadi") or "TimAzadi").strip().lstrip("@")
+
+
 async def _api(method: str, payload: dict | None = None) -> dict | None:
     from main import http_client
     token = TELEGRAM_SETTINGS.get("bot_token")
@@ -322,7 +326,7 @@ async def _show_referral_menu(chat_id, message_id=None):
     if REFERRAL_SETTINGS.get("channel_required", True):
         is_member = await check_channel_membership(user_id)
         if not is_member:
-            channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
+            channel = _channel_username()
             text = (
                 "❌ برای دریافت کانفیگ رفرال، ابتدا باید در کانال تیم آزادی عضو شوید.\n\n"
                 "📢 لطفاً ابتدا عضو کانال شوید:\n"
@@ -402,7 +406,7 @@ async def _show_referral_menu(chat_id, message_id=None):
         f"3. به ازای هر {REFERRAL_SETTINGS.get('referral_reward_gb', 1)} رفرال، یک کانفیگ جدید دریافت می‌کنید\n\n"
         f"💡 <b>سقف رفرال:</b> {referral_limit} نفر\n\n"
         "📢 <b>کانال تیم آزادی:</b>\n"
-        f"https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"
+        f"https://t.me/{_channel_username()}"
     )
     kb = [
         [{"text": "🔗 کپی لینک رفرال", "callback_data": f"m:referral_copy:{existing_code}"}],
@@ -446,7 +450,7 @@ async def _handle_referral_start(chat_id, ref_code: str):
     if REFERRAL_SETTINGS.get("channel_required", True):
         is_member = await check_channel_membership(user_id)
         if not is_member:
-            channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
+            channel = _channel_username()
             text = (
                 "🎉 <b>تبریک! رفرال شما ثبت شد!</b>\n\n"
                 "✅ شما با موفقیت از لینک رفرال استفاده کردید.\n\n"
@@ -475,7 +479,7 @@ async def _handle_referral_start(chat_id, ref_code: str):
             f"• مدت اعتبار: {REFERRAL_SETTINGS.get('referral_reward_days', 7)} روز\n"
             "• حداکثر تعداد دستگاه: ۱\n\n"
             "📢 کانال تیم آزادی:\n"
-            f"https://t.me/{REFERRAL_SETTINGS.get('channel_username', 'TimAzadi')}"
+            f"https://t.me/{_channel_username()}"
         )
         kb = [
             [{"text": "🔗 کپی لینک ساب", "callback_data": f"m:copy:{uid}"}],
@@ -494,8 +498,9 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
     if text.startswith("/start"):
         parts = text.split()
         if len(parts) > 1:
-            ref_code = parts[1]
-            if ref_code.startswith("ref_"):
+            param = parts[1]
+            if param.startswith("ref_"):
+                ref_code = param[4:]  # حذف پیشوند "ref_" — کدهای ذخیره‌شده در REFERRALS بدون این پیشوند هستند
                 await _handle_referral_start(chat_id, ref_code)
                 return
         if is_admin:
@@ -610,7 +615,7 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         if is_member:
             await _edit(chat_id, message_id, "✅ عضویت شما در کانال تأیید شد. لطفاً دوباره روی دکمه دریافت کانفیگ کلیک کنید.", [[{"text": "🎁 دریافت کانفیگ رفرال", "callback_data": "m:referral"}]])
         else:
-            channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
+            channel = _channel_username()
             await _edit(chat_id, message_id, f"❌ شما هنوز در کانال تیم آزادی عضو نشده‌اید.\n\n📢 لطفاً عضو شوید:\nhttps://t.me/{channel}", [[{"text": "🔄 بررسی مجدد", "callback_data": "m:referral_check"}]])
     elif data.startswith("m:referral_copy:"):
         code = data.split(":", 2)[2]
@@ -626,7 +631,7 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         if REFERRAL_SETTINGS.get("channel_required", True):
             is_member = await check_channel_membership(user_id)
             if not is_member:
-                channel = REFERRAL_SETTINGS.get("channel_username", "TimAzadi")
+                channel = _channel_username()
                 await _edit(chat_id, message_id, f"❌ شما هنوز در کانال عضو نشده‌اید.\n\n📢 لطفاً عضو شوید:\nhttps://t.me/{channel}", [[{"text": "🔄 بررسی مجدد", "callback_data": f"m:referral_claim:{ref_code}"}]])
                 return
         uid = await create_link_from_referral(user_id)
