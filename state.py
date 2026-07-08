@@ -1,4 +1,4 @@
-# state.py — تیم آزادی Gateway v10.0 - نسخه کامل با رفرال
+# state.py — تیم آزادی Gateway v10.0
 import asyncio
 import ipaddress
 import json
@@ -76,9 +76,6 @@ TELEGRAM_SETTINGS = {
     "bot_username": "",
 }
 
-# ═══════════════════════════════════════════════════════════════
-# ✅ تنظیمات عضویت اجباری
-# ═══════════════════════════════════════════════════════════════
 JOIN_SETTINGS = {
     "enabled": True,
     "channel_username": "TimAzadi",
@@ -87,106 +84,8 @@ JOIN_SETTINGS = {
     "grant_days": 0,
     "max_devices": 1,
     "bot_username": "",
-    "welcome_text": """🎉 خوش اومدی به تیم آزادی!
-
-✅ کانفیگ اختصاصی برات ساخته شد.
-📦 حجم: {volume}
-⏰ اعتبار: {expiry}
-
-📢 کانال ما:
-https://t.me/{channel}
-
-لینک ساب تو:
-`{sub_link}`
-
-🚀 از سرویس لذت ببر!""",
-    "welcome_text_enabled": True,
 }
-
-# ═══════════════════════════════════════════════════════════════
-# 🔥 تنظیمات کامل رفرال
-# ═══════════════════════════════════════════════════════════════
-REFERRAL_SETTINGS = {
-    "enabled": True,
-    "referrer_reward_gb": 50,
-    "referrer_reward_money": 5000,
-    "referee_reward_gb": 100,
-    "referee_reward_money": 2000,
-    "referee_expire_days": 30,
-    "referrer_expire_days": 30,
-    "min_withdraw": 10000,
-    "withdraw_enabled": True,
-    "withdraw_methods": ["کارت به کارت", "واریز به شماره شبا", "شارژ سیمکارت", "کیف پول دیجیتال"],
-    "referral_text_enabled": True,
-    "referral_text": """🎁 *سیستم رفرال تیم آزادی*
-
-سلام دوست عزیز! 👋
-
-با دعوت از دوستانت به تیم آزادی، هم به خودت جایزه می‌دی و هم به دوستت!
-
-✅ *جایزه تو (رفرال‌دهنده):*
-- {referrer_gb} گیگ اینترنت رایگان
-- {referrer_money:,} تومان پول نقد
-
-✅ *جایزه دوستت (رفرال‌گیرنده):*
-- {referee_gb} گیگ اینترنت رایگان
-- {referee_money:,} تومان پول نقد
-
-✅ *لینک مخصوص تو:*
-`{referral_link}`
-
-هر کس با لینک تو عضو شود، هر دو جایزه می‌گیرید!
-هرچقدر دوست بیشتری بیاری، جایزه‌ات بیشتر میشه!
-
-📊 *آمار تو:*
-- تعداد دعوت‌ها: {referrals_count}
-- حجم دریافت‌شده: {total_volume} GB
-- پول دریافت‌شده: {total_money:,} تومان
-- موجودی قابل برداشت: {balance:,} تومان
-
-🚀 *همین حالا شروع کن و درآمدزایی کن!*
-
-📢 کانال تیم آزادی:
-https://t.me/{channel}""",
-    "referral_success_text": """🎉 *تبریک!*
-
-شما یک کاربر جدید رو با لینک رفرال خودتون دعوت کردید!
-
-👤 کاربر جدید: `{referee_id}`
-
-🏆 *جایزه شما:*
-- {referrer_gb} گیگ اینترنت
-- {referrer_money:,} تومان پول نقد
-
-📊 *موجودی جدید شما:*
-{balance:,} تومان
-
-🚀 به دعوت کردن ادامه بدید!""",
-    "referee_success_text": """🎉 *تبریک!*
-
-شما با لینک رفرال وارد شدید!
-
-🏆 *جایزه شما:*
-- {referee_gb} گیگ اینترنت
-- {referee_money:,} تومان پول نقد
-
-✅ کانفیگ اختصاصی برات ساخته شد.
-لینک ساب تو:
-`{sub_link}`
-
-📢 کانال تیم آزادی:
-https://t.me/{channel}""",
-}
-
-# ═══════════════════════════════════════════════════════════════
-# 📊 دیتابیس کاربران
-# ═══════════════════════════════════════════════════════════════
-USERS: dict = {}  # user_id -> {referral_code, referrer_id, referrals_count, total_volume_gb, total_money, balance, is_banned, created_at, last_activity, withdraw_requests}
-USER_LINKS: dict = {}  # user_id -> uid
-USER_REFERRALS: dict = {}  # user_id -> [list of referred user_ids]
-WITHDRAW_REQUESTS: dict = {}  # request_id -> {user_id, amount, method, status, created_at, processed_at}
-
-# ═══════════════════════════════════════════════════════════════
+USER_LINKS: dict = {}
 
 PUBLIC_SETTINGS = {
     "allow_public_create": True,
@@ -292,7 +191,7 @@ async def require_auth(request: Request):
     return token
 
 async def load_state():
-    global LINKS, AUTH, SUBS, USER_LINKS, JOIN_SETTINGS, PUBLIC_SETTINGS, USERS, USER_REFERRALS, REFERRAL_SETTINGS, WITHDRAW_REQUESTS
+    global LINKS, AUTH, SUBS, USER_LINKS, JOIN_SETTINGS, PUBLIC_SETTINGS
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -307,14 +206,6 @@ async def load_state():
                 TELEGRAM_SETTINGS.update(data["telegram_settings"])
             if "join_settings" in data:
                 JOIN_SETTINGS.update(data["join_settings"])
-            if "referral_settings" in data:
-                REFERRAL_SETTINGS.update(data["referral_settings"])
-            if "users" in data:
-                USERS.update(data["users"])
-            if "user_referrals" in data:
-                USER_REFERRALS.update(data["user_referrals"])
-            if "withdraw_requests" in data:
-                WITHDRAW_REQUESTS.update(data["withdraw_requests"])
             if "user_links" in data:
                 loaded_ul = data["user_links"]
                 fixed_ul = {}
@@ -323,7 +214,7 @@ async def load_state():
                 USER_LINKS.update(fixed_ul)
             if "public_settings" in data:
                 PUBLIC_SETTINGS.update(data["public_settings"])
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(USERS)} users")
+            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
 
@@ -337,10 +228,6 @@ async def save_state():
                 "password_hash": AUTH["password_hash"],
                 "telegram_settings": TELEGRAM_SETTINGS,
                 "join_settings": JOIN_SETTINGS,
-                "referral_settings": REFERRAL_SETTINGS,
-                "users": dict(USERS),
-                "user_referrals": dict(USER_REFERRALS),
-                "withdraw_requests": dict(WITHDRAW_REQUESTS),
                 "user_links": USER_LINKS,
                 "public_settings": dict(PUBLIC_SETTINGS),
                 "saved_at": datetime.now().isoformat(),
@@ -358,13 +245,6 @@ def get_host() -> str:
 def generate_uuid() -> str:
     h = secrets.token_hex(16)
     return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
-
-def generate_referral_code() -> str:
-    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    code = ''.join(secrets.choice(chars) for _ in range(6))
-    while any(u.get("referral_code") == code for u in USERS.values()):
-        code = ''.join(secrets.choice(chars) for _ in range(6))
-    return code
 
 def now_ir() -> datetime:
     return datetime.now(IRAN_TZ)
@@ -426,9 +306,6 @@ def fmt_bytes(b: int) -> str:
     if b < 1024**3:
         return f"{b/1024**2:.2f} MB"
     return f"{b/1024**3:.2f} GB"
-
-def format_money(amount: int) -> str:
-    return f"{amount:,}".replace(",", "٬")
 
 ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "trojan-ws")
 _PROTOCOL_TAG = {"vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S", "trojan-ws": "TROJAN"}
@@ -603,10 +480,6 @@ async def ensure_default_link():
                 asyncio.create_task(save_state())
     _default_link_created = True
 
-# ═══════════════════════════════════════════════════════════════
-# ✅ توابع رفرال، عضویت و مدیریت کاربران
-# ═══════════════════════════════════════════════════════════════
-
 def get_join_settings() -> dict:
     return dict(JOIN_SETTINGS)
 
@@ -618,255 +491,7 @@ def update_join_settings(data: dict):
             elif isinstance(JOIN_SETTINGS[key], int):
                 JOIN_SETTINGS[key] = int(value)
             else:
-                JOIN_SETTINGS[key] = str(value)
-
-def get_referral_settings() -> dict:
-    return dict(REFERRAL_SETTINGS)
-
-def update_referral_settings(data: dict):
-    for key, value in data.items():
-        if key in REFERRAL_SETTINGS:
-            if isinstance(REFERRAL_SETTINGS[key], bool):
-                REFERRAL_SETTINGS[key] = bool(value)
-            elif isinstance(REFERRAL_SETTINGS[key], int):
-                REFERRAL_SETTINGS[key] = int(value)
-            else:
-                REFERRAL_SETTINGS[key] = str(value)
-
-async def get_or_create_user(user_id: str, referrer_code: str = None) -> dict:
-    """دریافت یا ساخت کاربر جدید با پشتیبانی از رفرال"""
-    if user_id not in USERS:
-        referral_code = generate_referral_code()
-        USERS[user_id] = {
-            "referral_code": referral_code,
-            "referrer_id": None,
-            "referrals_count": 0,
-            "total_volume_gb": 0,
-            "total_money": 0,
-            "balance": 0,
-            "withdraw_count": 0,
-            "is_banned": False,
-            "created_at": datetime.now().isoformat(),
-            "last_activity": datetime.now().isoformat(),
-        }
-        
-        # اگر کد رفرال داده شده، پردازش کن
-        if referrer_code:
-            await process_referral(user_id, referrer_code)
-        
-        await save_state()
-    else:
-        # بروزرسانی last_activity
-        USERS[user_id]["last_activity"] = datetime.now().isoformat()
-    
-    return USERS[user_id]
-
-async def process_referral(referee_id: str, referrer_code: str) -> dict:
-    """پردازش کامل رفرال"""
-    if not REFERRAL_SETTINGS.get("enabled", True):
-        return {"success": False, "message": "سیستم رفرال غیرفعال است"}
-
-    # پیدا کردن رفرال‌دهنده
-    referrer_id = None
-    for uid, u in USERS.items():
-        if u.get("referral_code") == referrer_code:
-            referrer_id = uid
-            break
-
-    if not referrer_id:
-        return {"success": False, "message": "کد رفرال نامعتبر است"}
-
-    if referrer_id == referee_id:
-        return {"success": False, "message": "نمیتونی خودت رو دعوت کنی!"}
-
-    referee = await get_or_create_user(referee_id)
-    if referee.get("referrer_id"):
-        return {"success": False, "message": "شما قبلاً توسط شخص دیگری دعوت شده‌اید"}
-
-    referrer = USERS[referrer_id]
-    referrer["referrals_count"] = referrer.get("referrals_count", 0) + 1
-    referrer["total_volume_gb"] = referrer.get("total_volume_gb", 0) + REFERRAL_SETTINGS.get("referrer_reward_gb", 50)
-    referrer["total_money"] = referrer.get("total_money", 0) + REFERRAL_SETTINGS.get("referrer_reward_money", 5000)
-    referrer["balance"] = referrer.get("balance", 0) + REFERRAL_SETTINGS.get("referrer_reward_money", 5000)
-
-    referee["referrer_id"] = referrer_id
-    referee["total_volume_gb"] = referee.get("total_volume_gb", 0) + REFERRAL_SETTINGS.get("referee_reward_gb", 100)
-    referee["total_money"] = referee.get("total_money", 0) + REFERRAL_SETTINGS.get("referee_reward_money", 2000)
-    referee["balance"] = referee.get("balance", 0) + REFERRAL_SETTINGS.get("referee_reward_money", 2000)
-
-    if referrer_id not in USER_REFERRALS:
-        USER_REFERRALS[referrer_id] = []
-    if referee_id not in USER_REFERRALS[referrer_id]:
-        USER_REFERRALS[referrer_id].append(referee_id)
-
-    # ساخت کانفیگ برای رفرال‌گیرنده
-    referee_gb = REFERRAL_SETTINGS.get("referee_reward_gb", 100)
-    referee_days = REFERRAL_SETTINGS.get("referee_expire_days", 30)
-    uid = generate_uuid()
-    limit_bytes = int(referee_gb * 1024 * 1024 * 1024)
-    expires_at = (datetime.now() + timedelta(days=referee_days)).isoformat() if referee_days > 0 else None
-
-    async with LINKS_LOCK:
-        LINKS[uid] = {
-            "label": f"رفرال-{referee_id[:8]}",
-            "limit_bytes": limit_bytes,
-            "used_bytes": 0,
-            "created_at": datetime.now().isoformat(),
-            "active": True,
-            "expires_at": expires_at,
-            "note": f"کانفیگ رفرال برای کاربر {referee_id}",
-            "is_default": False,
-            "sub_id": None,
-            "protocol": DEFAULT_PROTOCOL,
-            "parent_id": None,
-            "white_label": False,
-            "flag": "🇺🇸",
-            "max_devices": JOIN_SETTINGS.get("max_devices", 1),
-            "quota_notified": False,
-            "expiry_notified": False,
-            "referral_user": referee_id,
-        }
-        USER_LINKS[referee_id] = uid
-
-    await save_state()
-    log_activity("referral", f"کاربر {referee_id} توسط {referrer_id} دعوت شد", "ok")
-
-    # ارسال پیام‌ها
-    await send_referral_notifications(referrer_id, referee_id, uid)
-
-    return {
-        "success": True,
-        "referrer_id": referrer_id,
-        "referee_id": referee_id,
-        "referrer_reward_gb": REFERRAL_SETTINGS.get("referrer_reward_gb", 50),
-        "referrer_reward_money": REFERRAL_SETTINGS.get("referrer_reward_money", 5000),
-        "referee_reward_gb": REFERRAL_SETTINGS.get("referee_reward_gb", 100),
-        "referee_reward_money": REFERRAL_SETTINGS.get("referee_reward_money", 2000),
-        "link_uid": uid,
-    }
-
-async def send_referral_notifications(referrer_id: str, referee_id: str, uid: str):
-    """ارسال پیام‌های رفرال به هر دو طرف"""
-    token = TELEGRAM_SETTINGS.get("bot_token")
-    if not token:
-        return
-
-    host = get_host()
-    channel = JOIN_SETTINGS.get("channel_username", "TimAzadi")
-    sub_link = f"https://{host}/sub/{uid}"
-    
-    # پیام به رفرال‌دهنده
-    referrer_text = REFERRAL_SETTINGS.get("referral_success_text", "").format(
-        referee_id=referee_id[:8],
-        referrer_gb=REFERRAL_SETTINGS.get("referrer_reward_gb", 50),
-        referrer_money=format_money(REFERRAL_SETTINGS.get("referrer_reward_money", 5000)),
-        balance=format_money(USERS.get(referrer_id, {}).get("balance", 0)),
-    )
-    
-    # پیام به رفرال‌گیرنده
-    referee_text = REFERRAL_SETTINGS.get("referee_success_text", "").format(
-        referee_gb=REFERRAL_SETTINGS.get("referee_reward_gb", 100),
-        referee_money=format_money(REFERRAL_SETTINGS.get("referee_reward_money", 2000)),
-        sub_link=sub_link,
-        channel=channel,
-    )
-
-    try:
-        import httpx
-        async with httpx.AsyncClient() as client:
-            # ارسال به رفرال‌دهنده
-            if referrer_id and referrer_id.startswith("1") or referrer_id.startswith("2"):
-                await client.post(
-                    f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={"chat_id": referrer_id, "text": referrer_text, "parse_mode": "Markdown"},
-                    timeout=10
-                )
-            
-            # ارسال به رفرال‌گیرنده
-            if referee_id and referee_id.startswith("1") or referee_id.startswith("2"):
-                await client.post(
-                    f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={"chat_id": referee_id, "text": referee_text, "parse_mode": "Markdown"},
-                    timeout=10
-                )
-    except Exception as e:
-        logger.warning(f"send_referral_notifications error: {e}")
-
-async def create_referral_link(user_id: str) -> str:
-    """ساخت لینک رفرال برای کاربر"""
-    host = get_host()
-    bot_username = JOIN_SETTINGS.get("bot_username") or TELEGRAM_SETTINGS.get("bot_username") or "timazadi_bot"
-    user = await get_or_create_user(user_id)
-    return f"https://t.me/{bot_username}?start=ref_{user['referral_code']}"
-
-async def get_user_stats(user_id: str) -> dict:
-    """دریافت آمار کامل یک کاربر"""
-    user = await get_or_create_user(user_id)
-    referrals = USER_REFERRALS.get(user_id, [])
-    referred_users = []
-    for ref_id in referrals:
-        if ref_id in USERS:
-            referred_users.append({
-                "user_id": ref_id,
-                "joined_at": USERS[ref_id].get("created_at"),
-                "status": "فعال" if not USERS[ref_id].get("is_banned") else "مسدود",
-            })
-    
-    return {
-        "user_id": user_id,
-        "referral_code": user.get("referral_code"),
-        "referrer_id": user.get("referrer_id"),
-        "referrals_count": user.get("referrals_count", 0),
-        "total_volume_gb": user.get("total_volume_gb", 0),
-        "total_money": user.get("total_money", 0),
-        "balance": user.get("balance", 0),
-        "is_banned": user.get("is_banned", False),
-        "created_at": user.get("created_at"),
-        "last_activity": user.get("last_activity"),
-        "referred_users": referred_users,
-        "can_withdraw": user.get("balance", 0) >= REFERRAL_SETTINGS.get("min_withdraw", 10000) and REFERRAL_SETTINGS.get("withdraw_enabled", True),
-    }
-
-async def create_withdraw_request(user_id: str, amount: int, method: str, details: str) -> dict:
-    """ایجاد درخواست برداشت"""
-    if not REFERRAL_SETTINGS.get("withdraw_enabled", True):
-        return {"success": False, "message": "سیستم برداشت غیرفعال است"}
-    
-    user = await get_or_create_user(user_id)
-    min_withdraw = REFERRAL_SETTINGS.get("min_withdraw", 10000)
-    
-    if amount < min_withdraw:
-        return {"success": False, "message": f"حداقل مبلغ برداشت {format_money(min_withdraw)} تومان است"}
-    
-    if user.get("balance", 0) < amount:
-        return {"success": False, "message": "موجودی شما کافی نیست"}
-    
-    request_id = generate_uuid()[:8]
-    WITHDRAW_REQUESTS[request_id] = {
-        "user_id": user_id,
-        "amount": amount,
-        "method": method,
-        "details": details,
-        "status": "pending",  # pending, approved, rejected, paid
-        "created_at": datetime.now().isoformat(),
-        "processed_at": None,
-        "note": "",
-    }
-    
-    # کم کردن از موجودی
-    USERS[user_id]["balance"] = user.get("balance", 0) - amount
-    USERS[user_id]["withdraw_count"] = user.get("withdraw_count", 0) + 1
-    
-    await save_state()
-    log_activity("withdraw", f"درخواست برداشت {format_money(amount)} تومان از کاربر {user_id}", "info")
-    
-    return {
-        "success": True,
-        "request_id": request_id,
-        "amount": amount,
-        "status": "pending",
-        "new_balance": USERS[user_id]["balance"],
-    }
+                JOIN_SETTINGS[key] = str(value).strip()
 
 async def check_channel_membership(user_id: str, bot_token: str | None = None) -> bool:
     if not JOIN_SETTINGS.get("channel_required", True):
@@ -874,6 +499,7 @@ async def check_channel_membership(user_id: str, bot_token: str | None = None) -
     token = bot_token or TELEGRAM_SETTINGS.get("bot_token", "")
     channel = JOIN_SETTINGS.get("channel_username", "TimAzadi").strip().lstrip("@")
     if not token:
+        logger.warning("check_channel_membership: هیچ bot_token ای در دسترس نیست")
         return False
     try:
         import httpx
@@ -888,31 +514,23 @@ async def check_channel_membership(user_id: str, bot_token: str | None = None) -
                 status = data.get("result", {}).get("status")
                 return status in ("member", "administrator", "creator")
             return False
-    except Exception:
+    except Exception as e:
+        logger.warning(f"check_channel_membership error: {e}")
         return False
 
-async def create_join_link(user_id: str, label: str = None, is_referral: bool = False) -> str | None:
+async def create_join_link(user_id: str, label: str = None) -> str | None:
     if not JOIN_SETTINGS.get("enabled", True):
         return None
-    
     existing = USER_LINKS.get(user_id)
     if existing and existing in LINKS:
         return existing
-
     uid = generate_uuid()
-    
-    if is_referral:
-        grant_gb = REFERRAL_SETTINGS.get("referee_reward_gb", 100)
-        grant_days = REFERRAL_SETTINGS.get("referee_expire_days", 30)
-    else:
-        grant_gb = JOIN_SETTINGS.get("grant_gb", 100)
-        grant_days = JOIN_SETTINGS.get("grant_days", 0)
-    
+    grant_gb = JOIN_SETTINGS.get("grant_gb", 100)
+    grant_days = JOIN_SETTINGS.get("grant_days", 0)
     limit_bytes = int(grant_gb * 1024 * 1024 * 1024)
     expires_at = None
     if grant_days and grant_days > 0:
         expires_at = (datetime.now() + timedelta(days=grant_days)).isoformat()
-
     async with LINKS_LOCK:
         LINKS[uid] = {
             "label": label or f"کاربر-{user_id[:8]}",
@@ -934,6 +552,5 @@ async def create_join_link(user_id: str, label: str = None, is_referral: bool = 
             "join_user": user_id,
         }
         USER_LINKS[user_id] = uid
-
     await save_state()
     return uid
