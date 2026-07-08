@@ -1,4 +1,6 @@
-# pages.py  -  تیم آزادی Gateway v10.0 - نسخه کامل با رفرال
+# pages.py  -  تیم آزادی Gateway v10.0
+# شامل: LOGIN_HTML, DASHBOARD_HTML, get_public_page_html(), get_single_link_page_html()
+
 from assets import LOGO_DATA_URI
 
 LOGIN_HTML = r"""<!DOCTYPE html>
@@ -114,7 +116,6 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   --red:#EF4444;--red-bg:rgba(239,68,68,0.1);--red-t:#F87171;
   --amber:#F59E0B;--amber-bg:rgba(245,158,11,0.1);--amber-t:#FCD34D;
   --purple:#8B5CF6;--purple-bg:rgba(139,92,246,0.1);
-  --gold:#fbbf24;--gold-bg:rgba(251,191,36,0.1);
   --t1:#E8F4FF;--t2:#7BAED4;--t3:#3D6B8E;
   --sidebar-w:248px;--radius:16px;
   --shadow:0 4px 24px rgba(0,0,0,0.35);
@@ -127,7 +128,6 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   --red:#DC2626;--red-bg:rgba(220,38,38,0.08);--red-t:#991B1B;
   --amber:#D97706;--amber-bg:rgba(217,119,6,0.08);--amber-t:#92400E;
   --purple:#7C3AED;--purple-bg:rgba(124,58,237,0.08);
-  --gold:#D97706;--gold-bg:rgba(217,119,6,0.08);
   --t1:#0F172A;--t2:#334155;--t3:#64748B;
   --shadow:0 4px 20px rgba(0,0,0,0.1);
 }
@@ -182,7 +182,6 @@ a{color:inherit;text-decoration:none}
 .bg-amber{background:var(--amber-bg);color:var(--amber-t)}
 .bg-red{background:var(--red-bg);color:var(--red-t)}
 .bg-purple{background:var(--purple-bg);color:#A78BFA}
-.bg-gold{background:var(--gold-bg);color:var(--gold)}
 .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block}
 .dg{background:var(--green)}.dr{background:var(--red)}.da{background:var(--amber)}.db{background:var(--accent)}
 .pulse{animation:pulse 2s infinite}
@@ -194,7 +193,6 @@ a{color:inherit;text-decoration:none}
 .metric:hover::after{opacity:1}
 .metric.suc::after{background:var(--green)}
 .metric.dan::after{background:var(--red)}
-.metric.gold::after{background:var(--gold)}
 .traf-hero{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:13px;margin-bottom:18px}
 .traf-main-stat{background:linear-gradient(155deg,var(--bg3) 0%,var(--card) 60%);border:1px solid var(--card-b);border-radius:20px;padding:22px 24px;position:relative;overflow:hidden}
 .traf-main-stat::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;background:radial-gradient(circle,var(--accent-d),transparent 70%);pointer-events:none}
@@ -231,7 +229,6 @@ a{color:inherit;text-decoration:none}
 .m-icon.suc{background:var(--green-bg);color:var(--green)}
 .m-icon.dan{background:var(--red-bg);color:var(--red)}
 .m-icon.pur{background:var(--purple-bg);color:var(--purple)}
-.m-icon.gold{background:var(--gold-bg);color:var(--gold)}
 .m-label{font-size:10px;color:var(--t3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
 .m-val{font-size:25px;font-weight:700;color:var(--t1);line-height:1;letter-spacing:-.02em}
 .m-unit{font-size:12px;font-weight:400;color:var(--t3)}
@@ -259,8 +256,6 @@ a{color:inherit;text-decoration:none}
 .btn-pur:hover{background:rgba(139,92,246,.22)}
 .btn-amber{background:var(--amber-bg);color:var(--amber-t);border:1px solid rgba(245,158,11,.2)}
 .btn-amber:hover{background:rgba(245,158,11,.22)}
-.btn-gold{background:var(--gold-bg);color:var(--gold);border:1px solid rgba(251,191,36,.2)}
-.btn-gold:hover{background:rgba(251,191,36,.22)}
 .btn-sm{padding:5px 9px;font-size:10.5px;border-radius:7px}
 .btn-icon{width:30px;height:30px;padding:0;justify-content:center;border-radius:5px}
 .card{background:var(--card);border:1px solid var(--card-b);border-radius:var(--radius);padding:18px 20px;transition:border-color .2s,background .3s}
@@ -300,7 +295,6 @@ a{color:inherit;text-decoration:none}
 .cl{background:var(--accent-d);border:1px solid rgba(59,130,246,.15);border-radius:10px;padding:11px 13px;font-size:11px;color:var(--t2);display:flex;gap:9px;align-items:flex-start;line-height:1.8;margin-top:12px}
 .cl i{font-size:15px;color:var(--accent);margin-top:1px;flex-shrink:0}
 .cl.amber{background:var(--amber-bg);border-color:rgba(245,158,11,.2);color:var(--amber-t)}
-.cl.gold{background:var(--gold-bg);border-color:rgba(251,191,36,.2);color:var(--gold)}
 .create-panel{background:linear-gradient(155deg,var(--bg3) 0%,var(--card) 55%);border:1px solid var(--card-b);border-radius:22px;padding:0;overflow:hidden;box-shadow:var(--shadow);margin-bottom:16px;position:relative}
 .create-panel::before{content:'';position:absolute;top:-60px;left:-60px;width:220px;height:220px;background:radial-gradient(circle,var(--accent-d),transparent 70%);pointer-events:none}
 .cp-head{display:flex;align-items:center;gap:13px;padding:22px 24px 18px;position:relative;z-index:1}
@@ -388,8 +382,6 @@ a{color:inherit;text-decoration:none}
 .pw-submit{width:100%;justify-content:center;background:linear-gradient(135deg,var(--purple),#6D48D6);color:#fff;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 6px 18px rgba(139,92,246,.32);transition:.18s}
 .pw-submit:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(139,92,246,.42)}
 .pw-submit:active{transform:translateY(0) scale(.98)}
-.pw-submit-gold{width:100%;justify-content:center;background:linear-gradient(135deg,var(--gold),#f59e0b);color:#fff;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 6px 18px rgba(251,191,36,.32);transition:.18s}
-.pw-submit-gold:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(251,191,36,.42)}
 .conn-hero{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
 .conn-hero-tile{background:var(--card);border:1px solid var(--card-b);border-radius:16px;padding:16px 18px;position:relative;overflow:hidden;transition:.2s}
 .conn-hero-tile:hover{border-color:var(--card-bh);transform:translateY(-2px);box-shadow:var(--shadow)}
@@ -853,7 +845,7 @@ a{color:inherit;text-decoration:none}
     <div class="metric"><div class="m-icon"><i class="ti ti-plug-connected"></i></div><div class="m-label">اتصالات فعال</div><div class="m-val" id="m-conns">—</div><div class="m-sub"><span class="dot dg pulse"></span> WebSocket / XHTTP زنده</div></div>
     <div class="metric"><div class="m-icon"><i class="ti ti-transfer"></i></div><div class="m-label">کل ترافیک</div><div class="m-val" id="m-traffic">—<span class="m-unit">MB</span></div><div class="m-sub">از راه‌اندازی</div></div>
     <div class="metric suc"><div class="m-icon suc"><i class="ti ti-link"></i></div><div class="m-label">کانفیگ فعال</div><div class="m-val" id="m-alinks">—</div><div class="m-sub" id="m-lsub">از کل</div></div>
-    <div class="metric gold"><div class="m-icon gold"><i class="ti ti-gift"></i></div><div class="m-label">کاربران</div><div class="m-val" id="m-users">—</div><div class="m-sub" id="m-refers">رفرال: —</div></div>
+    <div class="metric pur"><div class="m-icon pur"><i class="ti ti-folders"></i></div><div class="m-label">گروه‌های ساب</div><div class="m-val" id="m-subs">—</div><div class="m-sub">فعال</div></div>
   </div>
   <div class="vless-box">
     <div class="vl-header">
@@ -865,7 +857,7 @@ a{color:inherit;text-decoration:none}
       <button class="btn btn-p" onclick="cpText('vless-main')"><i class="ti ti-copy"></i> کپی</button>
       <button class="btn btn-g" onclick="qrFor('vless-main')"><i class="ti ti-qrcode"></i> QR</button>
       <button class="btn btn-o" onclick="navTo('links')"><i class="ti ti-link-plus"></i> کانفیگ محدود</button>
-      <button class="btn btn-gold" onclick="navTo('settings')"><i class="ti ti-gift"></i> رفرال</button>
+      <button class="btn btn-pur" onclick="navTo('subgroups')"><i class="ti ti-folders"></i> گروه‌های ساب</button>
     </div>
   </div>
   <div class="g3">
@@ -880,7 +872,6 @@ a{color:inherit;text-decoration:none}
       <div class="sr"><span class="sr-k"><i class="ti ti-bolt"></i> Siz10a XHTTP Ultra</span><span class="sr-v" style="color:var(--green-t)">● فعال · 3 mode</span></div>
       <div class="sr"><span class="sr-k"><i class="ti ti-folders"></i> Sub Groups</span><span class="sr-v" style="color:var(--green-t)">● فعال v9</span></div>
       <div class="sr"><span class="sr-k"><i class="ti ti-rss"></i> Subscription API</span><span class="sr-v" style="color:var(--green-t)">● فعال</span></div>
-      <div class="sr"><span class="sr-k"><i class="ti ti-gift"></i> سیستم رفرال</span><span class="sr-v" style="color:var(--gold)" id="ref-status">—</span></div>
       <div class="sr"><span class="sr-k"><i class="ti ti-clock"></i> آپتایم</span><span class="sr-v" id="uptime-inline">—</span></div>
       <div class="sr" style="flex-direction:column;align-items:flex-start;gap:4px">
         <div style="width:100%;display:flex;justify-content:space-between"><span class="sr-k"><i class="ti ti-gauge"></i> بار نسبی</span><span class="sr-v" id="bw-pct">—%</span></div>
@@ -1271,115 +1262,42 @@ a{color:inherit;text-decoration:none}
       </div>
     </div>
     <!-- ============================================================ -->
-    <!-- 🔥 تنظیمات رفرال -->
+    <!-- 🌐 تنظیمات عمومی ساب -->
     <!-- ============================================================ -->
     <div class="pw-panel" style="margin-top:16px">
       <div class="pw-hero">
-        <div class="pw-hero-icon" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff">
-          <i class="ti ti-gift"></i>
+        <div class="pw-hero-icon" style="background:rgba(251,191,36,.14);color:#fbbf24">
+          <i class="ti ti-world"></i>
         </div>
         <div class="pw-hero-text">
-          <div class="pw-hero-title">🎁 سیستم رفرال</div>
-          <div class="pw-hero-sub">مدیریت کامل سیستم رفرال و جوایز</div>
+          <div class="pw-hero-title">🌐 تنظیمات عمومی ساب</div>
+          <div class="pw-hero-sub">کنترل اینکه کاربران عادی اجازهی ساخت/حذف کانفیگ دارند یا نه</div>
         </div>
       </div>
       <div class="pw-body">
         <div class="pw-field" style="margin-bottom:12px">
           <label style="display:flex;align-items:center;justify-content:space-between">
-            <span><i class="ti ti-power"></i> فعال‌سازی سیستم رفرال</span>
-            <label class="switch"><input type="checkbox" id="ref-enabled" checked><span class="slider"></span></label>
+            <span><i class="ti ti-plus"></i> ساخت کانفیگ توسط کاربران</span>
+            <label class="switch"><input type="checkbox" id="pub-create" checked><span class="slider"></span></label>
           </label>
         </div>
-        
-        <div class="form-row" style="margin-bottom:12px">
-          <div class="fg" style="flex:1">
-            <label><i class="ti ti-database"></i> حجم جایزه رفرال‌دهنده (GB)</label>
-            <input class="fi" id="ref-referrer-gb" type="number" min="0" value="50">
-          </div>
-          <div class="fg" style="flex:1">
-            <label><i class="ti ti-coin"></i> پول جایزه رفرال‌دهنده (تومان)</label>
-            <input class="fi" id="ref-referrer-money" type="number" min="0" value="5000">
-          </div>
-        </div>
-        
-        <div class="form-row" style="margin-bottom:12px">
-          <div class="fg" style="flex:1">
-            <label><i class="ti ti-database"></i> حجم جایزه رفرال‌گیرنده (GB)</label>
-            <input class="fi" id="ref-referee-gb" type="number" min="0" value="100">
-          </div>
-          <div class="fg" style="flex:1">
-            <label><i class="ti ti-coin"></i> پول جایزه رفرال‌گیرنده (تومان)</label>
-            <input class="fi" id="ref-referee-money" type="number" min="0" value="2000">
-          </div>
-        </div>
-        
-        <div class="form-row" style="margin-bottom:12px">
-          <div class="fg" style="flex:1">
-            <label><i class="ti ti-clock"></i> اعتبار کانفیگ رفرال‌دهنده (روز)</label>
-            <input class="fi" id="ref-referrer-expire" type="number" min="0" value="30">
-          </div>
-          <div class="fg" style="flex:1">
-            <label><i class="ti ti-clock"></i> اعتبار کانفیگ رفرال‌گیرنده (روز)</label>
-            <input class="fi" id="ref-referee-expire" type="number" min="0" value="30">
-          </div>
-        </div>
-        
-        <div class="form-row" style="margin-bottom:12px">
-          <div class="fg" style="flex:1">
-            <label><i class="ti ti-wallet"></i> حداقل مبلغ برداشت (تومان)</label>
-            <input class="fi" id="ref-min-withdraw" type="number" min="0" value="10000">
-          </div>
-          <div class="fg" style="flex:1">
-            <label style="display:flex;align-items:center;justify-content:space-between">
-              <span><i class="ti ti-credit-card"></i> فعال‌سازی برداشت</span>
-              <label class="switch"><input type="checkbox" id="ref-withdraw-enabled" checked><span class="slider"></span></label>
-            </label>
-          </div>
-        </div>
-        
         <div class="pw-field" style="margin-bottom:12px">
-          <label><i class="ti ti-list"></i> روش‌های برداشت (با کاما جدا کن)</label>
-          <input class="pw-input" id="ref-withdraw-methods" value="کارت به کارت,واریز به شبا,شارژ سیمکارت">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span><i class="ti ti-trash"></i> حذف کانفیگ توسط کاربران</span>
+            <label class="switch"><input type="checkbox" id="pub-delete" checked><span class="slider"></span></label>
+          </label>
         </div>
-        
-        <div class="pw-field" style="margin-bottom:12px">
-          <label><i class="ti ti-message-text"></i> متن پیام رفرال</label>
-          <textarea class="pw-input" id="ref-text" rows="5" style="min-height:120px;resize:vertical">🎁 *سیستم رفرال تیم آزادی*
-
-با دعوت از دوستانت به تیم آزادی، هم به خودت جایزه می‌دی و هم به دوستت!
-
-✅ *جایزه تو (رفرال‌دهنده):*
-- {referrer_gb} گیگ اینترنت رایگان
-- {referrer_money:,} تومان پول نقد
-
-✅ *جایزه دوستت (رفرال‌گیرنده):*
-- {referee_gb} گیگ اینترنت رایگان
-- {referee_money:,} تومان پول نقد
-
-✅ *لینک مخصوص تو:*
-`{referral_link}`
-
-هر کس با لینک تو عضو شود، هر دو جایزه می‌گیرید!
-هرچقدر دوست بیشتری بیاری، جایزه‌ات بیشتر میشه!
-
-📊 *آمار تو:*
-- تعداد دعوت‌ها: {referrals_count}
-- حجم دریافت‌شده: {total_volume} GB
-- پول دریافت‌شده: {total_money:,} تومان
-- موجودی قابل برداشت: {balance:,} تومان
-
-🚀 *همین حالا شروع کن و درآمدزایی کن!*
-
-📢 کانال تیم آزادی:
-https://t.me/{channel}</textarea>
+        <div class="pw-field" style="margin-bottom:14px">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span><i class="ti ti-power"></i> تغییر وضعیت (فعال/غیرفعال) توسط کاربران</span>
+            <label class="switch"><input type="checkbox" id="pub-toggle" checked><span class="slider"></span></label>
+          </label>
         </div>
-        
-        <div class="cl gold"><i class="ti ti-info-circle"></i>
-          <span>هر کاربر با لینک رفرال وارد شود، هم خودش و هم دعوت‌کننده جایزه می‌گیرند. جوایز به صورت خودکار به حساب کاربران واریز میشود.</span>
+        <div class="cl amber"><i class="ti ti-alert-triangle"></i>
+          <span>اگر این گزینه‌ها را غیرفعال کنید، کاربران فقط <b>کانفیگ‌های موجود</b> را از ساب دریافت می‌کنند و نمی‌توانند کانفیگ جدید بسازند یا کانفیگ خود را حذف کنند. این کار <b>فشار روی سرور را تا ۸۰٪ کاهش</b> می‌دهد.</span>
         </div>
-        
-        <button class="pw-submit-gold" style="margin-top:14px" onclick="saveReferralSettings()">
-          <i class="ti ti-device-floppy"></i> ذخیره تنظیمات رفرال
+        <button class="pw-submit" style="margin-top:14px;background:linear-gradient(135deg,#fbbf24,#f59e0b)" onclick="savePublicSettings()">
+          <i class="ti ti-device-floppy"></i> ذخیره تنظیمات
         </button>
       </div>
     </div>
@@ -1426,46 +1344,6 @@ https://t.me/{channel}</textarea>
         <div class="cl" style="margin-top:12px"><i class="ti ti-info-circle"></i>
           <span>هر کاربری با زدن /start روی بات، بعد از تایید عضویت در کانال بالا، یک کانفیگ اختصاصی با حجم مشخص‌شده می‌گیرد. یادت نره بات باید <b>ادمین</b> کانال باشد تا چک عضویت درست کار کند.</span>
         </div>
-      </div>
-    </div>
-    <!-- ============================================================ -->
-    <!-- 🌐 تنظیمات عمومی ساب -->
-    <!-- ============================================================ -->
-    <div class="pw-panel" style="margin-top:16px">
-      <div class="pw-hero">
-        <div class="pw-hero-icon" style="background:rgba(251,191,36,.14);color:#fbbf24">
-          <i class="ti ti-world"></i>
-        </div>
-        <div class="pw-hero-text">
-          <div class="pw-hero-title">🌐 تنظیمات عمومی ساب</div>
-          <div class="pw-hero-sub">کنترل اینکه کاربران عادی اجازهی ساخت/حذف کانفیگ دارند یا نه</div>
-        </div>
-      </div>
-      <div class="pw-body">
-        <div class="pw-field" style="margin-bottom:12px">
-          <label style="display:flex;align-items:center;justify-content:space-between">
-            <span><i class="ti ti-plus"></i> ساخت کانفیگ توسط کاربران</span>
-            <label class="switch"><input type="checkbox" id="pub-create" checked><span class="slider"></span></label>
-          </label>
-        </div>
-        <div class="pw-field" style="margin-bottom:12px">
-          <label style="display:flex;align-items:center;justify-content:space-between">
-            <span><i class="ti ti-trash"></i> حذف کانفیگ توسط کاربران</span>
-            <label class="switch"><input type="checkbox" id="pub-delete" checked><span class="slider"></span></label>
-          </label>
-        </div>
-        <div class="pw-field" style="margin-bottom:14px">
-          <label style="display:flex;align-items:center;justify-content:space-between">
-            <span><i class="ti ti-power"></i> تغییر وضعیت (فعال/غیرفعال) توسط کاربران</span>
-            <label class="switch"><input type="checkbox" id="pub-toggle" checked><span class="slider"></span></label>
-          </label>
-        </div>
-        <div class="cl amber"><i class="ti ti-alert-triangle"></i>
-          <span>اگر این گزینه‌ها را غیرفعال کنید، کاربران فقط <b>کانفیگ‌های موجود</b> را از ساب دریافت می‌کنند و نمی‌توانند کانفیگ جدید بسازند یا کانفیگ خود را حذف کنند. این کار <b>فشار روی سرور را تا ۸۰٪ کاهش</b> می‌دهد.</span>
-        </div>
-        <button class="pw-submit" style="margin-top:14px;background:linear-gradient(135deg,#fbbf24,#f59e0b)" onclick="savePublicSettings()">
-          <i class="ti ti-device-floppy"></i> ذخیره تنظیمات
-        </button>
       </div>
     </div>
   </div>
@@ -1554,14 +1432,12 @@ async function fetchStats(){
     document.getElementById('m-traffic').innerHTML=d.total_traffic_mb.toFixed(1)+'<span class="m-unit">MB</span>';
     document.getElementById('m-alinks').textContent=d.active_links??'—';
     document.getElementById('m-lsub').textContent='از '+d.links_count+' کانفیگ';
-    document.getElementById('m-users').textContent=d.users_count??'—';
-    document.getElementById('m-refers').textContent='رفرال: '+(d.total_referrals??'—');
+    document.getElementById('m-subs').textContent=d.subs_count??'—';
     document.getElementById('errs-badge').textContent=d.total_errors+' خطا';
     document.getElementById('uptime-inline').textContent=d.uptime;
     document.getElementById('uptime-badge').textContent='Railway · '+d.uptime;
     document.getElementById('last-upd').textContent='آخرین بروزرسانی: '+new Date().toLocaleTimeString('fa-IR');
     document.getElementById('conns-live').innerHTML='<span class="dot dg pulse"></span> '+d.active_connections+' اتصال';
-    document.getElementById('ref-status').textContent=d.referral_enabled?'🟢 فعال':'🔴 غیرفعال';
     document.getElementById('t-traffic').innerHTML=d.total_traffic_mb.toFixed(1)+'<span class="m-unit">MB</span>';
     const delta=d.total_traffic_mb-prevTraf,pct=Math.min(100,Math.round((delta/50)*100));
     document.getElementById('bw-pct').textContent=pct+'%';
@@ -1588,7 +1464,7 @@ async function loadActivity(){
     if(!logs.length){el.innerHTML='';em.style.display='block';return}
     em.style.display='none';
     const icMap={ok:'ti-circle-check',err:'ti-circle-x',warn:'ti-alert-triangle',info:'ti-info-circle'};
-    const kindFa={link:'کانفیگ',sub:'گروه',auth:'ورود',connection:'اتصال',system:'سیستم',referral:'رفرال',withdraw:'برداشت',user:'کاربر'};
+    const kindFa={link:'کانفیگ',sub:'گروه',auth:'ورود',connection:'اتصال',system:'سیستم'};
     el.innerHTML=logs.map(l=>`
       <div class="log-item">
         <div class="log-ic ${l.level}"><i class="ti ${icMap[l.level]||'ti-info-circle'}"></i></div>
@@ -2216,54 +2092,7 @@ async function testTelegram(){
   }catch(e){toast('خطا در ارسال تست','err')}
 }
 
-// 🔥 تنظیمات رفرال
-async function loadReferralSettings() {
-  try {
-    const r = await authF('/api/settings/referral');
-    const d = await r.json();
-    document.getElementById('ref-enabled').checked = d.enabled !== false;
-    document.getElementById('ref-referrer-gb').value = d.referrer_reward_gb || 50;
-    document.getElementById('ref-referrer-money').value = d.referrer_reward_money || 5000;
-    document.getElementById('ref-referee-gb').value = d.referee_reward_gb || 100;
-    document.getElementById('ref-referee-money').value = d.referee_reward_money || 2000;
-    document.getElementById('ref-referrer-expire').value = d.referrer_expire_days || 30;
-    document.getElementById('ref-referee-expire').value = d.referee_expire_days || 30;
-    document.getElementById('ref-min-withdraw').value = d.min_withdraw || 10000;
-    document.getElementById('ref-withdraw-enabled').checked = d.withdraw_enabled !== false;
-    document.getElementById('ref-withdraw-methods').value = (d.withdraw_methods || ['کارت به کارت']).join(',');
-    document.getElementById('ref-text').value = d.referral_text || '';
-  } catch(e) { console.error('loadReferralSettings error:', e); }
-}
-
-async function saveReferralSettings() {
-  const body = {
-    enabled: document.getElementById('ref-enabled').checked,
-    referrer_reward_gb: Number(document.getElementById('ref-referrer-gb').value) || 0,
-    referrer_reward_money: Number(document.getElementById('ref-referrer-money').value) || 0,
-    referee_reward_gb: Number(document.getElementById('ref-referee-gb').value) || 0,
-    referee_reward_money: Number(document.getElementById('ref-referee-money').value) || 0,
-    referrer_expire_days: Number(document.getElementById('ref-referrer-expire').value) || 0,
-    referee_expire_days: Number(document.getElementById('ref-referee-expire').value) || 0,
-    min_withdraw: Number(document.getElementById('ref-min-withdraw').value) || 0,
-    withdraw_enabled: document.getElementById('ref-withdraw-enabled').checked,
-    withdraw_methods: document.getElementById('ref-withdraw-methods').value.split(',').map(s => s.trim()).filter(Boolean),
-    referral_text: document.getElementById('ref-text').value,
-  };
-  try {
-    const r = await authF('/api/settings/referral', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) throw new Error();
-    toast('تنظیمات رفرال ذخیره شد ✓', 'ok');
-    loadReferralSettings();
-  } catch(e) {
-    toast('خطا در ذخیره', 'err');
-  }
-}
-
-// 🌐 تنظیمات عمومی
+// 🌐 تنظیمات عمومی - جدید
 async function loadPublicSettings() {
   try {
     const r = await authF('/api/settings/public');
@@ -2293,7 +2122,6 @@ async function savePublicSettings() {
   }
 }
 
-// ✅ عضویت اجباری
 async function loadJoinSettings() {
   try {
     const r = await authF('/api/settings/join');
@@ -2304,7 +2132,9 @@ async function loadJoinSettings() {
     document.getElementById('join-grant-gb').value = d.grant_gb ?? 100;
     document.getElementById('join-grant-days').value = d.grant_days ?? 0;
     document.getElementById('join-bot-username').value = d.bot_username || '';
-  } catch(e) { console.error('loadJoinSettings error:', e); }
+  } catch(e) {
+    console.error('loadJoinSettings error:', e);
+  }
 }
 
 async function saveJoinSettings() {
@@ -2316,6 +2146,7 @@ async function saveJoinSettings() {
     grant_days: Number(document.getElementById('join-grant-days').value) || 0,
     bot_username: document.getElementById('join-bot-username').value.trim(),
   };
+
   try {
     const r = await authF('/api/settings/join', {
       method: 'POST',
@@ -2356,7 +2187,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
   loadTelegramSettings();
   loadJoinSettings();
   loadPublicSettings();
-  loadReferralSettings();
   fetchStats();fetchDefaultVless();loadLinks();loadSubs();
   setInterval(fetchStats,4000);
   setInterval(()=>{
@@ -2371,12 +2201,1142 @@ document.addEventListener('DOMContentLoaded',async()=>{
 </body></html>""".replace("{{LOGO}}", LOGO_DATA_URI)
 
 
-# توابع صفحات عمومی (بدون تغییر) - اینجا کوتاه شده
 def get_public_page_html(uuid_key: str, white_label: bool = False) -> str:
-    # کد قبلی - برای جلوگیری از طولانی شدن بیش از حد حذف شده
-    return "<html><body>Public Page</body></html>"
+    page_title = "کانفیگ‌های من" if white_label else "تیم آزادی Sub"
+    header_html = "" if white_label else f"""
+    <div class="brand">
+      <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
+      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
+    </div>"""
+    telegram_btn_html = "" if white_label else '<a class="icon-btn" href="https://t.me/TimAzadi" target="_blank" title="کانال تلگرام"><i class="ti ti-brand-telegram"></i></a>'
+    footer_html = "" if white_label else '<div class="footer">کانال رسمی: <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a> · تیم آزادی Gateway v10.0</div>'
+    return f"""<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>{page_title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}}
+:root{{
+  --bg:#060a14;--bg2:#0a1020;--bg3:#0d1428;
+  --card:#0c1326;--card-b:rgba(96,148,246,0.12);--card-bh:rgba(96,148,246,0.28);
+  --accent:#3B7CF6;--accent2:#6EA3FF;--accent-d:rgba(59,124,246,0.1);
+  --green:#1FB87E;--green-bg:rgba(31,184,126,0.1);--green-t:#3FD79C;
+  --red:#EF4444;--red-bg:rgba(239,68,68,0.1);--red-t:#FB8585;
+  --amber:#F2A33D;--amber-bg:rgba(242,163,61,0.1);--amber-t:#F9C988;
+  --purple:#9D7BF0;--purple-bg:rgba(157,123,240,0.1);--purple-t:#BCA4F7;
+  --t1:#EFF4FF;--t2:#8AA0C4;--t3:#48577A;
+  --radius:18px;--shadow:0 12px 40px rgba(0,0,0,0.45);
+  --serif:'Vazirmatn',sans-serif;
+}}
+[data-theme="light"]{{
+  --bg:#F0F3FA;--bg2:#E5ECF8;--bg3:#D9E3F4;
+  --card:#FFFFFF;--card-b:rgba(59,124,246,0.14);--card-bh:rgba(59,124,246,0.32);
+  --accent:#2E63D6;--accent2:#1E4CB8;--accent-d:rgba(46,99,214,0.08);
+  --green:#0E9A6A;--green-bg:rgba(14,154,106,0.08);--green-t:#0A7553;
+  --red:#DC2626;--red-bg:rgba(220,38,38,0.08);--red-t:#A51E1E;
+  --amber:#C97A12;--amber-bg:rgba(201,122,18,0.08);--amber-t:#8F5A0C;
+  --purple:#7350D6;--purple-bg:rgba(115,80,214,0.08);--purple-t:#5A3CAD;
+  --t1:#101A30;--t2:#48577A;--t3:#8694B0;
+  --shadow:0 12px 36px rgba(20,40,90,0.12);
+}}
+html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:var(--t1);font-size:14px;transition:background .35s,color .35s}}
+.bg-fx{{position:fixed;inset:0;background:radial-gradient(ellipse 70% 45% at 50% -8%,rgba(59,124,246,0.13),transparent 62%),var(--bg);z-index:0;pointer-events:none;transition:background .35s}}
+.grid-fx{{position:fixed;inset:0;background-image:linear-gradient(rgba(96,148,246,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(96,148,246,0.025) 1px,transparent 1px);background-size:46px 46px;z-index:0;pointer-events:none}}
+.wrap{{position:relative;z-index:10;max-width:800px;margin:0 auto;padding:24px 16px 64px}}
+.top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;gap:10px}}
+.brand{{display:flex;align-items:center;gap:11px;min-width:0}}
+.brand-img{{width:40px;height:40px;border-radius:12px;overflow:hidden;border:1px solid var(--card-b);box-shadow:0 0 0 1px rgba(255,255,255,.02);flex-shrink:0}}
+.brand-img img{{width:100%;height:100%;object-fit:cover}}
+.brand-name{{font-size:14.5px;font-weight:800;color:var(--t1);letter-spacing:-.01em}}
+.brand-sub{{font-size:9.5px;color:var(--t3);font-weight:500}}
+.top-actions{{display:flex;align-items:center;gap:6px;flex-shrink:0}}
+.icon-btn{{width:36px;height:36px;border-radius:11px;background:var(--card);border:1px solid var(--card-b);color:var(--t2);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:.18s}}
+.icon-btn:hover{{background:var(--accent-d);color:var(--accent2);border-color:var(--card-bh)}}
+
+.sub-info{{background:var(--card);border:1px solid var(--card-b);border-radius:22px;padding:24px 24px 22px;margin-bottom:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}}
+.sub-info::before{{content:'';position:absolute;top:0;right:0;width:160px;height:160px;background:radial-gradient(circle at top right,rgba(59,124,246,.1),transparent 70%);pointer-events:none}}
+.sub-eyebrow{{font-size:10px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;display:flex;align-items:center;gap:6px}}
+.sub-eyebrow i{{font-size:13px}}
+.sub-name{{font-size:23px;font-weight:800;color:var(--t1);margin-bottom:6px;letter-spacing:-.02em}}
+.sub-desc{{font-size:12.5px;color:var(--t2);line-height:1.8;margin-bottom:14px}}
+.sub-meta-row{{font-size:10.5px;color:var(--t3);margin-bottom:14px;display:flex;align-items:center;gap:6px}}
+.sub-sub-box{{background:var(--accent-d);border:1px solid var(--card-b);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}}
+.sub-sub-url{{font-family:ui-monospace,monospace;font-size:10px;color:var(--accent2);word-break:break-all;flex:1;min-width:140px}}
+
+.stats-bar{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}}
+.stat-card{{background:var(--card);border:1px solid var(--card-b);border-radius:16px;padding:16px 17px;transition:.2s}}
+.stat-card:hover{{border-color:var(--card-bh);transform:translateY(-1px)}}
+.stat-label{{font-size:9px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}}
+.stat-val{{font-size:22px;font-weight:800;color:var(--t1);line-height:1;letter-spacing:-.01em}}
+.stat-sub{{font-size:9.5px;color:var(--t3);margin-top:6px}}
+
+.copy-all-bar{{display:flex;align-items:center;gap:12px;background:linear-gradient(120deg,var(--accent) 0%,#2952C8 100%);border-radius:18px;padding:16px 19px;margin-bottom:18px;box-shadow:0 10px 30px rgba(59,124,246,.28);flex-wrap:wrap}}
+.copy-all-text{{flex:1;min-width:160px}}
+.copy-all-title{{font-size:13.5px;font-weight:800;color:#fff;display:flex;align-items:center;gap:6px}}
+.copy-all-sub{{font-size:10px;color:rgba(255,255,255,.78);margin-top:3px}}
+.copy-all-btn{{background:#fff;color:#1D4ED8;border:none;border-radius:12px;padding:10px 19px;font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;transition:.18s;white-space:nowrap}}
+.copy-all-btn:hover{{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.22)}}
+.copy-all-btn:active{{transform:translateY(0) scale(.98)}}
+
+.pool-card{{background:linear-gradient(135deg,rgba(157,123,240,.14),rgba(59,124,246,.06));border:1px solid rgba(157,123,240,.28);border-radius:20px;padding:20px 22px;margin-bottom:16px;position:relative;overflow:hidden}}
+.pool-head{{display:flex;align-items:center;gap:8px;margin-bottom:12px}}
+.pool-head i{{font-size:17px;color:var(--purple-t)}}
+.pool-head span{{font-size:13px;font-weight:800;color:var(--t1)}}
+.pool-gauge{{height:9px;border-radius:6px;background:rgba(157,123,240,.14);overflow:hidden;margin-bottom:9px}}
+.pool-gauge-f{{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--purple),var(--accent));transition:width .5s ease}}
+.pool-txt{{font-size:11px;color:var(--t2);display:flex;justify-content:space-between;margin-bottom:14px}}
+.split-form{{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:10px}}
+.split-form input,.split-form select{{font-family:inherit;font-size:12.5px;padding:10px 12px;border-radius:11px;border:1px solid var(--card-b);background:rgba(0,0,0,.18);color:var(--t1);outline:none}}
+[data-theme="light"] .split-form input,[data-theme="light"] .split-form select{{background:rgba(46,99,214,.04)}}
+.split-form input:focus,.split-form select:focus{{border-color:var(--purple);box-shadow:0 0 0 3px var(--purple-bg)}}
+.split-form-row2{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}}
+.split-err{{color:var(--red-t);font-size:11px;margin-bottom:10px;display:none;align-items:center;gap:5px}}
+.split-err.show{{display:flex}}
+.split-result{{background:var(--green-bg);border:1px solid rgba(31,184,126,.3);border-radius:14px;padding:14px 16px;margin-top:12px;display:none}}
+.split-result.show{{display:block}}
+.split-result-title{{font-size:12px;font-weight:800;color:var(--green-t);display:flex;align-items:center;gap:6px;margin-bottom:9px}}
+.split-result-url{{font-family:ui-monospace,monospace;font-size:10px;color:var(--t2);word-break:break-all;background:rgba(0,0,0,.15);border-radius:9px;padding:9px 11px;margin-bottom:9px}}
+[data-theme="light"] .split-result-url{{background:rgba(0,0,0,.04)}}
+
+.cfg-title{{font-size:12px;font-weight:800;color:var(--t2);margin-bottom:13px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.07em}}
+.cfg-title i{{color:var(--accent);font-size:15px}}
+.cfg-grid{{display:grid;gap:13px}}
+
+.cfg-card{{background:var(--card);border:1px solid var(--card-b);border-radius:18px;transition:all .2s;position:relative;overflow:hidden}}
+.cfg-card:hover{{border-color:var(--card-bh);box-shadow:var(--shadow)}}
+.cfg-top{{padding:17px 19px 15px;position:relative}}
+.cfg-top::after{{content:'';position:absolute;top:0;right:0;width:3px;height:100%;background:var(--green)}}
+.cfg-card.inactive .cfg-top::after{{background:var(--red)}}
+.cfg-head{{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap}}
+.cfg-label{{font-size:14.5px;font-weight:700;color:var(--t1)}}
+.cfg-badges{{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}}
+.proto-chip{{font-size:9px;padding:3px 8px;border-radius:7px;font-weight:800;letter-spacing:.02em}}
+.pc-ws{{background:var(--accent-d);color:var(--accent2)}}
+.pc-xhttp{{background:var(--purple-bg);color:var(--purple-t)}}
+.pc-ultra{{background:var(--green-bg);color:var(--green-t)}}
+.pc-trojan{{background:rgba(239,68,68,.14);color:#f87171}}
+.cfg-status{{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap}}
+.cfg-status.ok{{background:var(--green-bg);color:var(--green-t)}}
+.cfg-status.no{{background:var(--red-bg);color:var(--red-t)}}
+.cfg-usage{{margin-bottom:4px}}
+.ubar{{height:6px;border-radius:4px;background:rgba(96,148,246,0.1);overflow:hidden;margin-bottom:5px}}
+.ubar-f{{height:100%;border-radius:4px;transition:width .5s ease}}
+.utxt{{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}}
+
+.cfg-timer{{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;
+  background:rgba(255,255,255,0.06);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.1);}}
+[data-theme="light"] .cfg-timer{{background:rgba(255,255,255,0.55);border-color:rgba(46,99,214,0.14);box-shadow:0 4px 14px rgba(20,40,90,0.06)}}
+.cfg-timer i{{font-size:14px;color:var(--accent2);flex-shrink:0}}
+.cfg-timer-grid{{display:flex;gap:9px;font-family:ui-monospace,monospace;flex:1}}
+.cfg-timer-seg{{display:flex;flex-direction:column;align-items:center;min-width:26px}}
+.cfg-timer-val{{font-size:12.5px;font-weight:800;color:var(--t1)}}
+.cfg-timer-lbl{{font-size:8px;color:var(--t3);font-weight:700}}
+.cfg-timer.expiring .cfg-timer-val{{color:var(--red-t)}}
+
+.locked-banner{{display:flex;align-items:center;gap:10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red-t);border-radius:16px;padding:14px 18px;margin-bottom:16px;font-size:12.5px;font-weight:700}}
+.locked-banner i{{font-size:18px;flex-shrink:0}}
+
+.children-box{{margin-top:13px;padding-top:12px;border-top:1px dashed var(--card-b)}}
+.children-title{{font-size:10.5px;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:5px}}
+.child-row{{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(255,255,255,.05);backdrop-filter:blur(8px);border:1px solid var(--card-b);border-radius:11px;padding:8px 11px;margin-bottom:6px}}
+[data-theme="light"] .child-row{{background:rgba(255,255,255,.6)}}
+.child-row-name{{font-size:11.5px;font-weight:700;color:var(--t1)}}
+.child-row-meta{{font-size:9.5px;color:var(--t3);margin-top:2px}}
+.child-row-actions{{display:flex;gap:5px;flex-shrink:0}}
+.child-btn{{width:26px;height:26px;border-radius:8px;border:none;background:var(--accent-d);color:var(--accent2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;transition:.15s}}
+.child-btn.danger{{background:var(--red-bg);color:var(--red-t)}}
+.child-btn:hover{{filter:brightness(1.15)}}
+.child-btn:disabled{{opacity:.35;cursor:not-allowed}}
+
+.cfg-tear{{position:relative;height:0;border-top:1.5px dashed var(--card-b);margin:0 19px}}
+.cfg-tear::before,.cfg-tear::after{{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--bg);transform:translateY(-50%);border:1px solid var(--card-b)}}
+.cfg-tear::before{{right:-28px}}
+.cfg-tear::after{{left:-28px}}
+
+.cfg-bottom{{padding:15px 19px 18px}}
+.cfg-link-toggle{{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:transparent;border:1px dashed var(--card-b);border-radius:11px;padding:10px 13px;cursor:pointer;font-family:inherit;color:var(--t2);font-size:11.5px;font-weight:600;transition:.15s}}
+.cfg-link-toggle:hover{{background:var(--accent-d);border-color:var(--card-bh);color:var(--accent2)}}
+.cfg-link-toggle .ltl{{display:flex;align-items:center;gap:7px}}
+.cfg-link-toggle i.ti-chevron-down{{transition:transform .2s}}
+.cfg-link-toggle.open i.ti-chevron-down{{transform:rotate(180deg)}}
+.cfg-vless-wrap{{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease}}
+.cfg-vless-wrap.open{{grid-template-rows:1fr}}
+.cfg-vless-inner{{overflow:hidden}}
+.cfg-vless{{background:rgba(0,0,0,.22);border:1px solid var(--card-b);border-radius:10px;padding:11px 13px;font-size:9.8px;font-family:ui-monospace,monospace;color:var(--accent2);word-break:break-all;line-height:1.7;margin-top:9px;max-height:90px;overflow-y:auto}}
+[data-theme="light"] .cfg-vless{{background:rgba(46,99,214,.05)}}
+.cfg-actions{{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}}
+.btn{{font-family:inherit;font-size:11.5px;font-weight:700;border-radius:10px;padding:8px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:none;transition:all .15s;white-space:nowrap}}
+.btn i{{font-size:13px}}
+.btn-p{{background:var(--accent);color:#fff;box-shadow:0 3px 12px rgba(59,124,246,.3)}}
+.btn-p:hover{{background:var(--accent2)}}
+.btn-g{{background:var(--accent-d);color:var(--accent2);border:1px solid rgba(96,148,246,.16)}}
+.btn-g:hover{{background:rgba(96,148,246,.2)}}
+.btn-pur{{background:var(--purple-bg);color:var(--purple-t);border:1px solid rgba(157,123,240,.2)}}
+.btn-pur:hover{{background:rgba(157,123,240,.22)}}
+.conn-chip{{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;padding:3px 8px;border-radius:20px;background:var(--green-bg);color:var(--green-t);font-weight:700}}
+.dot{{width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite}}
+@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.25}}}}
+
+.lock-stage{{display:flex;align-items:center;justify-content:center;min-height:78vh;padding:20px 0}}
+.lock-card{{background:var(--card);border:1px solid var(--card-b);border-radius:26px;padding:0;text-align:center;max-width:380px;width:100%;box-shadow:var(--shadow);overflow:hidden;position:relative}}
+.lock-banner{{background:linear-gradient(150deg,rgba(59,124,246,.16),rgba(59,124,246,.02) 70%);padding:38px 30px 26px;position:relative}}
+.lock-shield{{width:64px;height:64px;border-radius:18px;background:var(--accent-d);border:1px solid var(--card-bh);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;position:relative}}
+.lock-shield::after{{content:'';position:absolute;inset:-7px;border-radius:22px;border:1px solid var(--card-b);animation:breathe 2.6s ease-in-out infinite}}
+@keyframes breathe{{0%,100%{{transform:scale(1);opacity:.5}}50%{{transform:scale(1.08);opacity:0}}}}
+.lock-shield i{{font-size:28px;color:var(--accent2)}}
+.lock-title{{font-size:18px;font-weight:800;margin-bottom:6px;color:var(--t1);letter-spacing:-.01em}}
+.lock-sub{{font-size:12px;color:var(--t3);line-height:1.7}}
+.lock-form{{padding:24px 30px 30px}}
+.lock-field{{position:relative;margin-bottom:13px}}
+.lock-inp{{width:100%;padding:13px 44px 13px 44px;border-radius:13px;border:1px solid var(--card-b);background:rgba(0,0,0,.2);color:var(--t1);font-family:inherit;font-size:14px;outline:none;text-align:center;letter-spacing:.14em;transition:.18s}}
+[data-theme="light"] .lock-inp{{background:rgba(46,99,214,.04)}}
+.lock-inp:focus{{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-d)}}
+.lock-eye{{position:absolute;left:13px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:4px;display:flex}}
+.lock-eye:hover{{color:var(--accent2)}}
+.lock-lockicon{{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:15px;pointer-events:none}}
+.lock-err{{color:var(--red-t);font-size:11.5px;margin-bottom:10px;min-height:16px;display:flex;align-items:center;justify-content:center;gap:5px}}
+.lock-btn{{width:100%;justify-content:center;padding:13px;font-size:13px;border-radius:13px}}
+.lock-footer{{padding:14px 30px;border-top:1px solid var(--card-b);font-size:10px;color:var(--t3);display:flex;align-items:center;justify-content:center;gap:6px}}
+
+.empty-state{{text-align:center;padding:80px 20px;color:var(--t3)}}
+.empty-state i{{font-size:38px;display:block;margin-bottom:14px}}
+
+.toast{{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(40px);background:var(--card);border:1px solid var(--card-b);color:var(--t1);border-radius:12px;padding:10px 20px;font-size:12.5px;font-weight:600;opacity:0;transition:all .25s;z-index:999;pointer-events:none;display:flex;align-items:center;gap:7px;box-shadow:var(--shadow);white-space:nowrap}}
+.toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
+.toast.ok{{border-color:rgba(31,184,126,.35);background:var(--green-bg);color:var(--green-t)}}
+
+.qr-modal{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:600;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:20px}}
+.qr-modal.open{{display:flex}}
+.qr-box{{background:var(--card);border:1px solid var(--card-b);border-radius:22px;padding:26px;text-align:center;max-width:340px;width:100%;box-shadow:var(--shadow)}}
+.qr-title{{font-size:13.5px;font-weight:800;margin-bottom:16px;color:var(--t1)}}
+.qr-img{{border-radius:14px;overflow:hidden;margin-bottom:15px}}
+.qr-img img{{width:100%;display:block;background:#fff;padding:10px;border-radius:14px}}
+
+.footer{{text-align:center;padding-top:28px;font-size:10.5px;color:var(--t3)}}
+.footer a{{color:var(--accent2);font-weight:700}}
+
+@media(max-width:520px){{
+  .stats-bar{{grid-template-columns:1fr 1fr}}
+  .stats-bar .stat-card:nth-child(3){{grid-column:1/-1}}
+  .sub-name{{font-size:19px}}
+  .copy-all-bar{{flex-direction:column;align-items:stretch}}
+  .copy-all-btn{{justify-content:center}}
+  .wrap{{padding:16px 12px 50px}}
+  .lock-banner{{padding:32px 22px 22px}}
+  .lock-form{{padding:20px 22px 26px}}
+}}
+@keyframes spin{{to{{transform:rotate(360deg)}}}}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div><div class="grid-fx"></div>
+<div class="toast" id="toast"></div>
+<div class="qr-modal" id="qr-modal" onclick="this.classList.remove('open')">
+  <div class="qr-box" onclick="event.stopPropagation()">
+    <div class="qr-title" id="qr-label">QR Code</div>
+    <div class="qr-img"><img id="qr-img" src="" alt="QR"></div>
+    <button class="btn btn-g" style="width:100%;justify-content:center" onclick="document.getElementById('qr-modal').classList.remove('open')"><i class="ti ti-x"></i> بستن</button>
+  </div>
+</div>
+<div class="wrap">
+  <div class="top">
+    {header_html}
+    <div class="top-actions">
+      <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="تغییر تم"><i class="ti ti-sun" id="theme-icon"></i></button>
+      {telegram_btn_html}
+    </div>
+  </div>
+  <div id="root">
+    <div class="empty-state"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i>در حال بارگذاری...</div>
+  </div>
+  {footer_html}
+</div>
+<script>
+const UUID_KEY='{uuid_key}';
+const WHITE_LABEL={str(white_label).lower()};
+let savedPw='';
+
+let isDark=localStorage.getItem('rvg-pub-theme')!=='light';
+function applyTheme(dark){{
+  document.documentElement.setAttribute('data-theme',dark?'dark':'light');
+  document.getElementById('theme-icon').className='ti '+(dark?'ti-sun':'ti-moon');
+}}
+function toggleTheme(){{isDark=!isDark;localStorage.setItem('rvg-pub-theme',isDark?'dark':'light');applyTheme(isDark)}}
+applyTheme(isDark);
+
+function toast(msg,type=''){{
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast show'+(type?' '+type:'');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}}
+function esc(s){{return String(s||'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
+function fmtB(b){{if(!b||b===0)return '0 B';if(b<1024)return b+' B';if(b<1024**2)return (b/1024).toFixed(1)+' KB';if(b<1024**3)return (b/1024**2).toFixed(2)+' MB';return (b/1024**3).toFixed(2)+' GB'}}
+function toFa(n){{return String(n).replace(/\\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d])}}
+function protoChip(p){{
+  if(p==='xhttp-stream-one')return '<span class="proto-chip pc-ultra"><i class="ti ti-bolt"></i> XHTTP ULTRA</span>';
+  if(p&&p.startsWith('xhttp'))return '<span class="proto-chip pc-xhttp">'+esc(p)+'</span>';
+  return '<span class="proto-chip pc-ws">VLESS · WS</span>';
+}}
+
+function showQR(label,link){{
+  document.getElementById('qr-label').textContent=label;
+  document.getElementById('qr-img').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(link);
+  document.getElementById('qr-modal').classList.add('open');
+}}
+
+function toggleLink(i){{
+  const wrap=document.getElementById('vw-'+i);
+  const btn=document.getElementById('vt-'+i);
+  const open=wrap.classList.toggle('open');
+  btn.classList.toggle('open',open);
+  btn.querySelector('.ltl span').textContent = open ? 'پنهان کردن لینک' : 'نمایش لینک کانفیگ';
+}}
+
+async function loadData(pw=''){{
+  const url='/api/public/sub/'+UUID_KEY+(pw?'?pw='+encodeURIComponent(pw):'');
+  const r=await fetch(url);
+  return r.json();
+}}
+
+function renderLock(name,errMsg=''){{
+  document.getElementById('root').innerHTML=`
+    <div class="lock-stage">
+      <div class="lock-card">
+        <div class="lock-banner">
+          <div class="lock-shield"><i class="ti ti-shield-lock"></i></div>
+          <div class="lock-title">${{esc(name)}}</div>
+          <div class="lock-sub">این گروه با رمز محافظت شده. برای دیدن کانفیگ‌ها رمز رو وارد کنید.</div>
+        </div>
+        <div class="lock-form">
+          <div class="lock-err" id="lock-err">${{errMsg ? '<i class="ti ti-alert-circle"></i> '+esc(errMsg) : ''}}</div>
+          <div class="lock-field">
+            <i class="ti ti-lock lock-lockicon"></i>
+            <input class="lock-inp" type="password" id="lock-pw" placeholder="••••••••" autofocus>
+            <button class="lock-eye" type="button" onclick="togglePwVis()"><i class="ti ti-eye" id="lock-eye-icon"></i></button>
+          </div>
+          <button class="btn btn-p lock-btn" onclick="submitLock()"><i class="ti ti-lock-open"></i> ورود به گروه</button>
+        </div>
+        <div class="lock-footer"><i class="ti ti-shield-check"></i> اتصال شما رمزنگاری‌شده است</div>
+      </div>
+    </div>
+  `;
+  const inp=document.getElementById('lock-pw');
+  inp.addEventListener('keydown',e=>{{if(e.key==='Enter')submitLock()}});
+}}
+
+function togglePwVis(){{
+  const inp=document.getElementById('lock-pw');
+  const icon=document.getElementById('lock-eye-icon');
+  const toText = inp.type==='password';
+  inp.type = toText ? 'text' : 'password';
+  icon.className = 'ti '+(toText ? 'ti-eye-off' : 'ti-eye');
+}}
+
+async function submitLock(){{
+  const pw=document.getElementById('lock-pw').value;
+  const data=await loadData(pw);
+  if(data.locked){{renderLock(data.name,'رمز اشتباه است');return}}
+  savedPw=pw;
+  renderContent(data);
+}}
+
+function renderContent(d){{
+  const activeCount=d.links.filter(l=>l.active).length;
+  const baseSubUrl = d.sub_url || (window.location.protocol + '//' + window.location.host + '/sub-group/' + UUID_KEY);
+  const subUrl = baseSubUrl + (savedPw ? '?pw=' + encodeURIComponent(savedPw) : '');
+
+  window._rvgSubUrl  = subUrl;
+  window._rvgSubName = d.name;
+  window._rvgPool    = {{limit_fmt:d.pool_limit_fmt, available_fmt:d.pool_available_fmt, available_bytes:d.pool_available_bytes, limit_bytes:d.pool_limit_bytes}};
+  window._rvgLinks   = d.links.map(l => ({{
+    uuid  : l.uuid,
+    vless : l.vless_link,
+    sub   : l.sub_url + (savedPw ? '?pw=' + encodeURIComponent(savedPw) : ''),
+    label : l.label,
+  }}));
+  window._rvgPerms = d.permissions || {{client_can_delete:true, client_can_disable:true}};
+
+  document.getElementById('root').innerHTML=`
+    ${{d.locked_by_admin ? `<div class="locked-banner"><i class="ti ti-lock"></i><span>این گروه توسط مدیر قفل شده — همه‌ی کانفیگ‌ها موقتاً از کار افتاده‌اند تا زمانی که مدیر قفل را باز کند.</span></div>` : ''}}
+    <div class="sub-info">
+      <div class="sub-eyebrow"><i class="ti ti-folders"></i> گروه دسترسی</div>
+      <div class="sub-name">${{esc(d.name)}}</div>
+      ${{d.desc ? `<div class="sub-desc">${{esc(d.desc)}}</div>` : ''}}
+      <div class="sub-meta-row"><i class="ti ti-clock"></i> آخرین بروزرسانی: ${{new Date().toLocaleTimeString('fa-IR')}}</div>
+      <div class="sub-sub-box">
+        <span class="sub-sub-url">${{esc(subUrl)}}</span>
+        <button class="btn btn-pur" style="padding:7px 12px;font-size:10.5px"
+          onclick="navigator.clipboard.writeText(window._rvgSubUrl).then(()=>toast('لینک ساب کپی شد ✓','ok'))">
+          <i class="ti ti-copy"></i> کپی لینک ساب
+        </button>
+        <button class="btn btn-g" style="padding:7px 12px;font-size:10.5px"
+          onclick="showQR(window._rvgSubName + ' — کل گروه', window._rvgSubUrl)">
+          <i class="ti ti-qrcode"></i> QR کل
+        </button>
+      </div>
+    </div>
+
+    ${{d.pool_enabled ? renderPoolCard(d) : ''}}
+
+    <div class="copy-all-bar">
+      <div class="copy-all-text">
+        <div class="copy-all-title"><i class="ti ti-copy"></i> کپی همه‌ی کانفیگ‌ها</div>
+        <div class="copy-all-sub">تمام لینک‌های فعال این گروه را یک‌جا کپی کن</div>
+      </div>
+      <button class="copy-all-btn" onclick="copyAllConfigs()"><i class="ti ti-clipboard-copy"></i> کپی همه (${{toFa(activeCount)}})</button>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-label">کانفیگ‌های فعال</div>
+        <div class="stat-val">${{toFa(activeCount)}}</div>
+        <div class="stat-sub">از ${{toFa(d.links.length)}} کانفیگ</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">اتصالات زنده</div>
+        <div class="stat-val">${{toFa(d.active_connections)}}</div>
+        <div class="stat-sub" style="color:var(--green-t);display:flex;align-items:center;gap:4px"><span class="dot"></span> آنلاین</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">کل مصرف</div>
+        <div class="stat-val" style="font-size:17px;margin-top:3px">${{esc(d.total_used_fmt)}}</div>
+        <div class="stat-sub">همه کانفیگ‌ها</div>
+      </div>
+    </div>
+
+    <div class="cfg-title"><i class="ti ti-link"></i> کانفیگ‌ها (${{toFa(d.links.length)}} عدد)</div>
+    <div class="cfg-grid">
+      ${{d.links.map((l, i) => {{
+        const pct = l.limit_bytes === 0 ? 0 : Math.min(100, l.used_bytes / l.limit_bytes * 100);
+        const bc  = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--amber)' : 'var(--green)';
+        const lim = l.limit_bytes === 0 ? '∞' : fmtB(l.limit_bytes);
+        return `
+          <div class="cfg-card${{l.active ? '' : ' inactive'}}">
+            <div class="cfg-top">
+              <div class="cfg-head">
+                <div>
+                  <div class="cfg-label">${{esc(l.label)}}</div>
+                  <div class="cfg-badges">
+                    ${{protoChip(l.protocol)}}
+                    ${{l.connections > 0 ? `<span class="conn-chip"><span class="dot"></span> ${{toFa(l.connections)}} اتصال</span>` : ''}}
+                  </div>
+                </div>
+                <span class="cfg-status ${{l.active ? 'ok' : 'no'}}">${{l.active ? '<i class="ti ti-circle-check"></i> فعال' : '<i class="ti ti-circle-x"></i> غیرفعال'}}</span>
+              </div>
+              <div class="cfg-usage">
+                <div class="ubar"><div class="ubar-f" style="width:${{pct}}%;background:${{bc}}"></div></div>
+                <div class="utxt"><span>${{esc(l.used_fmt)}} مصرف شده</span><span>سهمیه: ${{lim}}</span></div>
+              </div>
+              ${{l.expires_at ? `<div class="cfg-timer" data-expires="${{l.expires_at}}"><i class="ti ti-hourglass-high"></i><div class="cfg-timer-grid"><div class="cfg-timer-seg"><div class="cfg-timer-val cd-d">--</div><div class="cfg-timer-lbl">روز</div></div><div class="cfg-timer-seg"><div class="cfg-timer-val cd-h">--</div><div class="cfg-timer-lbl">ساعت</div></div><div class="cfg-timer-seg"><div class="cfg-timer-val cd-m">--</div><div class="cfg-timer-lbl">دقیقه</div></div><div class="cfg-timer-seg"><div class="cfg-timer-val cd-s">--</div><div class="cfg-timer-lbl">ثانیه</div></div></div></div>` : ''}}
+            </div>
+            <div class="cfg-tear"></div>
+            <div class="cfg-bottom">
+              <button class="cfg-link-toggle" id="vt-${{i}}" onclick="toggleLink(${{i}})">
+                <span class="ltl"><i class="ti ti-eye"></i> <span>نمایش لینک کانفیگ</span></span>
+                <i class="ti ti-chevron-down"></i>
+              </button>
+              <div class="cfg-vless-wrap" id="vw-${{i}}">
+                <div class="cfg-vless-inner">
+                  <div class="cfg-vless">${{esc(l.vless_link)}}</div>
+                </div>
+              </div>
+              <div class="cfg-actions">
+                <button class="btn btn-p"
+                  onclick="navigator.clipboard.writeText(window._rvgLinks[${{i}}].vless).then(()=>toast('لینک کپی شد ✓','ok'))">
+                  <i class="ti ti-copy"></i> کپی لینک
+                </button>
+                <button class="btn btn-g"
+                  onclick="showQR(window._rvgLinks[${{i}}].label, window._rvgLinks[${{i}}].vless)">
+                  <i class="ti ti-qrcode"></i> QR
+                </button>
+              </div>
+              ${{renderChildrenBox(l)}}
+            </div>
+          </div>
+        `;
+      }}).join('')}}
+    </div>
+  `;
+  document.querySelectorAll('.cfg-timer').forEach(tickTimerEl);
+  if(window._rvgTimerInterval) clearInterval(window._rvgTimerInterval);
+  window._rvgTimerInterval = setInterval(()=>document.querySelectorAll('.cfg-timer').forEach(tickTimerEl), 1000);
+  setTimeout(() => autoRefresh(), 30000);
+}}
+
+function tickTimerEl(el){{
+  const expires = el.getAttribute('data-expires');
+  if(!expires)return;
+  const diff = new Date(expires).getTime() - Date.now();
+  const clamp = n => Math.max(0,n);
+  const d = clamp(Math.floor(diff/86400000));
+  const h = clamp(Math.floor(diff%86400000/3600000));
+  const m = clamp(Math.floor(diff%3600000/60000));
+  const s = clamp(Math.floor(diff%60000/1000));
+  el.querySelector('.cd-d').textContent = toFa(d);
+  el.querySelector('.cd-h').textContent = toFa(h);
+  el.querySelector('.cd-m').textContent = toFa(m);
+  el.querySelector('.cd-s').textContent = toFa(s);
+  el.classList.toggle('expiring', diff <= 3600000);
+}}
+
+function renderChildrenBox(l){{
+  const kids = l.children || [];
+  if(!kids.length) return '';
+  const perms = window._rvgPerms || {{client_can_delete:true, client_can_disable:true}};
+  return `
+    <div class="children-box">
+      <div class="children-title"><i class="ti ti-users"></i> کاربرانی که از این کانفیگ سهم گرفته‌اند (${{toFa(kids.length)}})</div>
+      ${{kids.map(c => `
+        <div class="child-row">
+          <div>
+            <div class="child-row-name">${{esc(c.label)}}</div>
+            <div class="child-row-meta">${{esc(c.used_fmt)}} از ${{esc(c.limit_fmt)}} · ${{c.active && !c.expired ? 'فعال' : 'غیرفعال'}}</div>
+          </div>
+          <div class="child-row-actions">
+            <button class="child-btn" ${{perms.client_can_disable ? '' : 'disabled'}} title="${{perms.client_can_disable ? (c.active?'غیرفعال کردن':'فعال کردن') : 'این قابلیت توسط مدیر غیرفعال شده'}}"
+              onclick="toggleChildCfg('${{l.uuid}}','${{c.uuid}}',${{!c.active}})"><i class="ti ${{c.active?'ti-power':'ti-play'}}"></i></button>
+            <button class="child-btn danger" ${{perms.client_can_delete ? '' : 'disabled'}} title="${{perms.client_can_delete ? 'حذف' : 'این قابلیت توسط مدیر غیرفعال شده'}}"
+              onclick="deleteChildCfg('${{l.uuid}}','${{c.uuid}}')"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+      `).join('')}}
+    </div>
+  `;
+}}
+
+async function toggleChildCfg(parentUuid, childUuid, active){{
+  try{{
+    const r=await fetch('/api/public/split/'+parentUuid+'/'+childUuid+'/toggle',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{active}})}});
+    if(!r.ok){{const e=await r.json().catch(()=>({{}}));toast(e.detail||'خطا','');return}}
+    toast(active?'فعال شد ✓':'غیرفعال شد','ok');
+    autoRefresh();
+  }}catch(e){{toast('خطا در ارتباط با سرور','')}}
+}}
+async function deleteChildCfg(parentUuid, childUuid){{
+  if(!confirm('این کانفیگ حذف شود؟ حجم مصرف‌نشده‌اش برمی‌گردد.'))return;
+  try{{
+    const r=await fetch('/api/public/split/'+parentUuid+'/'+childUuid,{{method:'DELETE'}});
+    if(!r.ok){{const e=await r.json().catch(()=>({{}}));toast(e.detail||'خطا','');return}}
+    toast('حذف شد ✓','ok');
+    autoRefresh();
+  }}catch(e){{toast('خطا در ارتباط با سرور','')}}
+}}
+
+function copyAllConfigs(){{
+  const links=window._rvgLinks||[];
+  if(!links.length){{toast('کانفیگی برای کپی نیست','');return}}
+  const text=links.map(l=>l.vless).join('\\n');
+  navigator.clipboard.writeText(text).then(()=>toast('همه‌ی '+toFa(links.length)+' کانفیگ کپی شد ✓','ok'));
+}}
+
+function renderPoolCard(d){{
+  const pct = d.pool_limit_bytes ? Math.min(100, (d.pool_allocated_bytes/d.pool_limit_bytes)*100) : 0;
+  return `
+    <div class="pool-card">
+      <div class="pool-head"><i class="ti ti-chart-pie"></i><span>استخر تقسیم‌پذیر</span></div>
+      <div class="pool-gauge"><div class="pool-gauge-f" style="width:${{pct}}%"></div></div>
+      <div class="pool-txt"><span>باقی‌مانده برای تقسیم: <b style="color:var(--t1)">${{esc(d.pool_available_fmt)}}</b></span><span>سقف کل: ${{esc(d.pool_limit_fmt)}}</span></div>
+      <div class="split-form">
+        <input id="split-val" type="number" min="0" step="0.1" placeholder="مقدار (مثلاً 5)">
+        <select id="split-unit"><option value="GB">GB</option><option value="MB">MB</option></select>
+      </div>
+      <div class="split-form-row2">
+        <input id="split-label" placeholder="اسم کانفیگ (اختیاری)">
+        <input id="split-name" placeholder="اسم ساب هدیه (اختیاری)">
+      </div>
+      <div class="split-err" id="split-err"><i class="ti ti-alert-circle"></i><span id="split-err-txt"></span></div>
+      <button class="btn btn-pur" style="width:100%;justify-content:center" onclick="submitSplit()"><i class="ti ti-gift"></i> جدا کردن و ساخت ساب هدیه</button>
+      <div class="split-result" id="split-result">
+        <div class="split-result-title"><i class="ti ti-circle-check"></i> ساب هدیه ساخته شد ✓ (سفید-برند، بدون هیچ لوگو/نامی)</div>
+        <div class="split-result-url" id="split-result-url"></div>
+        <div class="cfg-actions">
+          <button class="btn btn-p" onclick="copySplitUrl()"><i class="ti ti-copy"></i> کپی لینک</button>
+          <button class="btn btn-g" onclick="showQR('ساب هدیه',window._rvgSplitUrl)"><i class="ti ti-qrcode"></i> QR</button>
+          <button class="btn btn-g" onclick="window.open(window._rvgSplitUrl,'_blank')"><i class="ti ti-external-link"></i> باز کردن</button>
+        </div>
+      </div>
+    </div>
+  `;
+}}
+
+async function submitSplit(){{
+  const errEl=document.getElementById('split-err'), errTxt=document.getElementById('split-err-txt');
+  errEl.classList.remove('show');
+  const amount_value=document.getElementById('split-val').value;
+  const amount_unit=document.getElementById('split-unit').value;
+  const label=document.getElementById('split-label').value.trim();
+  const name=document.getElementById('split-name').value.trim();
+  if(!amount_value||Number(amount_value)<=0){{errTxt.textContent='یک مقدار معتبر وارد کن';errEl.classList.add('show');return}}
+  try{{
+    const r=await fetch('/api/public/sub/'+UUID_KEY+'/split',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{pw:savedPw,amount_value,amount_unit,label,name}})}});
+    const data=await r.json();
+    if(!r.ok){{errTxt.textContent=data.detail||'خطا در ساخت ساب هدیه';errEl.classList.add('show');return}}
+    window._rvgSplitUrl=data.public_url;
+    document.getElementById('split-result-url').textContent=data.public_url;
+    document.getElementById('split-result').classList.add('show');
+    toast('ساب هدیه ('+data.amount_fmt+') ساخته شد ✓','ok');
+    autoRefresh();
+  }}catch(e){{errTxt.textContent='خطا در ارتباط با سرور';errEl.classList.add('show')}}
+}}
+function copySplitUrl(){{
+  navigator.clipboard.writeText(window._rvgSplitUrl||'').then(()=>toast('لینک ساب هدیه کپی شد ✓','ok'));
+}}
+
+async function autoRefresh(){{
+  try{{
+    const data = await loadData(savedPw);
+    if (!data.locked) renderContent(data);
+  }} catch(e) {{}}
+}}
+
+async function init(){{
+  try{{
+    const data = await loadData();
+    if (data.locked) {{ renderLock(data.name); return; }}
+    renderContent(data);
+  }} catch(e) {{
+    document.getElementById('root').innerHTML =
+      '<div class="empty-state" style="color:var(--red-t)"><i class="ti ti-alert-circle"></i>خطا در بارگذاری</div>';
+  }}
+}}
+
+init();
+</script>
+</body></html>"""
 
 
 def get_single_link_page_html(uuid: str, link_data: dict) -> str:
-    # کد قبلی - برای جلوگیری از طولانی شدن بیش از حد حذف شده
-    return "<html><body>Single Link Page</body></html>"
+    import json as _json
+    label = link_data.get("label", "بدون نام")
+    vless_link = link_data.get("vless_link", "")
+    vless_links = link_data.get("vless_links") or [{"protocol": link_data.get("protocol", "vless-ws"), "vless_link": vless_link}]
+    vless_links_json = _json.dumps(vless_links, ensure_ascii=False)
+    sub_url = link_data.get("sub_url", "")
+    used_fmt = link_data.get("used_fmt", "0 B")
+    limit_fmt = link_data.get("limit_fmt", "∞")
+    limit_bytes = link_data.get("limit_bytes", 0)
+    used_bytes = link_data.get("used_bytes", 0)
+    active = link_data.get("active", True)
+    expired = link_data.get("expired", False)
+    created_at = link_data.get("created_at", "")
+    protocol = link_data.get("protocol", "vless-ws")
+    white_label = bool(link_data.get("white_label"))
+    flag = link_data.get("flag", "") or ""
+    flag_json = _json.dumps(flag)
+    _country_names = {"🇺🇸": "آمریکا", "🇳🇱": "هلند", "🇩🇪": "آلمان", "🇬🇧": "بریتانیا", "🇫🇷": "فرانسه", "🇹🇷": "ترکیه", "🇸🇬": "سنگاپور", "🇯🇵": "ژاپن"}
+    country_name = _country_names.get(flag, "")
+    
+    proto_names = {
+        "vless-ws": "VLESS / WebSocket",
+        "xhttp-packet-up": "XHTTP · packet-up",
+        "xhttp-stream-up": "XHTTP · stream-up",
+        "xhttp-stream-one": "XHTTP ULTRA"
+    }
+    proto_display = proto_names.get(protocol, protocol)
+    
+    pct = 0 if limit_bytes == 0 else min(100, used_bytes / limit_bytes * 100)
+    bar_color = "var(--red)" if pct > 90 else ("var(--amber)" if pct > 70 else "var(--green)")
+
+    def _fmtb(n):
+        n = max(0, n)
+        if n < 1024: return f"{n} B"
+        if n < 1024**2: return f"{n/1024:.1f} KB"
+        if n < 1024**3: return f"{n/1024**2:.2f} MB"
+        return f"{n/1024**3:.2f} GB"
+    remain_fmt = "∞" if limit_bytes == 0 else _fmtb(limit_bytes - used_bytes)
+    expires_at = link_data.get("expires_at")
+    expires_json = _json.dumps(expires_at)
+
+    page_title = label if white_label else f"{label} · تیم آزادی"
+    header_brand_html = "" if white_label else f"""
+    <div class="brand">
+      <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
+      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
+    </div>"""
+    header_tg_html = "" if white_label else '<a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-soft);font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>'
+    footer_html = "" if white_label else '<div class="footer">Powered by <b>تیم آزادی Gateway</b> · <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a></div>'
+
+    return f"""<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{page_title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+:root{{
+  --bg-root:#0B1220;
+  --bg-surface:#111827;
+  --glass-bg:rgba(17,24,39,0.75);
+  --glass-border:rgba(59,130,246,0.12);
+  --accent:#3B82F6;
+  --accent-soft:#60A5FA;
+  --green:#10B981;--green-bg:rgba(16,185,129,0.12);
+  --red:#EF4444;--red-bg:rgba(239,68,68,0.12);
+  --amber:#F59E0B;--amber-bg:rgba(245,158,11,0.12);
+  --text-primary:#F1F5F9;
+  --text-secondary:#94A3B8;
+  --text-muted:#64748B;
+  --radius:16px;
+  --shadow:0 8px 32px rgba(0,0,0,0.3);
+}}
+html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',sans-serif;color:var(--text-primary);font-size:14px}}
+.bg-layer{{position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(59,130,246,0.06),transparent 60%),var(--bg-root);z-index:0;pointer-events:none}}
+.grid{{position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:44px 44px;z-index:0;pointer-events:none}}
+.wrap{{position:relative;z-index:10;max-width:660px;margin:0 auto;padding:28px 16px 60px}}
+.top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}}
+.brand{{display:flex;align-items:center;gap:12px}}
+.brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 0 20px rgba(59,130,246,0.25);flex-shrink:0}}
+.brand-img img{{width:100%;height:100%;object-fit:cover}}
+.brand-name{{font-size:15px;font-weight:700}}
+.brand-sub{{font-size:10px;color:var(--text-muted)}}
+.top-actions{{display:flex;align-items:center;gap:10px}}
+.icon-btn{{width:38px;height:38px;border-radius:11px;background:rgba(59,130,246,.08);border:1px solid var(--glass-border);color:var(--accent-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}}
+.live-clock{{display:flex;align-items:center;gap:7px;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:700;color:var(--accent-soft);background:rgba(0,0,0,.16);border:1px solid var(--glass-border);border-radius:10px;padding:8px 13px;letter-spacing:.5px}}
+.skin-picker{{position:relative}}
+.skin-menu{{display:none;position:absolute;top:46px;left:0;background:var(--bg-surface);border:1px solid var(--glass-border);border-radius:14px;padding:10px;gap:8px;grid-template-columns:repeat(3,1fr);box-shadow:var(--shadow);z-index:80}}
+.skin-menu.open{{display:grid}}
+.skin-dot{{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s}}
+.skin-dot:hover{{transform:scale(1.15)}}
+.skin-dot.active{{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.2)}}
+html[data-skin="purple"]{{--accent:#8B5CF6;--accent-soft:#A78BFA;--bg-root:#120B22;--bg-surface:#180F2E;--glass-border:rgba(139,92,246,.18)}}
+html[data-skin="matrix"]{{--accent:#22C55E;--accent-soft:#4ADE80;--bg-root:#051208;--bg-surface:#0A1F0E;--glass-border:rgba(34,197,94,.18)}}
+html[data-skin="gold"]{{--accent:#F59E0B;--accent-soft:#FBBF24;--bg-root:#1A1206;--bg-surface:#241A0A;--glass-border:rgba(245,158,11,.18)}}
+html[data-skin="crimson"]{{--accent:#EF4444;--accent-soft:#F87171;--bg-root:#1A0808;--bg-surface:#260D0D;--glass-border:rgba(239,68,68,.18)}}
+html[data-skin="cyber"]{{--accent:#06B6D4;--accent-soft:#22D3EE;--bg-root:#07141A;--bg-surface:#0C1F28;--glass-border:rgba(6,182,212,.2)}}
+.hero{{
+  background:var(--glass-bg);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--glass-border);
+  border-radius:24px;
+  padding:28px;
+  margin-bottom:20px;
+  box-shadow:var(--shadow);
+}}
+.hero-title{{font-size:20px;font-weight:700;margin-bottom:6px}}
+.hero-meta{{font-size:11px;color:var(--text-muted);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}}
+.status-badge{{
+  font-size:10px;padding:4px 12px;
+  border-radius:20px;font-weight:700;
+  display:inline-flex;align-items:center;gap:6px;
+}}
+.bg-green{{background:var(--green-bg);color:#34D399}}
+.bg-red{{background:var(--red-bg);color:#FCA5A5}}
+.bg-blue{{background:rgba(59,130,246,0.12);color:var(--accent-soft)}}
+.usage-section{{margin-bottom:18px}}
+.usage-bar{{height:8px;border-radius:4px;background:rgba(59,130,246,0.1);overflow:hidden;margin-bottom:6px}}
+.usage-fill{{height:100%;border-radius:4px;transition:width 0.4s}}
+.usage-text{{font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between}}
+.ring-wrap{{display:flex;justify-content:center;margin:6px 0 16px}}
+.ring{{width:136px;height:136px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.5s}}
+.ring-inner{{width:106px;height:106px;border-radius:50%;background:var(--bg-surface);display:flex;flex-direction:column;align-items:center;justify-content:center}}
+.ring-pct{{font-size:24px;font-weight:800}}
+.ring-lbl{{font-size:10px;color:var(--text-muted);margin-top:2px}}
+.stat-row{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}}
+.stat-chip{{background:rgba(0,0,0,.16);border:1px solid var(--glass-border);border-radius:14px;padding:12px;text-align:center}}
+.stat-chip-val{{font-size:15px;font-weight:800}}
+.stat-chip-lbl{{font-size:10.5px;color:var(--text-muted);margin-top:3px}}
+.countdown{{display:none;background:rgba(0,0,0,.14);border:1px solid var(--glass-border);border-radius:14px;padding:14px;margin-bottom:18px}}
+.cd-title{{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;margin-bottom:10px;justify-content:center}}
+.cd-grid{{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;text-align:center}}
+.cd-val{{font-size:18px;font-weight:800;font-family:ui-monospace,monospace}}
+.cd-lbl{{font-size:9.5px;color:var(--text-muted);margin-top:2px}}
+.cfg-title{{font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px}}
+.cfg-row{{border:1px solid var(--glass-border);border-radius:12px;margin-bottom:8px;overflow:hidden}}
+.cfg-row-head{{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;cursor:pointer;background:rgba(0,0,0,.1)}}
+.cfg-row-name{{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:7px}}
+.cfg-row-actions{{display:flex;align-items:center;gap:4px}}
+.mini-btn{{background:rgba(59,130,246,.1);color:var(--accent-soft);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer}}
+.cfg-chev{{font-size:15px;color:var(--text-muted);transition:transform .2s;margin-right:2px}}
+.cfg-row-body{{display:none;padding:12px 13px;font-family:ui-monospace,monospace;font-size:10.5px;color:var(--accent-soft);word-break:break-all;line-height:1.8;background:rgba(0,0,0,.15);border-top:1px solid var(--glass-border)}}
+.cfg-row-body.open{{display:block}}
+.guide-card{{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:20px;padding:22px;margin-bottom:20px}}
+.guide-title{{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:14px}}
+.guide-step{{display:flex;gap:11px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);line-height:1.8}}
+.guide-step:last-child{{margin-bottom:0}}
+.guide-num{{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:rgba(59,130,246,.14);color:var(--accent-soft);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}}
+.vless-box{{
+  background:rgba(0,0,0,0.2);
+  border:1px solid var(--glass-border);
+  border-radius:12px;
+  padding:14px;
+  font-family:ui-monospace,monospace;
+  font-size:11px;
+  color:var(--accent-soft);
+  word-break:break-all;
+  line-height:1.9;
+  margin-bottom:16px;
+}}
+.actions{{display:flex;gap:10px;flex-wrap:wrap}}
+.btn{{
+  font-family:inherit;font-size:12px;font-weight:600;
+  border-radius:10px;
+  padding:10px 16px;
+  cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  border:none;
+  transition:all 0.15s;
+}}
+.btn i{{font-size:14px}}
+.btn-primary{{
+  background:linear-gradient(135deg,#2563EB,#1D4ED8);
+  color:#fff;
+  box-shadow:0 4px 16px rgba(37,99,235,0.3);
+}}
+.btn-primary:hover{{filter:brightness(1.1)}}
+.btn-ghost{{
+  background:rgba(59,130,246,0.08);
+  color:var(--accent-soft);
+  border:1px solid rgba(59,130,246,0.15);
+}}
+.btn-ghost:hover{{background:rgba(59,130,246,0.15)}}
+.toast{{
+  position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:var(--bg-surface);
+  border:1px solid var(--glass-border);
+  color:var(--text-primary);
+  border-radius:12px;
+  padding:12px 20px;
+  font-size:13px;
+  opacity:0;
+  transition:all 0.25s;
+  z-index:999;
+  pointer-events:none;
+  display:flex;align-items:center;gap:8px;
+  box-shadow:var(--shadow);
+}}
+.toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
+.toast.ok{{border-color:rgba(16,185,129,0.3);background:var(--green-bg);color:#34D399}}
+.qr-modal{{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(6px);
+  z-index:600;
+  align-items:center;justify-content:center;
+}}
+.qr-modal.open{{display:flex}}
+.qr-box{{
+  background:var(--bg-surface);
+  border:1px solid var(--glass-border);
+  border-radius:20px;
+  padding:24px;
+  text-align:center;
+  max-width:340px;
+  width:calc(100% - 32px);
+}}
+.qr-img{{border-radius:14px;overflow:hidden;margin-bottom:16px}}
+.qr-img img{{width:100%;display:block;background:#fff;padding:8px;border-radius:14px}}
+.proto-tabs{{display:flex;gap:6px;margin-bottom:10px}}
+.proto-tab{{flex:1;padding:8px 4px;border-radius:10px;background:var(--bg-surface);border:1px solid var(--glass-border);font-size:11px;font-weight:700;cursor:pointer;color:var(--text-muted)}}
+.proto-tab.on{{background:var(--accent);color:#fff;border-color:var(--accent)}}
+.footer{{text-align:center;padding-top:30px;font-size:11px;color:var(--text-muted)}}
+.footer a{{color:var(--accent-soft);font-weight:600}}
+.split-card{{background:linear-gradient(135deg,rgba(157,123,240,.10),rgba(59,130,246,.04));border:1px solid rgba(157,123,240,.22);border-radius:20px;padding:22px;margin-bottom:20px}}
+.split-head{{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px;font-weight:700}}
+.split-head i{{color:#c4b5fd;font-size:17px}}
+.split-sub-note{{font-size:11.5px;color:var(--text-muted);line-height:1.8;margin-bottom:14px}}
+.split-form{{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:10px}}
+.split-form input,.split-form select,#split-label{{font-family:inherit;font-size:12.5px;padding:10px 12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,.18);color:var(--text-primary);outline:none;width:100%}}
+.split-form input:focus,.split-form select:focus,#split-label:focus{{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(157,123,240,.15)}}
+.split-err{{color:#fca5a5;font-size:11px;margin-bottom:10px;display:none;align-items:center;gap:5px}}
+.split-err.show{{display:flex}}
+.split-result{{background:var(--green-bg);border:1px solid rgba(16,185,129,.3);border-radius:14px;padding:14px 16px;margin-top:14px;display:none}}
+.split-result.show{{display:block}}
+.split-result-title{{font-size:12px;font-weight:700;color:#34D399;display:flex;align-items:center;gap:6px;margin-bottom:9px}}
+.split-result-url{{font-family:ui-monospace,monospace;font-size:10px;color:var(--text-secondary);word-break:break-all;background:rgba(0,0,0,.15);border-radius:9px;padding:9px 11px;margin-bottom:9px}}
+.child-item{{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(0,0,0,.14);border-radius:11px;padding:10px 13px;margin-top:9px;font-size:11.5px}}
+.child-item-name{{font-weight:700}}
+.child-item-meta{{color:var(--text-muted);font-size:10.5px;margin-top:2px}}
+.child-revoke{{background:var(--red-bg);color:#fca5a5;border:none;border-radius:8px;padding:6px 10px;font-size:10.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px}}
+.children-title{{font-size:11px;font-weight:700;color:var(--text-muted);margin-top:16px;margin-bottom:4px}}
+@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
+</style>
+</head>
+<body>
+<div class="bg-layer"></div><div class="grid"></div>
+<div class="toast" id="toast"></div>
+<div class="qr-modal" id="qr-modal" onclick="this.classList.remove('open')">
+  <div class="qr-box" onclick="event.stopPropagation()">
+    <div class="qr-title" id="qr-label">QR Code</div>
+    <div class="qr-img"><img id="qr-img" src="" alt="QR"></div>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('qr-modal').classList.remove('open')"><i class="ti ti-x"></i> بستن</button>
+  </div>
+</div>
+<div class="wrap">
+  <div class="top">
+    {header_brand_html}
+    <div class="top-actions">
+      <div class="live-clock" id="live-clock"><i class="ti ti-clock"></i><span id="clock-time">--:--:--</span></div>
+      <div class="skin-picker">
+        <button class="icon-btn" id="skin-btn" onclick="toggleSkinMenu()" title="تغییر تم"><i class="ti ti-palette"></i></button>
+        <div class="skin-menu" id="skin-menu">
+          <div class="skin-dot" data-skin="neon" style="background:linear-gradient(135deg,#3B82F6,#60A5FA)" onclick="setSkin('neon')" title="نئون آبی"></div>
+          <div class="skin-dot" data-skin="purple" style="background:linear-gradient(135deg,#8B5CF6,#A78BFA)" onclick="setSkin('purple')" title="گالاکسی بنفش"></div>
+          <div class="skin-dot" data-skin="matrix" style="background:linear-gradient(135deg,#16A34A,#4ADE80)" onclick="setSkin('matrix')" title="ماتریکس سبز"></div>
+          <div class="skin-dot" data-skin="gold" style="background:linear-gradient(135deg,#D97706,#FBBF24)" onclick="setSkin('gold')" title="طلایی"></div>
+          <div class="skin-dot" data-skin="crimson" style="background:linear-gradient(135deg,#DC2626,#F87171)" onclick="setSkin('crimson')" title="قرمز آتشین"></div>
+          <div class="skin-dot" data-skin="cyber" style="background:linear-gradient(135deg,#0891B2,#22D3EE)" onclick="setSkin('cyber')" title="سایبرپانک"></div>
+        </div>
+      </div>
+      {header_tg_html}
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-title">{label}</div>
+    <div class="hero-meta">
+      <i class="ti ti-calendar"></i> {created_at[:10] if created_at else "—"}
+      <span class="status-badge bg-blue">
+        <i class="ti ti-server-2"></i> تیم آزادی Gateway
+      </span>
+      {f'<span class="status-badge bg-blue">{flag} {country_name}</span>' if flag else ''}
+      <span class="status-badge {'bg-green' if active and not expired else 'bg-red'}">
+        <i class="ti ti-{'circle-check' if active and not expired else 'circle-x'}"></i>
+        {'فعال' if active and not expired else 'غیرفعال'}
+      </span>
+    </div>
+
+    <div class="ring-wrap">
+      <div class="ring" style="background:conic-gradient({bar_color} calc({pct}*1%),rgba(255,255,255,.07) 0)">
+        <div class="ring-inner">
+          <div class="ring-pct">{pct:.0f}%</div>
+          <div class="ring-lbl">مصرف</div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-chip"><div class="stat-chip-val">{used_fmt}</div><div class="stat-chip-lbl">مصرف‌شده</div></div>
+      <div class="stat-chip"><div class="stat-chip-val">{remain_fmt}</div><div class="stat-chip-lbl">باقی‌مانده</div></div>
+    </div>
+
+    <div class="countdown" id="countdown">
+      <div class="cd-title"><i class="ti ti-clock-hour-4"></i> تا انقضا</div>
+      <div class="cd-grid">
+        <div class="cd-cell"><div class="cd-val" id="cd-d">--</div><div class="cd-lbl">روز</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-h">--</div><div class="cd-lbl">ساعت</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-m">--</div><div class="cd-lbl">دقیقه</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-s">--</div><div class="cd-lbl">ثانیه</div></div>
+      </div>
+    </div>
+
+    <div class="cfg-title"><i class="ti ti-list-details"></i> کانفیگ‌ها</div>
+    <div class="cfg-list" id="cfg-list"></div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="copyAllProtocols()"><i class="ti ti-copy-plus"></i> کپی همه‌ی کانفیگ‌ها</button>
+      <button class="btn btn-ghost" onclick="copyToClipboard('{sub_url}')"><i class="ti ti-rss"></i> کپی لینک ساب</button>
+    </div>
+  </div>
+
+  <div class="guide-card">
+    <div class="guide-title"><i class="ti ti-info-circle"></i> راهنمای اتصال</div>
+    <div class="guide-step"><div class="guide-num">۱</div><div>یک اپلیکیشن کلاینت مثل <b>v2rayNG</b> (اندروید)، <b>Streisand</b> (iOS) یا <b>Hiddify</b> نصب کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۲</div><div>روی آیکون <b>کپی</b> یا <b>QR</b> هرکدام از کانفیگ‌ها بزنید، یا همه را با هم کپی کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۳</div><div>در اپ، گزینه‌ی <b>Add Subscription</b> را انتخاب و لینک ساب را وارد کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۴</div><div><b>Connect</b> بزنید و اجازه‌ی VPN را تایید کنید.</div></div>
+  </div>
+
+  <div class="split-card">
+    <div class="split-head"><i class="ti ti-gift"></i><span>جدا کردن حجم و ساخت کانفیگ هدیه</span></div>
+    <div class="split-sub-note">می‌تونی بخشی از سهمیه‌ی همین کانفیگ رو جدا کنی و به یک کانفیگ کاملاً مستقل و بدون هیچ برند/لوگویی تبدیل کنی تا به هرکسی بدی. حجم جداشده از سهمیه‌ی خودت کم می‌شه.</div>
+    <div class="split-form">
+      <input id="split-val" type="number" min="0" step="0.1" placeholder="مقدار (مثلاً 5)">
+      <select id="split-unit"><option value="GB">GB</option><option value="MB">MB</option></select>
+    </div>
+    <div class="split-form" style="margin-top:8px">
+      <input id="split-exp" type="number" min="0" step="1" placeholder="انقضا (اختیاری، 0 = نامحدود)">
+      <select id="split-exp-unit"><option value="hours">ساعت</option><option value="days" selected>روز</option></select>
+    </div>
+    <input id="split-label" style="margin-bottom:12px" placeholder="اسم کانفیگ هدیه (اختیاری)">
+    <div class="split-err" id="split-err"><i class="ti ti-alert-circle"></i><span id="split-err-txt"></span></div>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center;background:rgba(157,123,240,.12);color:#c4b5fd;border-color:rgba(157,123,240,.25)" onclick="submitSplitLink()"><i class="ti ti-gift"></i> جدا کردن و ساخت کانفیگ هدیه</button>
+    <div class="split-result" id="split-result">
+      <div class="split-result-title"><i class="ti ti-circle-check"></i> کانفیگ هدیه ساخته شد ✓ (بدون هیچ لوگو/نامی)</div>
+      <div class="split-result-url" id="split-result-url"></div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="copySplitLinkUrl()"><i class="ti ti-copy"></i> کپی لینک</button>
+        <button class="btn btn-ghost" onclick="window.open(window._rvgSplitUrl,'_blank')"><i class="ti ti-external-link"></i> باز کردن</button>
+      </div>
+    </div>
+    <div id="children-list"></div>
+  </div>
+
+  {footer_html}
+</div>
+
+<script>
+const LINK_UUID='{uuid}';
+const VLESS_BUNDLE = {vless_links_json};
+const EXPIRES_AT = {expires_json};
+const PROTO_TAG={{'vless-ws':'VLESS · WS','xhttp-packet-up':'XHTTP · packet-up','xhttp-stream-up':'XHTTP · stream-up','xhttp-stream-one':'XHTTP ULTRA'}};
+let curProtoIdx = 0;
+function esc(s){{return String(s||'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
+const FLAG = {flag_json};
+function renderCfgList(){{
+  document.getElementById('cfg-list').innerHTML = VLESS_BUNDLE.map((b,i)=>`
+    <div class="cfg-row">
+      <div class="cfg-row-head" onclick="toggleCfgRow(${{i}})">
+        <div class="cfg-row-name">${{FLAG?FLAG+' ':''}}${{PROTO_TAG[b.protocol]||b.protocol}}</div>
+        <div class="cfg-row-actions">
+          <button class="mini-btn" onclick="event.stopPropagation();copyOne(${{i}})" title="کپی"><i class="ti ti-copy"></i></button>
+          <button class="mini-btn" onclick="event.stopPropagation();showQRFor(${{i}})" title="QR"><i class="ti ti-qrcode"></i></button>
+          <i class="ti ti-chevron-down cfg-chev" id="chev-${{i}}"></i>
+        </div>
+      </div>
+      <div class="cfg-row-body" id="body-${{i}}">${{esc(b.vless_link)}}</div>
+    </div>
+  `).join('');
+}}
+function toggleCfgRow(i){{
+  const body=document.getElementById('body-'+i), chev=document.getElementById('chev-'+i);
+  const opening = !body.classList.contains('open');
+  body.classList.toggle('open',opening);
+  chev.style.transform = opening?'rotate(180deg)':'';
+}}
+function copyOne(i){{copyToClipboard(VLESS_BUNDLE[i].vless_link)}}
+function showQRFor(i){{curProtoIdx=i;showQR()}}
+renderCfgList();
+
+function tickClock(){{
+  const now=new Date();
+  const el=document.getElementById('clock-time');
+  if(el) el.textContent = now.toLocaleTimeString('fa-IR',{{hour:'2-digit',minute:'2-digit',second:'2-digit'}});
+}}
+tickClock();setInterval(tickClock,1000);
+
+function setSkin(name){{
+  document.documentElement.setAttribute('data-skin',name);
+  try{{localStorage.setItem('rvg_skin',name)}}catch(e){{}}
+  document.querySelectorAll('.skin-dot').forEach(d=>d.classList.toggle('active',d.dataset.skin===name));
+  document.getElementById('skin-menu').classList.remove('open');
+}}
+function toggleSkinMenu(){{document.getElementById('skin-menu').classList.toggle('open')}}
+document.addEventListener('click',e=>{{
+  if(!e.target.closest('.skin-picker')) document.getElementById('skin-menu')?.classList.remove('open');
+}});
+(function(){{
+  let saved='neon';
+  try{{saved=localStorage.getItem('rvg_skin')||'neon'}}catch(e){{}}
+  document.documentElement.setAttribute('data-skin',saved);
+  const dot=document.querySelector('.skin-dot[data-skin="'+saved+'"]');
+  if(dot) dot.classList.add('active');
+}})();
+
+function tickCountdown(){{
+  const el=document.getElementById('countdown');
+  if(!EXPIRES_AT){{el.style.display='none';return}}
+  el.style.display='block';
+  const diff = new Date(EXPIRES_AT).getTime() - Date.now();
+  const d = Math.max(0,Math.floor(diff/86400000));
+  const h = Math.max(0,Math.floor(diff%86400000/3600000));
+  const m = Math.max(0,Math.floor(diff%3600000/60000));
+  const s = Math.max(0,Math.floor(diff%60000/1000));
+  document.getElementById('cd-d').textContent=d;
+  document.getElementById('cd-h').textContent=h;
+  document.getElementById('cd-m').textContent=m;
+  document.getElementById('cd-s').textContent=s;
+}}
+tickCountdown();setInterval(tickCountdown,1000);
+
+function toast(msg,type){{
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast show'+(type?' '+type:'');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}}
+function copyToClipboard(text){{
+  navigator.clipboard.writeText(text).then(()=>toast('کپی شد ✓','ok'));
+}}
+function copyAllProtocols(){{
+  navigator.clipboard.writeText(VLESS_BUNDLE.map(b=>b.vless_link).join('\\n'))
+    .then(()=>toast('هر '+VLESS_BUNDLE.length+' کانفیگ کپی شد ✓','ok'));
+}}
+function showQR(){{
+  document.getElementById('qr-label').textContent='{label}'+' · '+(PROTO_TAG[VLESS_BUNDLE[curProtoIdx].protocol]||'');
+  document.getElementById('qr-img').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(VLESS_BUNDLE[curProtoIdx].vless_link);
+  document.getElementById('qr-modal').classList.add('open');
+}}
+
+function fmtB(b){{if(!b||b===0)return '0 B';if(b<1024)return b+' B';if(b<1024**2)return (b/1024).toFixed(1)+' KB';if(b<1024**3)return (b/1024**2).toFixed(2)+' MB';return (b/1024**3).toFixed(2)+' GB'}}
+
+async function submitSplitLink(){{
+  const errEl=document.getElementById('split-err'), errTxt=document.getElementById('split-err-txt');
+  errEl.classList.remove('show');
+  const amount=document.getElementById('split-val').value;
+  const unit=document.getElementById('split-unit').value;
+  const label=document.getElementById('split-label').value.trim();
+  const expires_value=document.getElementById('split-exp').value||0;
+  const expires_unit=document.getElementById('split-exp-unit').value||'days';
+  if(!amount||Number(amount)<=0){{errTxt.textContent='یک مقدار معتبر وارد کن';errEl.classList.add('show');return}}
+  try{{
+    const r=await fetch('/api/public/split/'+LINK_UUID,{{method:'POST',headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{amount,unit,label,expires_value,expires_unit}})}});
+    const data=await r.json();
+    if(!r.ok){{errTxt.textContent=data.detail||'خطا در ساخت کانفیگ هدیه';errEl.classList.add('show');return}}
+    window._rvgSplitUrl=data.child.sub_url;
+    document.getElementById('split-result-url').textContent=data.child.sub_url;
+    document.getElementById('split-result').classList.add('show');
+    toast('کانفیگ هدیه ساخته شد ✓','ok');
+    document.getElementById('split-val').value='';document.getElementById('split-label').value='';document.getElementById('split-exp').value='';
+    loadChildren();
+  }}catch(e){{errTxt.textContent='خطا در ارتباط با سرور';errEl.classList.add('show')}}
+}}
+function copySplitLinkUrl(){{
+  navigator.clipboard.writeText(window._rvgSplitUrl||'').then(()=>toast('لینک کپی شد ✓','ok'));
+}}
+async function loadChildren(){{
+  try{{
+    const r=await fetch('/api/public/children/'+LINK_UUID);
+    const {{children=[],permissions={{}}}}=await r.json();
+    const perms = {{client_can_delete: permissions.client_can_delete!==false, client_can_disable: permissions.client_can_disable!==false}};
+    const box=document.getElementById('children-list');
+    if(!children.length){{box.innerHTML='';return}}
+    box.innerHTML='<div class="children-title">کانفیگ‌های هدیه‌داده‌شده ('+children.length+')</div>'+
+      children.map(c=>`
+        <div class="child-item">
+          <div>
+            <div class="child-item-name">${{esc(c.label)}}</div>
+            <div class="child-item-meta">${{esc(c.used_fmt)}} از ${{esc(c.limit_fmt)}} · ${{c.active&&!c.expired?'فعال':'غیرفعال'}}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="child-revoke" ${{perms.client_can_disable?'':'disabled title="این قابلیت توسط مدیر غیرفعال شده"'}}
+              onclick="toggleChild('${{c.uuid}}',${{!c.active}})" style="${{perms.client_can_disable?'':'opacity:.4;cursor:not-allowed'}}"><i class="ti ${{c.active?'ti-power':'ti-play'}}"></i></button>
+            <button class="child-revoke" ${{perms.client_can_delete?'':'disabled title="این قابلیت توسط مدیر غیرفعال شده"'}}
+              onclick="revokeChild('${{c.uuid}}')" style="${{perms.client_can_delete?'':'opacity:.4;cursor:not-allowed'}}"><i class="ti ti-trash"></i> لغو</button>
+          </div>
+        </div>
+      `).join('');
+  }}catch(e){{}}
+}}
+async function toggleChild(childUuid,active){{
+  try{{
+    const r=await fetch('/api/public/split/'+LINK_UUID+'/'+childUuid+'/toggle',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{active}})}});
+    const data=await r.json().catch(()=>({{}}));
+    if(!r.ok){{toast(data.detail||'خطا','');return}}
+    toast(active?'فعال شد ✓':'غیرفعال شد','ok');
+    loadChildren();
+  }}catch(e){{toast('خطا در ارتباط با سرور','')}}
+}}
+async function revokeChild(childUuid){{
+  if(!confirm('این کانفیگ هدیه لغو شود؟ حجم مصرف‌نشده‌اش به خودت برمی‌گردد.'))return;
+  try{{
+    const r=await fetch('/api/public/split/'+LINK_UUID+'/'+childUuid,{{method:'DELETE'}});
+    const data=await r.json().catch(()=>({{}}));
+    if(!r.ok){{toast(data.detail||'خطا در لغو','');return}}
+    toast('لغو شد، حجم برگشت ✓','ok');
+    loadChildren();
+    setTimeout(()=>location.reload(),1200);
+  }}catch(e){{toast('خطا در لغو','')}}
+}}
+loadChildren();
+</script>
+</body></html>"""
