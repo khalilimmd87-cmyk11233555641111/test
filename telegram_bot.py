@@ -72,6 +72,22 @@ def _channel_username() -> str:
     return (JOIN_SETTINGS.get("channel_username", "TimAzadi") or "TimAzadi").strip().lstrip("@")
 
 
+def _safe_host() -> str:
+    """
+    get_host() را می‌گیرد؛ قبلاً وقتی RAILWAY_PUBLIC_DOMAIN تنظیم نبود این تابع
+    یک دامین هارد-کد شده‌ی متعلق به یک دیپلوی دیگر (mmd-mimi-mikham.up.railway.app)
+    برمی‌گرداند که باعث می‌شد لینک‌های کاربران به یک سایت اشتباه/غیرمرتبط اشاره کند.
+    حالا در این حالت فقط لاگ هشدار می‌زند و از CONFIG['host'] واقعی استفاده می‌کند.
+    """
+    host = get_host()
+    if not host or host == "localhost":
+        logger.warning(
+            "RAILWAY_PUBLIC_DOMAIN تنظیم نشده — لینک‌های ساخته‌شده ممکن است نادرست باشند؛ "
+            "این متغیر را در Railway تنظیم کن."
+        )
+    return host
+
+
 async def _api(method: str, payload: dict | None = None) -> dict | None:
     from main import http_client
     token = TELEGRAM_SETTINGS.get("bot_token")
@@ -222,9 +238,7 @@ async def _send_link_and_qr(chat_id, uid: str):
         if not d:
             await _send(chat_id, "❌ این کانفیگ دیگر وجود ندارد.")
             return
-        host = get_host()
-        if not host or host == "localhost":
-            host = "mmd-mimi-mikham.up.railway.app"
+        host = _safe_host()
         label = d.get("label", "کانفیگ")
         sub_url = f"https://{host}/sub/{uid}"
         text = f"🔗 <b>{label}</b>\n\n📡 لینک ساب:\n<code>{sub_url}</code>"
@@ -364,9 +378,7 @@ async def _grant_join_link(chat_id, message_id=None):
             await _send(chat_id, text, kb)
         return
 
-    host = get_host()
-    if not host or host == "localhost":
-        host = "mmd-mimi-mikham.up.railway.app"
+    host = _safe_host()
     sub_url = f"https://{host}/sub/{uid}"
     limit_txt = "∞" if not d.get("limit_bytes") else fmt_bytes(d["limit_bytes"])
     exp_txt = "بدون انقضا"
@@ -508,9 +520,12 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         await _show_subs(chat_id, message_id, int(data.split(":")[2]))
     elif data.startswith("m:copy:"):
         uid = data.split(":", 2)[2]
-        host = get_host()
-        if not host or host == "localhost":
-            host = "mmd-mimi-mikham.up.railway.app"
+        # قبلاً این هندلر بدون هیچ چک مالکیتی، لینک ساب هر uuid ارسالی در callback_data را
+        # برمی‌گرداند؛ حالا فقط ادمین یا خودِ صاحب آن کانفیگ می‌تواند لینکش را از این مسیر بگیرد.
+        if not is_admin and USER_LINKS.get(str(chat_id)) != uid:
+            await _answer_cb(cb_id, "⛔️ اجازه دسترسی به این کانفیگ را نداری.")
+            return
+        host = _safe_host()
         await _send(chat_id, f"✅ لینک ساب کپی شد!\n\n<code>https://{host}/sub/{uid}</code>")
     elif data.startswith("q:"):
         val = data[2:]
@@ -641,11 +656,21 @@ async def polling_loop():
     _running = True
     logger.info("telegram_bot: polling loop started")
     await _get_bot_username()  # پیش‌گرم کردن کش یوزرنیم بات تا لینک رفرال از همون اول درست باشد
+
+    # آپدیت‌های قدیمی/باقی‌مانده از قبل از استارت را فقط یک‌بار در ابتدا دور بریز؛
+    # قبلاً drop_pending_updates روی هر تک تک درخواست‌های getUpdates فرستاده می‌شد که
+    # اصلاً پارامتر معتبری برای این متد نیست (فقط برای setWebhook/deleteWebhook تعریف شده)
+    # و صرفاً نادیده گرفته می‌شد؛ اینجا کار درستش را یک‌بار با offset=-1 انجام می‌دهیم.
+    try:
+        pending = await _api("getUpdates", {"offset": -1, "timeout": 0})
+        if pending:
+            _offset = pending[-1]["update_id"] + 1
+    except Exception:
+        pass
+
+    consecutive_errors = 0
     while True:
         try:
-            # توجه: دیگر نیازی به وجود chat_id ادمین نیست تا بات کار کند —
-            # کاربران عادی هم باید بتوانند از بخش رفرال استفاده کنند حتی اگر
-            # هیچ chat_id ادمینی تنظیم نشده باشد.
             if not (TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token")):
                 await asyncio.sleep(5)
                 continue
@@ -653,11 +678,14 @@ async def polling_loop():
                 "offset": _offset,
                 "timeout": 25,
                 "allowed_updates": ["message", "callback_query"],
-                "drop_pending_updates": True
             })
             if result is None:
-                await asyncio.sleep(5)
+                # چند بار پشت‌سرهم خطا یعنی احتمالاً توکن غلط است یا تلگرام موقتاً محدودمان کرده؛
+                # backoff نمایی می‌زنیم تا به جای اسپم کردن API، فشار را کم کنیم و ریت‌لیمیت/بن نشویم.
+                consecutive_errors += 1
+                await asyncio.sleep(min(60, 5 * (2 ** min(consecutive_errors, 4))))
                 continue
+            consecutive_errors = 0
             for update in result:
                 _offset = update["update_id"] + 1
                 await _process_update(update)
@@ -665,6 +693,7 @@ async def polling_loop():
             break
         except Exception as e:
             logger.warning(f"telegram_bot: polling_loop error: {e}")
-            await asyncio.sleep(5)
+            consecutive_errors += 1
+            await asyncio.sleep(min(60, 5 * (2 ** min(consecutive_errors, 4))))
     _running = False
     logger.info("telegram_bot: polling loop stopped")
