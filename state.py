@@ -561,6 +561,7 @@ async def create_join_link(user_id: str, label: str = None) -> str | None:
             "quota_notified": False,
             "expiry_notified": False,
             "join_user": user_id,
+            "disabled_by_leave": False,
         }
         USER_LINKS[user_id] = uid
     await save_state()
