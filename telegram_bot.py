@@ -18,6 +18,7 @@ from state import (
     DEFAULT_PROTOCOL, uptime,
     JOIN_SETTINGS, USER_LINKS,
     check_channel_membership, create_join_link,
+    save_state,
 )
 
 PAGE_SIZE = 6
@@ -697,3 +698,87 @@ async def polling_loop():
             await asyncio.sleep(min(60, 5 * (2 ** min(consecutive_errors, 4))))
     _running = False
     logger.info("telegram_bot: polling loop stopped")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# فیچر: قفل/بازکردن خودکار کانفیگ بر اساس عضویت در کانال
+# هر چند دقیقه یک‌بار عضویت کاربرانی که کانفیگشان را از مسیر «ورود به بات + عضویت
+# در کانال» گرفته‌اند (link["join_user"] ست شده) چک می‌شود:
+#   - اگر کانال را ترک کرده و کانفیگش فعال است → غیرفعال می‌شود + پیام هشدار.
+#   - اگر دوباره عضو شده و قبلاً همین سیستم غیرفعالش کرده بود → دوباره فعال می‌شود + پیام اطلاع.
+# کانفیگ‌هایی که ادمین دستی ساخته (join_user ندارند) هرگز دست‌خورده نمی‌شوند.
+# توجه: این پیام از طریق خودِ بات تلگرام فرستاده می‌شود، نه پیامک واقعی — این
+# پروژه هیچ سرویس ارسال SMS ندارد.
+# ══════════════════════════════════════════════════════════════════════════════
+CHANNEL_WATCH_INTERVAL = 600   # هر ۱۰ دقیقه یک دور کامل چک
+CHANNEL_WATCH_STAGGER = 0.35   # فاصله بین هر getChatMember تا به API تلگرام فشار نیاریم و ریت‌لیمیت/بن نشیم
+
+
+async def channel_watch_loop():
+    logger.info("telegram_bot: channel_watch_loop started")
+    while True:
+        await asyncio.sleep(CHANNEL_WATCH_INTERVAL)
+        try:
+            if not (TELEGRAM_SETTINGS.get("enabled") and TELEGRAM_SETTINGS.get("bot_token")):
+                continue
+            if not JOIN_SETTINGS.get("channel_required", True):
+                continue
+
+            async with LINKS_LOCK:
+                # اسنپ‌شات می‌گیریم تا در طول چک عضویت (که چند ثانیه طول می‌کشد) قفل را نگه نداریم
+                candidates = [(uid, d.get("join_user")) for uid, d in LINKS.items() if d.get("join_user")]
+
+            changed = False
+            for uid, user_id in candidates:
+                if not user_id:
+                    continue
+                try:
+                    is_member = await check_channel_membership(user_id, TELEGRAM_SETTINGS.get("bot_token"))
+                except Exception:
+                    continue
+                await asyncio.sleep(CHANNEL_WATCH_STAGGER)
+
+                async with LINKS_LOCK:
+                    link = LINKS.get(uid)
+                    if link is None:
+                        continue
+                    was_active = link.get("active", True)
+                    disabled_by_leave = link.get("disabled_by_leave", False)
+
+                    if not is_member and was_active:
+                        link["active"] = False
+                        link["disabled_by_leave"] = True
+                        label = link.get("label", "کانفیگ")
+                        action = "disabled"
+                    elif is_member and (not was_active) and disabled_by_leave:
+                        link["active"] = True
+                        link["disabled_by_leave"] = False
+                        label = link.get("label", "کانفیگ")
+                        action = "enabled"
+                    else:
+                        continue
+
+                changed = True
+                channel = (JOIN_SETTINGS.get("channel_username", "TimAzadi") or "TimAzadi").strip().lstrip("@")
+                if action == "disabled":
+                    log_activity("sub", f"کانفیگ «{label}» به‌خاطر ترک کانال توسط کاربر {user_id} غیرفعال شد", "warn")
+                    await _send(
+                        user_id,
+                        f"⚠️ متوجه شدیم از کانال @{channel} خارج شدید.\n\n"
+                        f"طبق قوانین، کانفیگ رایگان «{label}» شما موقتاً <b>غیرفعال</b> شد.\n"
+                        f"برای فعال‌سازی دوباره، کافیه دوباره در کانال عضو بشید — خودکار فعال می‌شه.",
+                    )
+                else:
+                    log_activity("sub", f"کانفیگ «{label}» بعد از بازگشت کاربر {user_id} به کانال دوباره فعال شد", "ok")
+                    await _send(
+                        user_id,
+                        f"✅ عضویت شما در @{channel} دوباره تایید شد.\n\n"
+                        f"کانفیگ «{label}» شما دوباره <b>فعال</b> شد. لینک ساب همانی است که قبلاً داشتید.",
+                    )
+
+            if changed:
+                asyncio.create_task(save_state())
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning(f"telegram_bot: channel_watch_loop error: {e}")
