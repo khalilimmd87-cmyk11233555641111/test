@@ -32,6 +32,14 @@ from state import (
 
 RELAY_BUF = 256 * 1024   # 256 KB buffer
 
+# قبلاً هیچ idle-timeout ای روی تونل خام WS نبود؛ یک کلاینت که وصل می‌مونه ولی
+# دیگه هیچ دیتایی رد و بدل نمی‌کنه (قطعی شبکه بی‌خبر، اپلیکیشن فرانت که کرش کرده
+# ولی سوکت هنوز باز مونده و ...) برای همیشه یک کانکشن (و یک تسک asyncio، و یک
+# سوکت TCP سمت مقصد) را زنده نگه می‌داشت. با تعداد زیاد این‌ها، حافظه/فایل-دیسکریپتور
+# روی Railway تمام می‌شه و کانتینر کرش/ری‌استارت می‌کنه. الان بعد از این مدت بی‌فعالیت
+# (بدون هیچ بایت رد و بدل شده در هیچ جهتی) کانکشن بسته می‌شه.
+IDLE_TIMEOUT = 180  # ثانیه
+
 async def parse_vless_header(chunk: bytes):
     if len(chunk) < 24:
         raise ValueError("chunk too small")
@@ -98,7 +106,11 @@ async def check_and_use(uid: str, n: int) -> bool:
 async def relay_ws_to_tcp(ws: WebSocket, writer: asyncio.StreamWriter, conn_id: str, uid: str):
     try:
         while True:
-            msg = await ws.receive()
+            try:
+                msg = await asyncio.wait_for(ws.receive(), timeout=IDLE_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.info(f"⏱ WS [{conn_id}] idle timeout, closing")
+                break
             if msg["type"] == "websocket.disconnect":
                 break
             data = msg.get("bytes") or (msg.get("text") or "").encode()
@@ -124,7 +136,11 @@ async def relay_tcp_to_ws(ws: WebSocket, reader: asyncio.StreamReader, conn_id: 
     first = True
     try:
         while True:
-            data = await reader.read(RELAY_BUF)
+            try:
+                data = await asyncio.wait_for(reader.read(RELAY_BUF), timeout=IDLE_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.info(f"⏱ TCP [{conn_id}] idle timeout, closing")
+                break
             if not data:
                 break
             if not await check_and_use(uid, len(data)):
@@ -214,6 +230,11 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
         if sock:
             import socket
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2 * 1024 * 1024)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2 * 1024 * 1024)
+            except OSError:
+                pass
 
         if payload:
             writer.write(payload)
@@ -232,6 +253,16 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
                 await t
             except asyncio.CancelledError:
                 pass
+
+        # قبلاً بعد از پایان رله، خودِ ws هیچ‌وقت صریحاً بسته نمی‌شد (فقط سوکت
+        # TCP مقصد در finally پایینی بسته می‌شد). یعنی اگر طرف مقابل (سایت مقصد)
+        # کانکشن را عادی می‌بست، سوکت WebSocket سمت کلاینت باز/معلق باقی می‌ماند
+        # تا زمانی که خودِ کلاینت یا timeout سطح uvicorn آن را ببندد — یعنی کانکشن‌های
+        # زامبی که فقط منابع مصرف می‌کنند. حالا صریحاً می‌بندیمش.
+        try:
+            await ws.close()
+        except Exception:
+            pass
 
         asyncio.create_task(save_state())
 
