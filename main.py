@@ -96,9 +96,25 @@ app.add_middleware(
 
 http_client: httpx.AsyncClient | None = None
 
+MAX_BODY_BYTES = 2 * 1024 * 1024  # 2MB — کافی برای این پنل، جلوی درخواست‌های حجیم مخرب را می‌گیرد
+
 @app.middleware("http")
 async def _harden_headers(request: Request, call_next):
-    response = await call_next(request)
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_BODY_BYTES:
+        return JSONResponse({"detail": "درخواست بیش از حد بزرگ است"}, status_code=413)
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        # هرگز نباید یک اکسپشن مدیریت‌نشده کل ورکر یونیکورن را از کار بیندازد یا
+        # جزئیات داخلی را به کلاینت لو بدهد؛ اینجا لاگ می‌کنیم و یک ۵۰۰ تمیز برمی‌گردانیم.
+        logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
+        try:
+            stats["total_errors"] += 1
+            error_logs.append({"error": str(exc), "url": str(request.url), "time": datetime.now().isoformat()})
+        except Exception:
+            pass
+        response = JSONResponse({"detail": "خطای داخلی سرور"}, status_code=500)
     response.headers["server"] = "nginx"
     response.headers.setdefault("x-content-type-options", "nosniff")
     response.headers.setdefault("referrer-policy", "no-referrer")
@@ -183,8 +199,13 @@ async def startup():
         logger.warning("ADMIN_PASSWORD در env تنظیم نشده")
     log_activity("system", "سرور راه‌اندازی شد", "ok")
     asyncio.create_task(telegram_notifier_loop())
-    import telegram_bot
-    asyncio.create_task(telegram_bot.polling_loop())
+    try:
+        import telegram_bot
+        asyncio.create_task(telegram_bot.polling_loop())
+    except Exception as e:
+        # اگر بات تلگرام هر مشکلی داشت (توکن غلط، خطای import و ...) نباید کل سرور
+        # بالا نیاید؛ فقط این قسمت غیرفعال می‌ماند و بقیه‌ی پنل کار می‌کند.
+        logger.error(f"telegram_bot could not start: {e}")
     logger.info(f"تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
@@ -211,7 +232,7 @@ async def subscription_single(uuid: str, request: Request):
     
     ip = client_ip(request)
     if not await check_rate_limit(ip):
-        raise HTTPException(status_code=429, detail="درخواست太多، لطفاً ۳۰ ثانیه صبر کنید")
+        raise HTTPException(status_code=429, detail="درخواست‌های شما زیاد است، لطفاً ۳۰ ثانیه صبر کنید")
     
     cache_key = f"sub_{uuid}_{request.query_params.get('pw', '')}"
     cached = get_cached_sub(cache_key)
@@ -301,6 +322,9 @@ async def create_split_child(uuid: str, request: Request):
     if not PUBLIC_SETTINGS.get("allow_public_create", True):
         raise HTTPException(status_code=403, detail="ساخت کانفیگ عمومی غیرفعال شده است")
     
+    ip = client_ip(request)
+    if not await check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="درخواست‌های شما زیاد است، لطفاً کمی صبر کنید")
     body = await request.json()
     amount = float(body.get("amount") or 0)
     unit = body.get("unit") or "GB"
@@ -367,10 +391,13 @@ async def list_split_children(uuid: str):
     return {"children": children, "permissions": perms}
 
 @app.delete("/api/public/split/{uuid}/{child_uuid}")
-async def revoke_split_child(uuid: str, child_uuid: str):
+async def revoke_split_child(uuid: str, child_uuid: str, request: Request):
     if not PUBLIC_SETTINGS.get("allow_public_delete", True):
         raise HTTPException(status_code=403, detail="حذف کانفیگ عمومی غیرفعال شده است")
-    
+    ip = client_ip(request)
+    if not await check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="درخواست‌های شما زیاد است، لطفاً کمی صبر کنید")
+
     host = get_host()
     async with LINKS_LOCK:
         parent = LINKS.get(uuid)
@@ -395,7 +422,9 @@ async def revoke_split_child(uuid: str, child_uuid: str):
 async def toggle_split_child(uuid: str, child_uuid: str, request: Request):
     if not PUBLIC_SETTINGS.get("allow_public_toggle", True):
         raise HTTPException(status_code=403, detail="تغییر وضعیت کانفیگ عمومی غیرفعال شده است")
-    
+    ip = client_ip(request)
+    if not await check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="درخواست‌های شما زیاد است، لطفاً کمی صبر کنید")
     body = await request.json()
     active = bool(body.get("active", True))
     host = get_host()
@@ -577,7 +606,7 @@ async def sub_group_subscription(uuid_key: str, request: Request):
     
     ip = client_ip(request)
     if not await check_rate_limit(ip):
-        raise HTTPException(status_code=429, detail="درخواست太多، لطفاً ۳۰ ثانیه صبر کنید")
+        raise HTTPException(status_code=429, detail="درخواست‌های شما زیاد است، لطفاً ۳۰ ثانیه صبر کنید")
     
     cache_key = f"subgroup_{uuid_key}_{request.query_params.get('pw', '')}"
     cached = get_cached_sub(cache_key)
@@ -1081,6 +1110,9 @@ async def http_proxy(target_url: str, request: Request, _=Depends(require_auth))
 @app.get("/p/{uuid_key}", response_class=HTMLResponse)
 async def public_sub_page(uuid_key: str, request: Request):
     from pages import get_public_page_html
+    ip = client_ip(request)
+    if not await check_rate_limit(ip):
+        return HTMLResponse("<h2 style='font-family:sans-serif;padding:40px'>درخواست‌های شما زیاد است، کمی صبر کنید.</h2>", status_code=429)
     async with SUBS_LOCK:
         sub = next(({"sub_id": sid, **s} for sid, s in SUBS.items() if s.get("uuid_key") == uuid_key), None)
     if not sub:
@@ -1089,6 +1121,9 @@ async def public_sub_page(uuid_key: str, request: Request):
 
 @app.get("/api/public/sub/{uuid_key}")
 async def public_sub_data(uuid_key: str, request: Request):
+    ip = client_ip(request)
+    if not await check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="درخواست‌های شما زیاد است، لطفاً کمی صبر کنید")
     async with SUBS_LOCK:
         sub_entry = next(((sid, s) for sid, s in SUBS.items() if s.get("uuid_key") == uuid_key), None)
     if not sub_entry:
@@ -1163,6 +1198,9 @@ async def public_sub_data(uuid_key: str, request: Request):
 
 @app.post("/api/public/sub/{uuid_key}/split")
 async def split_sub_quota(uuid_key: str, request: Request):
+    ip = client_ip(request)
+    if not await check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="درخواست‌های شما زیاد است، لطفاً کمی صبر کنید")
     body = await request.json()
     pw = str(body.get("pw", ""))
     amount_value = float(body.get("amount_value") or 0)
