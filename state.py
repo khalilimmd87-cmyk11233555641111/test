@@ -34,7 +34,11 @@ def _load_or_create_secret() -> str:
         new_secret = secrets.token_urlsafe(32)
         secret_file.write_text(new_secret, encoding="utf-8")
         return new_secret
-    except Exception:
+    except Exception as e:
+        # اگر اینجا افتاد یعنی /data (یا DATA_DIR) روی Railway به یک Volume دائمی وصل نیست
+        # و SECRET_KEY هم در env تنظیم نشده. در این حالت این مقدار در هر ری‌استارت عوض می‌شود
+        # که باعث می‌شود «لینک پیش‌فرض» تکراری ساخته شود. بهتره SECRET_KEY رو در Railway Variables ست کنی.
+        print(f"[warn] could not persist secret key ({e}); using an ephemeral one — set SECRET_KEY env var to avoid this")
         return secrets.token_urlsafe(32)
 
 CONFIG = {
@@ -307,8 +311,11 @@ def fmt_bytes(b: int) -> str:
         return f"{b/1024**2:.2f} MB"
     return f"{b/1024**3:.2f} GB"
 
-ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "trojan-ws")
-_PROTOCOL_TAG = {"vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S", "trojan-ws": "TROJAN"}
+ACTIVE_PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one", "trojan-ws")
+_PROTOCOL_TAG = {
+    "vless-ws": "WS", "xhttp-packet-up": "XHTTP-P", "xhttp-stream-up": "XHTTP-S",
+    "xhttp-stream-one": "XHTTP-S1", "trojan-ws": "TROJAN",
+}
 
 def quota_suffix(used_bytes: int, limit_bytes: int) -> str:
     used = fmt_bytes(used_bytes).replace(" ", "")
@@ -418,6 +425,10 @@ _BLOCKED_PROXY_HOSTNAMES = {
 }
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
+    # آدرس‌های IPv4-mapped داخل IPv6 (مثل ::ffff:127.0.0.1) را هم باز کن و چک کن،
+    # وگرنه یک راه دور زدن ساده برای SSRF به آدرس‌های داخلی باقی می‌ماند.
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
     return (
         ip.is_private or ip.is_loopback or ip.is_link_local or
         ip.is_reserved or ip.is_multicast or ip.is_unspecified
