@@ -202,6 +202,7 @@ async def startup():
     try:
         import telegram_bot
         asyncio.create_task(telegram_bot.polling_loop())
+        asyncio.create_task(telegram_bot.channel_watch_loop())
     except Exception as e:
         # اگر بات تلگرام هر مشکلی داشت (توکن غلط، خطای import و ...) نباید کل سرور
         # بالا نیاید؛ فقط این قسمت غیرفعال می‌ماند و بقیه‌ی پنل کار می‌کند.
