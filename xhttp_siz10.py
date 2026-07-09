@@ -31,10 +31,12 @@ from relay_vless import parse_vless_header, check_and_use
 router = APIRouter()
 
 XHTTP_BUF = 512 * 1024
-DOWNLINK_QUEUE_MAX = 512
+DOWNLINK_QUEUE_MAX = 128  # قبلاً 512 بود؛ با چانک تا 512KB یعنی بدترین حالت تا 256MB حافظه برای یک سشن معلق می‌رفت. الان سقفش ~64MB است.
 SESSION_IDLE_TIMEOUT = 30
+CONNECTED_IDLE_TIMEOUT = 180  # سشن‌هایی که TCP‌شان باز شده ولی مدتی است هیچ بایتی رد و بدل نشده (کلاینت رهاشده)
 REAPER_INTERVAL = 10
 TCP_CONNECT_TIMEOUT = 10.0
+MAX_PACKET_UP_BODY = 4 * 1024 * 1024  # جلوگیری از یک POST بدنه‌ی غول‌پیکر که کل بدنه را قبل از هر چک یکجا در حافظه بافر می‌کند
 
 # ── تنظیمات موتور تطبیقی ──────────────────────────────────────────────────────
 SOCK_BUF_SIZE = 2 * 1024 * 1024     # SO_SNDBUF / SO_RCVBUF
@@ -261,8 +263,17 @@ async def _reaper():
         await asyncio.sleep(REAPER_INTERVAL)
         now = time.time()
         async with XHTTP_LOCK:
-            stale = [sid for sid, s in xhttp_sessions.items()
-                     if now - s["last_seen"] > SESSION_IDLE_TIMEOUT and not s.get("tcp_open")]
+            stale = []
+            for sid, s in xhttp_sessions.items():
+                idle = now - s["last_seen"]
+                # قبلاً سشن‌هایی که tcp_open=True بودند هیچ‌وقت جاروب نمی‌شدند، حتی اگر
+                # کلاینت کاملاً رها شده باشد (قطع بی‌خبر شبکه، جابه‌جایی موبایل بین
+                # آنتن‌ها، تب مرورگر بسته‌شده و ...). این یعنی کانکشن TCP و صف حافظه‌ی
+                # آن‌ها برای همیشه باز می‌ماند. الان با یک idle-timeout جداگانه و
+                # طولانی‌تر برای سشن‌های متصل، این نشتی هم جمع می‌شود.
+                limit = CONNECTED_IDLE_TIMEOUT if s.get("tcp_open") else SESSION_IDLE_TIMEOUT
+                if idle > limit:
+                    stale.append(sid)
         for sid in stale:
             await _teardown(sid)
 
@@ -315,11 +326,19 @@ async def _open_tcp_for_session(session_id: str, uuid: str, sess: dict, first_ch
     asyncio.create_task(save_state())
 
 
-def _downstream_gen(sess: dict):
+def _downstream_gen(sess: dict, request: Request, session_id: str):
     async def gen():
         try:
             while True:
-                chunk = await sess["down_q"].get()
+                try:
+                    chunk = await asyncio.wait_for(sess["down_q"].get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    # به‌جای بلاک ابدی روی صف، هر ۵ ثانیه چک می‌کنیم که کلاینت
+                    # هنوز وصل است یا خیر؛ وگرنه یک GET رهاشده تا ابد زنده می‌ماند.
+                    if await request.is_disconnected():
+                        await _teardown(session_id)
+                        break
+                    continue
                 if chunk is None:
                     break
                 sess["last_seen"] = time.time()
@@ -342,19 +361,26 @@ async def xhttp_downlink(mode: str, uuid: str, session_id: str, request: Request
         raise HTTPException(status_code=404, detail="session closed")
 
     headers = _resp_headers(fp)
-    return StreamingResponse(_downstream_gen(sess), headers=headers, media_type=headers["content-type"])
+    return StreamingResponse(_downstream_gen(sess, request, session_id), headers=headers, media_type=headers["content-type"])
 
 
 # ══════════════════════════════ PACKET-UP (آپلینک با seq) ══════════════════════════════
 @router.post("/xhttp-siz10/packet-up/{uuid}/{session_id}/{seq}")
 async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Request):
     ensure_reaper()
+    await _check_link(uuid)
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_PACKET_UP_BODY:
+        raise HTTPException(status_code=413, detail="packet too large")
     sess = await _get_or_create_session(uuid, "packet-up", session_id, _req_client_ip(request))
     if sess.get("closed"):
         raise HTTPException(status_code=404, detail="session closed")
 
     sess["last_seen"] = time.time()
     body = await request.body()
+    if len(body) > MAX_PACKET_UP_BODY:
+        await _teardown(session_id)
+        raise HTTPException(status_code=413, detail="packet too large")
     if not body:
         return {"ok": True}
 
@@ -409,6 +435,7 @@ async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Reques
 @router.post("/xhttp-siz10/stream-up/{uuid}/{session_id}")
 async def stream_up_upload(uuid: str, session_id: str, request: Request):
     ensure_reaper()
+    await _check_link(uuid)
     sess = await _get_or_create_session(uuid, "stream-up", session_id, _req_client_ip(request))
     if sess.get("closed"):
         raise HTTPException(status_code=404, detail="session closed")
