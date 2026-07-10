@@ -6,6 +6,7 @@
 # دریافت می‌کند. پنل مدیریتی فقط برای ادمین (chat_id های تنظیم‌شده) باز است.
 # ══════════════════════════════════════════════════════════════════════════════
 import asyncio
+import time
 from datetime import datetime
 from urllib.parse import quote as _urlquote
 
@@ -62,6 +63,7 @@ async def _get_bot_username() -> str | None:
 ADMIN_ONLY_PREFIXES = (
     "m:new", "m:list:", "m:stats", "m:search", "m:subs:",
     "q:", "e:", "l:", "lt:", "lr:", "li:", "lg:", "ld", "st:",
+    "sup:reply:",
 )
 
 
@@ -353,7 +355,10 @@ async def _handle_join_start(chat_id, message_id=None):
                 f"👉 https://t.me/{channel}\n\n"
                 "سپس روی دکمه‌ی زیر بزنید."
             )
-            kb = [[{"text": "🔄 بررسی مجدد عضویت", "callback_data": "j:check"}]]
+            kb = [
+                [{"text": "🔄 بررسی مجدد عضویت", "callback_data": "j:check"}],
+                [{"text": "📩 پیام به پشتیبانی", "callback_data": "sup:start"}],
+            ]
             if message_id:
                 await _edit(chat_id, message_id, text, kb)
             else:
@@ -398,12 +403,50 @@ async def _grant_join_link(chat_id, message_id=None):
     )
     kb = [
         [{"text": "🔗 کپی لینک ساب", "callback_data": f"m:copy:{uid}"}],
+        [{"text": "📩 پیام به پشتیبانی", "callback_data": "sup:start"}],
         [{"text": "🔄 بروزرسانی وضعیت", "callback_data": "j:check"}],
     ]
     if message_id:
         await _edit(chat_id, message_id, text, kb)
     else:
         await _send(chat_id, text, kb)
+
+
+SUPPORT_MSG_COOLDOWN = 60  # ثانیه؛ فاصله‌ی حداقل بین دو پیام پشتیبانی از یک کاربر — ضد اسپم
+_last_support_msg: dict[str, float] = {}
+
+
+async def _handle_support_message(chat_id, text):
+    _wizard.pop(str(chat_id), None)
+    user_id = str(chat_id)
+    msg = (text or "").strip()
+    if not msg:
+        await _send(chat_id, "پیام خالی بود؛ دوباره از منو امتحان کن.")
+        return
+
+    now = time.time()
+    last = _last_support_msg.get(user_id, 0)
+    if now - last < SUPPORT_MSG_COOLDOWN:
+        wait = int(SUPPORT_MSG_COOLDOWN - (now - last))
+        await _send(chat_id, f"⏳ لطفاً {wait} ثانیه صبر کن و بعد دوباره بفرست.")
+        return
+    _last_support_msg[user_id] = now
+
+    admins = _allowed_chats()
+    if not admins:
+        await _send(chat_id, "⚠️ فعلاً پشتیبانی در دسترس نیست، بعداً دوباره امتحان کن.")
+        return
+
+    uid = USER_LINKS.get(user_id)
+    label = LINKS.get(uid, {}).get("label", "?") if uid else "بدون کانفیگ"
+    for admin_chat in admins:
+        await _send(
+            admin_chat,
+            f"📩 <b>پیام پشتیبانی جدید</b>\nاز کاربر: <code>{user_id}</code> (کانفیگ: {label})\n\n{msg[:3500]}",
+            [[{"text": "↩️ پاسخ", "callback_data": f"sup:reply:{user_id}"}]],
+        )
+    await _send(chat_id, "✅ پیامت برای پشتیبانی ارسال شد؛ به‌زودی جواب می‌گیری.")
+    log_activity("system", f"پیام پشتیبانی جدید از کاربر {user_id}", "info")
 
 
 async def _handle_text(chat_id, text, is_admin: bool = False):
@@ -424,7 +467,15 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
             await _handle_join_start(chat_id)
         return
 
+    if text.startswith("/broadcast") and is_admin:
+        _wizard[str(chat_id)] = {"step": "broadcast_wait", "data": {}}
+        await _send(chat_id, "📢 متن پیامی که می‌خوای برای همه‌ی کاربرای بات فرستاده بشه رو بفرست (مثلاً اطلاع‌رسانی دامنه‌ی جدید):\n\n❌ برای انصراف /menu رو بزن.")
+        return
+
     if not is_admin:
+        if w and w.get("step") == "support_wait":
+            await _handle_support_message(chat_id, text)
+            return
         # مراحل ویزارد ساخت کانفیگ فقط برای ادمین است؛ کاربر عادی همیشه به فلوی دریافت کانفیگ می‌رود
         _wizard.pop(str(chat_id), None)
         await _handle_join_start(chat_id)
@@ -454,6 +505,38 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
             await _send(chat_id, "عدد معتبر نبود؛ دوباره بفرست (مثلاً 3):")
             return
         await _wizard_finish(chat_id)
+    elif step == "support_reply_wait":
+        _wizard.pop(str(chat_id), None)
+        target = w["data"].get("target")
+        msg = text[:3500]
+        if not target or not msg:
+            await _send(chat_id, "لغو شد.")
+            return
+        res = await _send(target, f"💬 <b>پاسخ پشتیبانی:</b>\n\n{msg}")
+        if res is not None:
+            await _send(chat_id, "✅ پاسخ ارسال شد.")
+            log_activity("system", f"ادمین {chat_id} به پیام پشتیبانی کاربر {target} پاسخ داد", "ok")
+        else:
+            await _send(chat_id, "❌ ارسال ناموفق بود (شاید کاربر بات رو بلاک کرده).")
+    elif step == "broadcast_wait":
+        _wizard.pop(str(chat_id), None)
+        msg = text[:3500]
+        if not msg:
+            await _send(chat_id, "متن خالی بود، لغو شد.")
+            return
+        async with LINKS_LOCK:
+            targets = sorted({d.get("join_user") for d in LINKS.values() if d.get("join_user")})
+        await _send(chat_id, f"⏳ در حال ارسال برای {len(targets)} کاربر...")
+        sent, failed = 0, 0
+        for user_id in targets:
+            res = await _send(user_id, msg)
+            if res is not None:
+                sent += 1
+            else:
+                failed += 1
+            await asyncio.sleep(0.05)  # ضد رگبار به API تلگرام تا ریت‌لیمیت/بن نشیم
+        await _send(chat_id, f"✅ تموم شد. ارسال موفق: {sent} | ناموفق: {failed}")
+        log_activity("system", f"پیام همگانی توسط ادمین {chat_id} برای {len(targets)} کاربر ارسال شد", "ok")
     elif step == "search":
         _wizard.pop(str(chat_id), None)
         q = text.lower()
@@ -500,6 +583,17 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
 
     if data == "j:check":
         await _handle_join_start(chat_id, message_id)
+        return
+
+    if data == "sup:start":
+        _wizard[str(chat_id)] = {"step": "support_wait", "data": {}}
+        await _send(chat_id, "✍️ پیامت رو بنویس و بفرست، مستقیم برای پشتیبانی ارسال می‌شه:\n\n❌ برای انصراف /menu رو بزن.")
+        return
+
+    if data.startswith("sup:reply:"):
+        target = data.split(":", 2)[2]
+        _wizard[str(chat_id)] = {"step": "support_reply_wait", "data": {"target": target}}
+        await _send(chat_id, f"✍️ پاسخت به کاربر <code>{target}</code> رو بنویس:")
         return
 
     if data == "m:main":
