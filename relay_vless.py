@@ -233,6 +233,8 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
             try:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2 * 1024 * 1024)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2 * 1024 * 1024)
+                if hasattr(socket, "TCP_QUICKACK"):  # فقط لینوکس؛ تاخیر ACK رو حذف می‌کنه
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_QUICKACK, 1)
             except OSError:
                 pass
 
