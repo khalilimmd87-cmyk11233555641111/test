@@ -207,6 +207,9 @@ async def startup():
         # اگر بات تلگرام هر مشکلی داشت (توکن غلط، خطای import و ...) نباید کل سرور
         # بالا نیاید؛ فقط این قسمت غیرفعال می‌ماند و بقیه‌ی پنل کار می‌کند.
         logger.error(f"telegram_bot could not start: {e}")
+    loop_name = type(asyncio.get_event_loop()).__module__
+    is_fast_loop = "uvloop" in loop_name
+    logger.info(f"event loop: {loop_name} ({'⚡ uvloop فعال است' if is_fast_loop else '⚠️ uvloop فعال نیست — uvloop را در requirements.txt نصب کن تا throughput بهتری بگیری'})")
     logger.info(f"تیم آزادی Gateway v10.0 started on port {CONFIG['port']}")
 
 @app.on_event("shutdown")
@@ -215,9 +218,35 @@ async def shutdown():
     if http_client:
         await http_client.aclose()
 
+_DECOY_HOME_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome</title>
+<style>
+body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#fafafa;color:#333;
+display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+.box{text-align:center}
+h1{font-weight:500;font-size:22px;color:#555}
+p{color:#888;font-size:14px}
+</style>
+</head>
+<body>
+<div class="box">
+<h1>Site is running</h1>
+<p>If you are the owner of this site, check back soon.</p>
+</div>
+</body>
+</html>"""
+
 @app.get("/")
 async def root():
-    return JSONResponse({"status": "ok"})
+    # قبلاً اینجا یک JSON خام برمی‌گشت ({"status":"ok"})، که خودش یک امضای قابل‌تشخیص
+    # برای اسکنرها/پروب‌های فعال است — یک سایت واقعی معمولاً HTML برمی‌گرداند، نه JSON API.
+    # یک IP که با پروب دیدن «این یک بک‌اند/API است» علامت‌گذاری بشود، شانس بیشتری برای
+    # قرار گرفتن در فهرست بلاک دارد. این‌جا الان یک صفحه‌ی ساده و بی‌ربط (decoy) نشان داده می‌شود.
+    return HTMLResponse(_DECOY_HOME_HTML)
 
 @app.get("/health")
 async def health():
