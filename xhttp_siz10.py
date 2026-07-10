@@ -88,6 +88,8 @@ def _tune_socket(writer: asyncio.StreamWriter):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, SOCK_BUF_SIZE)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, SOCK_BUF_SIZE)
+        if hasattr(socket, "TCP_QUICKACK"):  # فقط لینوکس؛ تاخیر ACK رو حذف می‌کنه
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_QUICKACK, 1)
     except OSError:
         pass
 
