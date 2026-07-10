@@ -246,6 +246,26 @@ async def save_state():
 def get_host() -> str:
     return os.environ.get("RAILWAY_PUBLIC_DOMAIN", CONFIG["host"])
 
+def get_extra_hosts() -> list[str]:
+    """
+    دامنه‌های پشتیبان اضافی (مثلاً چند دامنه‌ی دیگر Railway یا دامنه‌ی شخصی که به همین
+    سرویس اشاره می‌کنند). با EXTRA_DOMAINS در Railway Variables تنظیم می‌شود، جدا شده با
+    کاما، مثلاً: EXTRA_DOMAINS=backup1.up.railway.app,backup2.up.railway.app
+    هدف: اگر یک دامنه فیلتر/بلاک شد، کاربر همین الان در همون ساب‌اسکریپشن یک سرور
+    جایگزین دارد و منتظر آپدیت دستی نمی‌ماند.
+    """
+    raw = os.environ.get("EXTRA_DOMAINS", "").strip()
+    if not raw:
+        return []
+    primary = get_host()
+    seen, out = set(), []
+    for h in raw.split(","):
+        h = h.strip()
+        if h and h != primary and h not in seen:
+            seen.add(h)
+            out.append(h)
+    return out
+
 def generate_uuid() -> str:
     h = secrets.token_hex(16)
     return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
@@ -326,13 +346,20 @@ def generate_all_vless_links(uuid: str, host: str, label: str, used_bytes: int =
     quota = quota_suffix(used_bytes, limit_bytes)
     prefix = "تیم-آزادی-" if brand else ""
     flag_prefix = f"{flag}-" if flag else ""
+    hosts = [host] + get_extra_hosts()
     out = []
-    for proto in ACTIVE_PROTOCOLS:
-        remark = f"{flag_prefix}{prefix}{label}-{_PROTOCOL_TAG[proto]}-{quota}"
-        out.append({
-            "protocol": proto,
-            "vless_link": generate_vless_link(uuid, host, remark=remark, protocol=proto),
-        })
+    for idx, h in enumerate(hosts):
+        # به دامنه‌های پشتیبان یک برچسب می‌زنیم تا کاربر توی لیست سرورهای اپ کلاینتش
+        # بفهمه این‌ها جایگزین همدیگه‌ان، نه کانفیگ‌های جدا
+        backup_tag = "" if idx == 0 else f"-پشتیبان{idx}"
+        for proto in ACTIVE_PROTOCOLS:
+            remark = f"{flag_prefix}{prefix}{label}-{_PROTOCOL_TAG[proto]}{backup_tag}-{quota}"
+            out.append({
+                "protocol": proto,
+                "host": h,
+                "is_backup": idx > 0,
+                "vless_link": generate_vless_link(uuid, h, remark=remark, protocol=proto),
+            })
     return out
 
 def parse_size_to_bytes(value: float, unit: str) -> int:
