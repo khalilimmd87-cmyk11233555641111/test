@@ -1,9 +1,11 @@
 # telegram_bot.py
 # ══════════════════════════════════════════════════════════════════════════════
 # مدیریت پنل از طریق بات تلگرام — دو-طرفه (نه فقط نوتیفیکیشن)
-# سیستم رفرال کامل حذف شده. هرکسی وارد بات شود (/start)، پس از تأیید عضویت
-# اجباری در کانال، به‌طور خودکار یک کانفیگ اختصاصی با حجم هدیه (پیش‌فرض ۱۰۰GB)
-# دریافت می‌کند. پنل مدیریتی فقط برای ادمین (chat_id های تنظیم‌شده) باز است.
+# هرکسی وارد بات شود (/start)، پس از تأیید عضویت اجباری در کانال، به‌طور خودکار
+# یک کانفیگ اختصاصی با حجم هدیه (پیش‌فرض ۱۰۰GB) دریافت می‌کند. پنل مدیریتی فقط
+# برای ادمین (chat_id های تنظیم‌شده) باز است. سیستم رفرال هم اضافه شده: هر کاربر
+# یک لینک دعوت اختصاصی دارد و به ازای هر دعوت موفق (عضویت واقعی در کانال) حجم
+# هدیه می‌گیرد.
 # ══════════════════════════════════════════════════════════════════════════════
 import asyncio
 import time
@@ -20,9 +22,26 @@ from state import (
     JOIN_SETTINGS, USER_LINKS,
     check_channel_membership, create_join_link,
     save_state,
+    REFERRAL_SETTINGS, REFERRALS, record_referral, top_referrers,
 )
 
 PAGE_SIZE = 6
+
+# رفرال در حال انتظار: وقتی کاربر با /start ref_<id> وارد می‌شه ولی هنوز عضویت کانال
+# رو تایید نکرده، اینجا نگه می‌داریم تا بعد از ساخته‌شدن کانفیگش، رفرال ثبت بشه.
+# فقط در حافظه است (نیازی به ماندگاری ندارد چون فلوی onboarding کوتاهه).
+_pending_referrer: dict[str, str] = {}
+
+# کش نام‌نمایشی هر chat_id — برای اینکه وقتی می‌خوایم رفرال یک نفر رو با اسمش توی
+# لیدربورد نشون بدیم، لازم نیست همون لحظه از تلگرام getChat بگیریم.
+_display_names: dict[str, dict] = {}
+
+
+def _remember_display_name(chat_id, from_user: dict | None):
+    if not from_user:
+        return
+    name = " ".join(filter(None, [from_user.get("first_name"), from_user.get("last_name")])).strip()
+    _display_names[str(chat_id)] = {"name": name or str(chat_id), "username": from_user.get("username") or ""}
 _offset = 0
 _wizard: dict[str, dict] = {}
 _running = False
@@ -63,7 +82,7 @@ async def _get_bot_username() -> str | None:
 ADMIN_ONLY_PREFIXES = (
     "m:new", "m:list:", "m:stats", "m:search", "m:subs:",
     "q:", "e:", "l:", "lt:", "lr:", "li:", "lg:", "ld", "st:",
-    "sup:reply:",
+    "sup:reply:", "m:ref", "m:broadcast", "ref:toggle", "ref:setbonus", "ref:setdaily", "ref:settemplate",
 )
 
 
@@ -162,6 +181,7 @@ def _main_menu_kb():
         [{"text": "➕ کانفیگ جدید", "callback_data": "m:new"}, {"text": "📋 لیست کانفیگ‌ها", "callback_data": "m:list:0"}],
         [{"text": "📊 آمار سیستم", "callback_data": "m:stats"}, {"text": "🔍 جستجو", "callback_data": "m:search"}],
         [{"text": "📂 گروه‌های ساب", "callback_data": "m:subs:0"}],
+        [{"text": "🏆 رفرال", "callback_data": "m:ref"}, {"text": "📢 پیام همگانی", "callback_data": "m:broadcast"}],
     ]
 
 
@@ -318,6 +338,35 @@ async def _wizard_finish(chat_id, message_id=None):
         await _send(chat_id, text, kb)
 
 
+async def _show_referral_admin(chat_id, message_id):
+    top = top_referrers(10)
+    lines = []
+    for i, r in enumerate(top, 1):
+        name = r.get("name") or r["user_id"]
+        uname = f" (@{r['username']})" if r.get("username") else ""
+        lines.append(f"{i}. {name}{uname} — <code>{r['user_id']}</code> — {r.get('count', 0)} رفرال")
+    board = "\n".join(lines) if lines else "هنوز هیچ رفرالی ثبت نشده."
+
+    status = "🟢 فعال" if REFERRAL_SETTINGS.get("enabled", True) else "🔴 غیرفعال"
+    daily_cap = REFERRAL_SETTINGS.get("max_daily_credits", 0)
+    daily_txt = "بدون سقف (نامحدود)" if daily_cap <= 0 else f"{daily_cap} رفرال در روز"
+    text = (
+        "🏆 <b>سیستم رفرال</b>\n\n"
+        f"وضعیت: {status}\n"
+        f"هدیه‌ی هر رفرال: {REFERRAL_SETTINGS.get('bonus_gb', 5)} گیگ\n"
+        f"سقف روزانه‌ی هر نفر: {daily_txt}\n\n"
+        f"🥇 <b>برترین‌ها:</b>\n{board}"
+    )
+    kb = [
+        [{"text": "🔴 غیرفعال کن" if REFERRAL_SETTINGS.get("enabled", True) else "🟢 فعال کن", "callback_data": "ref:toggle"}],
+        [{"text": "✏️ تغییر مقدار هدیه", "callback_data": "ref:setbonus"}],
+        [{"text": "✏️ تغییر سقف روزانه", "callback_data": "ref:setdaily"}],
+        [{"text": "✏️ تغییر متن پیام رفرال", "callback_data": "ref:settemplate"}],
+        [{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}],
+    ]
+    await _edit(chat_id, message_id, text, kb)
+
+
 async def _show_stats(chat_id, message_id):
     async with LINKS_LOCK:
         total = len(LINKS)
@@ -368,11 +417,45 @@ async def _handle_join_start(chat_id, message_id=None):
     await _grant_join_link(chat_id, message_id)
 
 
+async def _credit_pending_referral(user_id: str):
+    """
+    بعد از این‌که یک کانفیگ کاملاً جدید ساخته شد (یعنی کاربر واقعاً عضویت کانال را
+    رد کرده)، اگر این کاربر از طریق لینک رفرال یک نفر دیگر آمده بود، رفرال را ثبت
+    و به رفرردهنده حجم هدیه می‌دهد.
+    """
+    referrer_id = _pending_referrer.pop(user_id, None)
+    if not referrer_id:
+        return
+    referrer_uid = USER_LINKS.get(referrer_id)
+    if not referrer_uid or referrer_uid not in LINKS:
+        return  # رفرردهنده خودش هیچ‌وقت کانفیگ نگرفته؛ رفرال معتبر نیست
+
+    disp = _display_names.get(referrer_id, {})
+    ok = record_referral(referrer_id, user_id, USER_LINKS.get(user_id, ""), disp.get("name", ""), disp.get("username", ""))
+    if not ok:
+        return
+
+    bonus_gb = REFERRAL_SETTINGS.get("bonus_gb", 5)
+    async with LINKS_LOCK:
+        rlink = LINKS.get(referrer_uid)
+        if rlink and rlink.get("limit_bytes", 0) > 0 and bonus_gb > 0:
+            rlink["limit_bytes"] += parse_size_to_bytes(bonus_gb, "GB")
+    await save_state()
+
+    new_count = REFERRALS.get(referrer_id, {}).get("count", 0)
+    log_activity("system", f"رفرال موفق: کاربر {referrer_id} یک دعوت جدید گرفت (مجموع {new_count})", "ok")
+    if bonus_gb > 0:
+        await _send(referrer_id, f"🎉 یکی از دوستات با لینک تو وارد شد و عضو کانال شد!\n\n🎁 {bonus_gb} گیگ به کانفیگت اضافه شد.\n✅ مجموع رفرال موفق تو: {new_count}")
+    else:
+        await _send(referrer_id, f"🎉 یکی از دوستات با لینک تو وارد شد و عضو کانال شد!\n\n✅ مجموع رفرال موفق تو: {new_count}")
+
+
 async def _grant_join_link(chat_id, message_id=None):
     """کانفیگ اختصاصی کاربر را می‌سازد (اگر قبلاً نساخته) و نشان می‌دهد."""
     user_id = str(chat_id)
     uid = USER_LINKS.get(user_id)
-    if not uid or uid not in LINKS:
+    is_new_user = not uid or uid not in LINKS
+    if is_new_user:
         uid = await create_join_link(user_id)
     d = LINKS.get(uid) if uid else None
     if not uid or not d:
@@ -383,6 +466,9 @@ async def _grant_join_link(chat_id, message_id=None):
         else:
             await _send(chat_id, text, kb)
         return
+
+    if is_new_user:
+        await _credit_pending_referral(user_id)
 
     host = _safe_host()
     sub_url = f"https://{host}/sub/{uid}"
@@ -403,6 +489,7 @@ async def _grant_join_link(chat_id, message_id=None):
     )
     kb = [
         [{"text": "🔗 کپی لینک ساب", "callback_data": f"m:copy:{uid}"}],
+        [{"text": "🎁 دعوت دوستان (رفرال)", "callback_data": "ref:me"}],
         [{"text": "📩 پیام به پشتیبانی", "callback_data": "sup:start"}],
         [{"text": "🔄 بروزرسانی وضعیت", "callback_data": "j:check"}],
     ]
@@ -449,11 +536,21 @@ async def _handle_support_message(chat_id, text):
     log_activity("system", f"پیام پشتیبانی جدید از کاربر {user_id}", "info")
 
 
-async def _handle_text(chat_id, text, is_admin: bool = False):
+async def _handle_text(chat_id, text, is_admin: bool = False, from_user: dict | None = None):
     w = _wizard.get(str(chat_id))
     text = (text or "").strip()
+    from_user = from_user or {}
+    _remember_display_name(chat_id, from_user)
 
     if text.startswith("/start"):
+        parts = text.split(maxsplit=1)
+        payload = parts[1].strip() if len(parts) > 1 else ""
+        if not is_admin and payload.startswith("ref_"):
+            referrer_id = payload[4:].strip()
+            user_id = str(chat_id)
+            already_has_config = user_id in USER_LINKS and USER_LINKS[user_id] in LINKS
+            if referrer_id and referrer_id != user_id and not already_has_config:
+                _pending_referrer[user_id] = referrer_id
         if is_admin:
             await _show_main_menu(chat_id)
         else:
@@ -537,6 +634,40 @@ async def _handle_text(chat_id, text, is_admin: bool = False):
             await asyncio.sleep(0.05)  # ضد رگبار به API تلگرام تا ریت‌لیمیت/بن نشیم
         await _send(chat_id, f"✅ تموم شد. ارسال موفق: {sent} | ناموفق: {failed}")
         log_activity("system", f"پیام همگانی توسط ادمین {chat_id} برای {len(targets)} کاربر ارسال شد", "ok")
+    elif step == "ref_bonus_wait":
+        _wizard.pop(str(chat_id), None)
+        try:
+            gb = max(0.0, float(text.replace(",", ".")))
+        except ValueError:
+            await _send(chat_id, "عدد معتبر نبود، لغو شد.")
+            return
+        REFERRAL_SETTINGS["bonus_gb"] = gb
+        await save_state()
+        await _send(chat_id, f"✅ مقدار هدیه‌ی رفرال روی {gb} گیگ تنظیم شد.")
+        log_activity("system", f"ادمین {chat_id} مقدار هدیه‌ی رفرال را به {gb}GB تغییر داد", "ok")
+    elif step == "ref_daily_wait":
+        _wizard.pop(str(chat_id), None)
+        try:
+            cap = int(float(text.replace(",", ".")))
+        except ValueError:
+            await _send(chat_id, "عدد معتبر نبود، لغو شد.")
+            return
+        cap = max(0, cap)
+        REFERRAL_SETTINGS["max_daily_credits"] = cap
+        await save_state()
+        cap_txt = "بدون سقف (نامحدود)" if cap == 0 else f"{cap} رفرال در روز"
+        await _send(chat_id, f"✅ سقف روزانه‌ی رفرال روی «{cap_txt}» تنظیم شد.")
+        log_activity("system", f"ادمین {chat_id} سقف روزانه‌ی رفرال را به {cap} تغییر داد", "ok")
+    elif step == "ref_template_wait":
+        _wizard.pop(str(chat_id), None)
+        new_template = text[:2000]
+        if not new_template:
+            await _send(chat_id, "متن خالی بود، لغو شد.")
+            return
+        REFERRAL_SETTINGS["message_template"] = new_template
+        await save_state()
+        await _send(chat_id, "✅ متن پیام رفرال بروزرسانی شد.")
+        log_activity("system", f"ادمین {chat_id} متن پیام رفرال را تغییر داد", "ok")
     elif step == "search":
         _wizard.pop(str(chat_id), None)
         q = text.lower()
@@ -590,10 +721,68 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         await _send(chat_id, "✍️ پیامت رو بنویس و بفرست، مستقیم برای پشتیبانی ارسال می‌شه:\n\n❌ برای انصراف /menu رو بزن.")
         return
 
+    if data == "ref:me":
+        user_id = str(chat_id)
+        if not USER_LINKS.get(user_id):
+            await _send(chat_id, "اول باید خودت یک کانفیگ داشته باشی. از /menu شروع کن.")
+            return
+        bot_username = await _get_bot_username()
+        if not bot_username:
+            await _send(chat_id, "⚠️ فعلاً لینک رفرال در دسترس نیست، بعداً امتحان کن.")
+            return
+        ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+        ref_count = REFERRALS.get(user_id, {}).get("count", 0)
+        template = REFERRAL_SETTINGS.get("message_template", "{ref_link}")
+        try:
+            text = template.format(bonus_gb=REFERRAL_SETTINGS.get("bonus_gb", 5), ref_link=ref_link, ref_count=ref_count)
+        except Exception:
+            text = f"🔗 لینک رفرال تو:\n<code>{ref_link}</code>\n\nتعداد رفرال موفق: {ref_count}"
+        if not REFERRAL_SETTINGS.get("enabled", True):
+            text += "\n\n⚠️ سیستم رفرال فعلاً موقتاً غیرفعاله."
+        await _send(chat_id, text)
+        return
+
     if data.startswith("sup:reply:"):
         target = data.split(":", 2)[2]
         _wizard[str(chat_id)] = {"step": "support_reply_wait", "data": {"target": target}}
         await _send(chat_id, f"✍️ پاسخت به کاربر <code>{target}</code> رو بنویس:")
+        return
+
+    if data == "m:broadcast":
+        _wizard[str(chat_id)] = {"step": "broadcast_wait", "data": {}}
+        await _send(chat_id, "📢 متن پیامی که می‌خوای برای همه‌ی کاربرای بات فرستاده بشه رو بفرست:\n\n❌ برای انصراف /menu رو بزن.")
+        return
+
+    if data == "m:ref":
+        await _show_referral_admin(chat_id, message_id)
+        return
+
+    if data == "ref:toggle":
+        REFERRAL_SETTINGS["enabled"] = not REFERRAL_SETTINGS.get("enabled", True)
+        await save_state()
+        await _show_referral_admin(chat_id, message_id)
+        return
+
+    if data == "ref:setbonus":
+        _wizard[str(chat_id)] = {"step": "ref_bonus_wait", "data": {}}
+        await _send(chat_id, f"مقدار فعلی هدیه: {REFERRAL_SETTINGS.get('bonus_gb', 5)} گیگ.\n\nمقدار جدید (گیگابایت) رو بفرست:")
+        return
+
+    if data == "ref:setdaily":
+        _wizard[str(chat_id)] = {"step": "ref_daily_wait", "data": {}}
+        cur = REFERRAL_SETTINGS.get("max_daily_credits", 0)
+        cur_txt = "بدون سقف" if cur <= 0 else str(cur)
+        await _send(chat_id, f"سقف فعلی: {cur_txt}\n\nعدد جدید رو بفرست (۰ یعنی نامحدود/بدون سقف):")
+        return
+
+    if data == "ref:settemplate":
+        _wizard[str(chat_id)] = {"step": "ref_template_wait", "data": {}}
+        await _send(
+            chat_id,
+            "متن جدید پیام رفرال رو بفرست. می‌تونی از این جاهای‌خالی استفاده کنی:\n"
+            "<code>{bonus_gb}</code> عدد هدیه، <code>{ref_link}</code> لینک اختصاصی، <code>{ref_count}</code> تعداد رفرال موفق.\n\n"
+            f"متن فعلی:\n{REFERRAL_SETTINGS.get('message_template', '')}",
+        )
         return
 
     if data == "m:main":
@@ -737,11 +926,12 @@ async def _process_update(update: dict):
         if "callback_query" in update:
             cq = update["callback_query"]
             chat_id = cq["message"]["chat"]["id"]
+            _remember_display_name(chat_id, cq.get("from") or {})
             await _handle_callback(chat_id, cq["message"]["message_id"], cq["id"], cq.get("data", ""), _is_admin(chat_id))
         elif "message" in update:
             msg = update["message"]
             chat_id = msg["chat"]["id"]
-            await _handle_text(chat_id, msg.get("text", ""), _is_admin(chat_id))
+            await _handle_text(chat_id, msg.get("text", ""), _is_admin(chat_id), msg.get("from") or {})
     except Exception as e:
         logger.warning(f"telegram_bot: process_update error: {e}")
 
