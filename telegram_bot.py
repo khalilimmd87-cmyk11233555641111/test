@@ -23,6 +23,9 @@ from state import (
     check_channel_membership, create_join_link,
     save_state,
     REFERRAL_SETTINGS, REFERRALS, record_referral, top_referrers,
+    top_by_points, rank_of, adjust_points,
+    FILTER_SETTINGS, CUSTOM_BLOCK_DOMAINS, ADULT_BLOCK_DOMAINS,
+    add_custom_blocked_domain, refresh_adult_blocklist,
 )
 
 PAGE_SIZE = 6
@@ -83,6 +86,7 @@ ADMIN_ONLY_PREFIXES = (
     "m:new", "m:list:", "m:stats", "m:search", "m:subs:",
     "q:", "e:", "l:", "lt:", "lr:", "li:", "lg:", "ld", "st:",
     "sup:reply:", "m:ref", "m:broadcast", "ref:toggle", "ref:setbonus", "ref:setdaily", "ref:settemplate",
+    "ref:givepoints", "m:filter", "filter:",
 )
 
 
@@ -182,6 +186,7 @@ def _main_menu_kb():
         [{"text": "📊 آمار سیستم", "callback_data": "m:stats"}, {"text": "🔍 جستجو", "callback_data": "m:search"}],
         [{"text": "📂 گروه‌های ساب", "callback_data": "m:subs:0"}],
         [{"text": "🏆 رفرال", "callback_data": "m:ref"}, {"text": "📢 پیام همگانی", "callback_data": "m:broadcast"}],
+        [{"text": "🛡️ فیلتر محتوا", "callback_data": "m:filter"}],
     ]
 
 
@@ -338,6 +343,39 @@ async def _wizard_finish(chat_id, message_id=None):
         await _send(chat_id, text, kb)
 
 
+_MEDALS = ["🥇", "🥈", "🥉"]
+
+
+def _display_name_for(entry: dict, fallback_id: str) -> str:
+    name = entry.get("name") or fallback_id
+    uname = f" (@{entry['username']})" if entry.get("username") else ""
+    return f"{name}{uname}"
+
+
+async def _send_leaderboard(chat_id):
+    top = top_by_points(10)
+    if not top:
+        await _send(chat_id, "🏆 <b>لیست برترین‌ها</b>\n\nهنوز کسی امتیازی کسب نکرده — اولین نفر تو باش! برای شروع، از «🎁 دعوت دوستان» لینکت رو بگیر.")
+        return
+
+    lines = ["🏆 <b>لیست برترین‌های تیم آزادی</b>", "━━━━━━━━━━━━━━━", ""]
+    for i, r in enumerate(top, 1):
+        medal = _MEDALS[i - 1] if i <= 3 else f"{i}."
+        name = _display_name_for(r, r["user_id"])
+        lines.append(f"{medal} {name}\n     🎯 {r.get('points', 0)} امتیاز · 👥 {r.get('count', 0)} دعوت")
+    lines.append("")
+    lines.append("━━━━━━━━━━━━━━━")
+
+    user_id = str(chat_id)
+    rank, total, mine = rank_of(user_id)
+    if rank:
+        lines.append(f"📍 جایگاه تو: <b>#{rank}</b> از {total} نفر — {mine.get('points', 0)} امتیاز · {mine.get('count', 0)} دعوت")
+    else:
+        lines.append("📍 هنوز جایگاهی نداری — با دعوت از دوستات وارد لیست شو!")
+
+    await _send(chat_id, "\n".join(lines))
+
+
 async def _show_referral_admin(chat_id, message_id):
     top = top_referrers(10)
     lines = []
@@ -362,6 +400,29 @@ async def _show_referral_admin(chat_id, message_id):
         [{"text": "✏️ تغییر مقدار هدیه", "callback_data": "ref:setbonus"}],
         [{"text": "✏️ تغییر سقف روزانه", "callback_data": "ref:setdaily"}],
         [{"text": "✏️ تغییر متن پیام رفرال", "callback_data": "ref:settemplate"}],
+        [{"text": "🏅 امتیاز دادن به کاربر", "callback_data": "ref:givepoints"}],
+        [{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}],
+    ]
+    await _edit(chat_id, message_id, text, kb)
+
+
+async def _show_filter_admin(chat_id, message_id):
+    ads_on = FILTER_SETTINGS.get("block_ads", False)
+    adult_on = FILTER_SETTINGS.get("block_adult", False)
+    adult_count = len(ADULT_BLOCK_DOMAINS)
+    custom_ads = len(CUSTOM_BLOCK_DOMAINS["ads"])
+    custom_adult = len(CUSTOM_BLOCK_DOMAINS["adult"])
+    text = (
+        "🛡️ <b>فیلتر محتوای ساب‌ها</b>\n\n"
+        f"مسدودسازی تبلیغات: {'🟢 فعال' if ads_on else '🔴 غیرفعال'} (+{custom_ads} دامنه‌ی دستی)\n"
+        f"مسدودسازی محتوای بزرگسال: {'🟢 فعال' if adult_on else '🔴 غیرفعال'} ({adult_count} دامنه در لیست، +{custom_adult} دستی)\n\n"
+        "این فیلتر روی سطح اتصال کار می‌کنه: قبل از وصل‌شدن به مقصد، دامنه‌اش با لیست چک می‌شه و اگه مسدود بود، اصلاً وصل نمی‌شه — روی همه‌ی ساب‌ها اثر می‌ذاره."
+    )
+    kb = [
+        [{"text": ("🔴 خاموش کن" if ads_on else "🟢 روشن کن") + " — تبلیغات", "callback_data": "filter:toggle:ads"}],
+        [{"text": ("🔴 خاموش کن" if adult_on else "🟢 روشن کن") + " — بزرگسال", "callback_data": "filter:toggle:adult"}],
+        [{"text": "🔄 بروزرسانی لیست بزرگسال", "callback_data": "filter:refreshadult"}],
+        [{"text": "➕ افزودن دامنه‌ی دلخواه", "callback_data": "filter:addcustom"}],
         [{"text": "⬅️ منوی اصلی", "callback_data": "m:main"}],
     ]
     await _edit(chat_id, message_id, text, kb)
@@ -489,7 +550,7 @@ async def _grant_join_link(chat_id, message_id=None):
     )
     kb = [
         [{"text": "🔗 کپی لینک ساب", "callback_data": f"m:copy:{uid}"}],
-        [{"text": "🎁 دعوت دوستان (رفرال)", "callback_data": "ref:me"}],
+        [{"text": "🎁 دعوت دوستان (رفرال)", "callback_data": "ref:me"}, {"text": "🏆 برترین‌ها", "callback_data": "ref:board"}],
         [{"text": "📩 پیام به پشتیبانی", "callback_data": "sup:start"}],
         [{"text": "🔄 بروزرسانی وضعیت", "callback_data": "j:check"}],
     ]
@@ -658,6 +719,49 @@ async def _handle_text(chat_id, text, is_admin: bool = False, from_user: dict | 
         cap_txt = "بدون سقف (نامحدود)" if cap == 0 else f"{cap} رفرال در روز"
         await _send(chat_id, f"✅ سقف روزانه‌ی رفرال روی «{cap_txt}» تنظیم شد.")
         log_activity("system", f"ادمین {chat_id} سقف روزانه‌ی رفرال را به {cap} تغییر داد", "ok")
+    elif step == "ref_points_uid_wait":
+        target = text.strip()
+        if not target.lstrip("-").isdigit():
+            await _send(chat_id, "این یه آیدی عددی معتبر نبود؛ دوباره بفرست یا /menu بزن.")
+            return
+        _wizard[str(chat_id)] = {"step": "ref_points_amount_wait", "data": {"target": target}}
+        cur = REFERRALS.get(target, {}).get("points", 0)
+        await _send(chat_id, f"امتیاز فعلی این کاربر: {cur}\n\nچند امتیاز بدم؟ (برای کم‌کردن، عدد منفی بزن، مثلاً -5):")
+    elif step == "ref_points_amount_wait":
+        _wizard.pop(str(chat_id), None)
+        target = w["data"].get("target")
+        try:
+            delta = int(float(text.replace(",", ".")))
+        except ValueError:
+            await _send(chat_id, "عدد معتبر نبود، لغو شد.")
+            return
+        disp = _display_names.get(target, {})
+        new_total = adjust_points(target, delta, disp.get("name", ""), disp.get("username", ""))
+        await save_state()
+        await _send(chat_id, f"✅ امتیاز کاربر <code>{target}</code> بروزرسانی شد. امتیاز فعلی: {new_total}")
+        log_activity("system", f"ادمین {chat_id} به کاربر {target} {delta:+d} امتیاز داد (مجموع: {new_total})", "ok")
+        if delta > 0:
+            await _send(target, f"🎖 تبریک! ادمین بهت {delta} امتیاز داد.\nامتیاز فعلی‌ت: {new_total}")
+        elif delta < 0:
+            await _send(target, f"⚠️ {abs(delta)} امتیاز از حسابت کم شد.\nامتیاز فعلی‌ت: {new_total}")
+    elif step == "filter_addcustom_cat_wait":
+        cat = text.strip().lower()
+        if cat not in ("ads", "adult"):
+            await _send(chat_id, "فقط <code>ads</code> یا <code>adult</code> معتبره؛ دوباره بفرست یا /menu بزن.")
+            return
+        _wizard[str(chat_id)] = {"step": "filter_addcustom_domain_wait", "data": {"cat": cat}}
+        await _send(chat_id, "دامنه رو بفرست (مثلاً example.com):")
+    elif step == "filter_addcustom_domain_wait":
+        _wizard.pop(str(chat_id), None)
+        cat = w["data"].get("cat", "ads")
+        ok = add_custom_blocked_domain(text, cat)
+        if not ok:
+            await _send(chat_id, "این دامنه معتبر نبود، لغو شد.")
+            return
+        await save_state()
+        cat_fa = "تبلیغات" if cat == "ads" else "بزرگسال"
+        await _send(chat_id, f"✅ دامنه به لیست {cat_fa} اضافه شد.")
+        log_activity("system", f"ادمین {chat_id} دامنه‌ی «{text.strip()}» را به فیلتر {cat} اضافه کرد", "ok")
     elif step == "ref_template_wait":
         _wizard.pop(str(chat_id), None)
         new_template = text[:2000]
@@ -742,6 +846,10 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
         await _send(chat_id, text)
         return
 
+    if data == "ref:board":
+        await _send_leaderboard(chat_id)
+        return
+
     if data.startswith("sup:reply:"):
         target = data.split(":", 2)[2]
         _wizard[str(chat_id)] = {"step": "support_reply_wait", "data": {"target": target}}
@@ -783,6 +891,43 @@ async def _handle_callback(chat_id, message_id, cb_id, data, is_admin: bool = Fa
             "<code>{bonus_gb}</code> عدد هدیه، <code>{ref_link}</code> لینک اختصاصی، <code>{ref_count}</code> تعداد رفرال موفق.\n\n"
             f"متن فعلی:\n{REFERRAL_SETTINGS.get('message_template', '')}",
         )
+        return
+
+    if data == "ref:givepoints":
+        _wizard[str(chat_id)] = {"step": "ref_points_uid_wait", "data": {}}
+        await _send(chat_id, "آیدی عددی کاربر (chat_id) رو بفرست:")
+        return
+
+    if data == "m:filter":
+        await _show_filter_admin(chat_id, message_id)
+        return
+
+    if data == "filter:toggle:ads":
+        FILTER_SETTINGS["block_ads"] = not FILTER_SETTINGS.get("block_ads", False)
+        await save_state()
+        await _show_filter_admin(chat_id, message_id)
+        return
+
+    if data == "filter:toggle:adult":
+        FILTER_SETTINGS["block_adult"] = not FILTER_SETTINGS.get("block_adult", False)
+        await save_state()
+        await _show_filter_admin(chat_id, message_id)
+        return
+
+    if data == "filter:refreshadult":
+        await _answer_cb(cb_id, "در حال دانلود لیست...")
+        count = await refresh_adult_blocklist()
+        if count < 0:
+            await _send(chat_id, "❌ دانلود لیست ناموفق بود (شاید دسترسی شبکه یا منبع موقتاً در دسترس نیست). لیست قبلی دست‌نخورده موند.")
+        else:
+            await _send(chat_id, f"✅ لیست بزرگسال بروزرسانی شد: {count} دامنه.")
+            log_activity("system", f"لیست فیلتر بزرگسال توسط ادمین {chat_id} بروزرسانی شد ({count} دامنه)", "ok")
+        await _show_filter_admin(chat_id, message_id)
+        return
+
+    if data == "filter:addcustom":
+        _wizard[str(chat_id)] = {"step": "filter_addcustom_cat_wait", "data": {}}
+        await _send(chat_id, "این دامنه رو به کدوم دسته اضافه کنم؟\nبنویس: <code>ads</code> یا <code>adult</code>")
         return
 
     if data == "m:main":
