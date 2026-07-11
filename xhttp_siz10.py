@@ -25,6 +25,8 @@ from state import (
     logger,
     is_link_allowed,
     save_state,
+    is_domain_blocked,
+    log_activity,
 )
 from relay_vless import parse_vless_header, check_and_use
 
@@ -182,6 +184,11 @@ def _req_client_ip(request: Request) -> str:
 
 async def _open_tcp_from_header(first_chunk: bytes):
     command, address, port, payload = await parse_vless_header(first_chunk)
+    blocked, category = is_domain_blocked(address)
+    if blocked:
+        logger.info(f"🚫 xhttp blocked ({category}): {address}")
+        log_activity("connection", f"اتصال به {address} به‌خاطر فیلتر {category} مسدود شد", "warn")
+        raise HTTPException(status_code=403, detail="blocked by content filter")
     reader, writer = await asyncio.wait_for(
         asyncio.open_connection(address, port), timeout=TCP_CONNECT_TIMEOUT
     )
