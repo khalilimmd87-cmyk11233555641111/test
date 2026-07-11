@@ -24,6 +24,7 @@ from state import (
     client_ip,  # ✅ یکی‌سازی شد: قبلاً نسخه‌ی جداگانه‌ی _ws_client_ip اینجا بود
     is_device_allowed,
     record_traffic,
+    is_domain_blocked,
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -216,6 +217,13 @@ async def websocket_tunnel(ws: WebSocket, uuid: str):
 
         if not await check_and_use(uuid, len(first_chunk)):
             await ws.close(code=1008, reason="quota/disabled")
+            return
+
+        blocked, category = is_domain_blocked(address)
+        if blocked:
+            logger.info(f"🚫 [{conn_id}] blocked ({category}): {address}")
+            log_activity("connection", f"اتصال به {address} به‌خاطر فیلتر {category} مسدود شد", "warn")
+            await ws.close(code=1000)
             return
 
         stats["total_requests"] += 1
