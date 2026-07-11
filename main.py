@@ -32,6 +32,7 @@ from state import (
     get_join_settings, update_join_settings,
     create_join_link, check_channel_membership,
     PUBLIC_SETTINGS,
+    FILTER_SETTINGS, refresh_adult_blocklist,
 )
 
 from rate_limiter import check_rate_limit
@@ -199,6 +200,10 @@ async def startup():
         logger.warning("ADMIN_PASSWORD در env تنظیم نشده")
     log_activity("system", "سرور راه‌اندازی شد", "ok")
     asyncio.create_task(telegram_notifier_loop())
+    if FILTER_SETTINGS.get("block_adult"):
+        # اگه ادمین قبلاً فیلتر بزرگسال رو فعال کرده، همون اول لیست رو در پس‌زمینه دانلود کن
+        # (بدون این‌که استارتاپ سرور رو معطل کنه)
+        asyncio.create_task(refresh_adult_blocklist())
     try:
         import telegram_bot
         asyncio.create_task(telegram_bot.polling_loop())
