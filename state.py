@@ -97,6 +97,66 @@ PUBLIC_SETTINGS = {
     "allow_public_toggle": True,
 }
 
+REFERRAL_SETTINGS = {
+    "enabled": True,
+    "bonus_gb": 5,           # هدیه‌ی حجم به رفرردهنده به ازای هر رفرال موفق (گیگابایت)
+    "max_daily_credits": 0,  # 0 یعنی بدون سقف؛ عددی بالاتر از صفر یعنی حداکثر رفرال قابل‌شمارش در روز برای هر نفر
+    "message_template": (
+        "🎁 <b>دعوت از دوستان</b>\n\n"
+        "به ازای هر دوستی که با لینک اختصاصی تو وارد بات بشه و عضو کانال بشه، "
+        "{bonus_gb} گیگ به کانفیگت اضافه می‌شه.\n\n"
+        "🔗 لینک اختصاصی تو:\n<code>{ref_link}</code>\n\n"
+        "✅ تعداد رفرال موفق تو تا الان: <b>{ref_count}</b>"
+    ),
+}
+
+# ساختار هر آیتم: REFERRALS[referrer_user_id] = {
+#   "name": ..., "username": ..., "count": int,
+#   "credited_uids": [uid, ...],       # ضد شمارش دوباره‌ی یک نفر
+#   "daily": {"YYYY-MM-DD": n, ...},   # برای اعمال سقف روزانه
+# }
+REFERRALS: dict = {}
+
+
+def record_referral(referrer_id: str, referred_user_id: str, referred_uid: str,
+                     referrer_name: str = "", referrer_username: str = "") -> bool:
+    """
+    یک رفرال موفق را برای referrer_id ثبت می‌کند. موارد زیر رد می‌شوند (بدون ثبت):
+    خودارجاعی، رفرالی که قبلاً برای همین uid شمرده شده، سیستم رفرال غیرفعال،
+    یا رد شدن از سقف روزانه‌ی رفرردهنده.
+    توجه: این‌ها فقط هزینه‌ی سواستفاده را بالا می‌برند؛ چون Bot API چیزی مثل سن اکانت
+    یا شماره‌ی تلفن واقعی را در اختیار نمی‌گذارد، جلوگیری صددرصدی از اکانت‌های فیک
+    از سمت سرور ممکن نیست.
+    """
+    if not REFERRAL_SETTINGS.get("enabled", True):
+        return False
+    if not referrer_id or referrer_id == referred_user_id:
+        return False
+    entry = REFERRALS.setdefault(referrer_id, {
+        "name": referrer_name, "username": referrer_username,
+        "count": 0, "credited_uids": [], "daily": {},
+    })
+    if referred_uid in entry["credited_uids"]:
+        return False
+    day_key = now_ir().strftime("%Y-%m-%d")
+    today = entry["daily"].get(day_key, 0)
+    daily_cap = REFERRAL_SETTINGS.get("max_daily_credits", 0)
+    if daily_cap > 0 and today >= daily_cap:
+        return False
+    entry["count"] += 1
+    entry["credited_uids"].append(referred_uid)
+    entry["daily"][day_key] = today + 1
+    if referrer_name:
+        entry["name"] = referrer_name
+    if referrer_username:
+        entry["username"] = referrer_username
+    return True
+
+
+def top_referrers(n: int = 10) -> list[dict]:
+    items = sorted(REFERRALS.items(), key=lambda kv: kv[1].get("count", 0), reverse=True)
+    return [{"user_id": uid, **data} for uid, data in items[:n]]
+
 def record_traffic(uid: str, n: int):
     day_key = now_ir().strftime("%Y-%m-%d")
     daily_traffic[day_key] += n
@@ -195,7 +255,7 @@ async def require_auth(request: Request):
     return token
 
 async def load_state():
-    global LINKS, AUTH, SUBS, USER_LINKS, JOIN_SETTINGS, PUBLIC_SETTINGS
+    global LINKS, AUTH, SUBS, USER_LINKS, JOIN_SETTINGS, PUBLIC_SETTINGS, REFERRAL_SETTINGS, REFERRALS
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -218,6 +278,10 @@ async def load_state():
                 USER_LINKS.update(fixed_ul)
             if "public_settings" in data:
                 PUBLIC_SETTINGS.update(data["public_settings"])
+            if "referral_settings" in data:
+                REFERRAL_SETTINGS.update(data["referral_settings"])
+            if "referrals" in data:
+                REFERRALS.update(data["referrals"])
             logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
@@ -234,6 +298,8 @@ async def save_state():
                 "join_settings": JOIN_SETTINGS,
                 "user_links": USER_LINKS,
                 "public_settings": dict(PUBLIC_SETTINGS),
+                "referral_settings": REFERRAL_SETTINGS,
+                "referrals": REFERRALS,
                 "saved_at": datetime.now().isoformat(),
             }
             tmp = DATA_FILE.with_suffix(".tmp")
