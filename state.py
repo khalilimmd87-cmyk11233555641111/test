@@ -8,6 +8,7 @@ import hmac
 import secrets
 import time
 import aiofiles
+import httpx
 import logging
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -101,6 +102,7 @@ REFERRAL_SETTINGS = {
     "enabled": True,
     "bonus_gb": 5,           # هدیه‌ی حجم به رفرردهنده به ازای هر رفرال موفق (گیگابایت)
     "max_daily_credits": 0,  # 0 یعنی بدون سقف؛ عددی بالاتر از صفر یعنی حداکثر رفرال قابل‌شمارش در روز برای هر نفر
+    "points_per_referral": 1,  # امتیاز خودکار به ازای هر رفرال موفق
     "message_template": (
         "🎁 <b>دعوت از دوستان</b>\n\n"
         "به ازای هر دوستی که با لینک اختصاصی تو وارد بات بشه و عضو کانال بشه، "
@@ -111,11 +113,23 @@ REFERRAL_SETTINGS = {
 }
 
 # ساختار هر آیتم: REFERRALS[referrer_user_id] = {
-#   "name": ..., "username": ..., "count": int,
+#   "name": ..., "username": ..., "count": int, "points": int,
 #   "credited_uids": [uid, ...],       # ضد شمارش دوباره‌ی یک نفر
 #   "daily": {"YYYY-MM-DD": n, ...},   # برای اعمال سقف روزانه
 # }
 REFERRALS: dict = {}
+
+
+def _referral_entry(user_id: str, name: str = "", username: str = "") -> dict:
+    entry = REFERRALS.setdefault(user_id, {
+        "name": name, "username": username,
+        "count": 0, "points": 0, "credited_uids": [], "daily": {},
+    })
+    if name:
+        entry["name"] = name
+    if username:
+        entry["username"] = username
+    return entry
 
 
 def record_referral(referrer_id: str, referred_user_id: str, referred_uid: str,
@@ -132,10 +146,7 @@ def record_referral(referrer_id: str, referred_user_id: str, referred_uid: str,
         return False
     if not referrer_id or referrer_id == referred_user_id:
         return False
-    entry = REFERRALS.setdefault(referrer_id, {
-        "name": referrer_name, "username": referrer_username,
-        "count": 0, "credited_uids": [], "daily": {},
-    })
+    entry = _referral_entry(referrer_id, referrer_name, referrer_username)
     if referred_uid in entry["credited_uids"]:
         return False
     day_key = now_ir().strftime("%Y-%m-%d")
@@ -144,18 +155,37 @@ def record_referral(referrer_id: str, referred_user_id: str, referred_uid: str,
     if daily_cap > 0 and today >= daily_cap:
         return False
     entry["count"] += 1
+    entry["points"] = entry.get("points", 0) + REFERRAL_SETTINGS.get("points_per_referral", 1)
     entry["credited_uids"].append(referred_uid)
     entry["daily"][day_key] = today + 1
-    if referrer_name:
-        entry["name"] = referrer_name
-    if referrer_username:
-        entry["username"] = referrer_username
     return True
+
+
+def adjust_points(user_id: str, delta: int, name: str = "", username: str = "") -> int:
+    """امتیاز یک کاربر را (مثبت یا منفی) دستی تغییر می‌دهد؛ برای اعطای امتیاز توسط ادمین."""
+    entry = _referral_entry(user_id, name, username)
+    entry["points"] = entry.get("points", 0) + delta
+    return entry["points"]
 
 
 def top_referrers(n: int = 10) -> list[dict]:
     items = sorted(REFERRALS.items(), key=lambda kv: kv[1].get("count", 0), reverse=True)
     return [{"user_id": uid, **data} for uid, data in items[:n]]
+
+
+def top_by_points(n: int = 10) -> list[dict]:
+    items = sorted(REFERRALS.items(), key=lambda kv: kv[1].get("points", 0), reverse=True)
+    return [{"user_id": uid, **data} for uid, data in items[:n]]
+
+
+def rank_of(user_id: str) -> tuple[int, int, dict]:
+    """(جایگاه ۱-پایه، تعداد کل شرکت‌کننده‌ها، اطلاعات خودِ کاربر) بر اساس امتیاز."""
+    items = sorted(REFERRALS.items(), key=lambda kv: kv[1].get("points", 0), reverse=True)
+    total = len(items)
+    for idx, (uid, data) in enumerate(items, 1):
+        if uid == user_id:
+            return idx, total, data
+    return 0, total, REFERRALS.get(user_id, {"count": 0, "points": 0})
 
 def record_traffic(uid: str, n: int):
     day_key = now_ir().strftime("%Y-%m-%d")
@@ -255,7 +285,7 @@ async def require_auth(request: Request):
     return token
 
 async def load_state():
-    global LINKS, AUTH, SUBS, USER_LINKS, JOIN_SETTINGS, PUBLIC_SETTINGS, REFERRAL_SETTINGS, REFERRALS
+    global LINKS, AUTH, SUBS, USER_LINKS, JOIN_SETTINGS, PUBLIC_SETTINGS, REFERRAL_SETTINGS, REFERRALS, FILTER_SETTINGS, CUSTOM_BLOCK_DOMAINS
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -282,6 +312,12 @@ async def load_state():
                 REFERRAL_SETTINGS.update(data["referral_settings"])
             if "referrals" in data:
                 REFERRALS.update(data["referrals"])
+            if "filter_settings" in data:
+                FILTER_SETTINGS.update(data["filter_settings"])
+            if "custom_block_domains" in data:
+                cbd = data["custom_block_domains"]
+                CUSTOM_BLOCK_DOMAINS["ads"] = set(cbd.get("ads", []))
+                CUSTOM_BLOCK_DOMAINS["adult"] = set(cbd.get("adult", []))
             logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
@@ -300,6 +336,11 @@ async def save_state():
                 "public_settings": dict(PUBLIC_SETTINGS),
                 "referral_settings": REFERRAL_SETTINGS,
                 "referrals": REFERRALS,
+                "filter_settings": FILTER_SETTINGS,
+                "custom_block_domains": {
+                    "ads": sorted(CUSTOM_BLOCK_DOMAINS["ads"]),
+                    "adult": sorted(CUSTOM_BLOCK_DOMAINS["adult"]),
+                },
                 "saved_at": datetime.now().isoformat(),
             }
             tmp = DATA_FILE.with_suffix(".tmp")
@@ -659,3 +700,107 @@ async def create_join_link(user_id: str, label: str = None) -> str | None:
         USER_LINKS[user_id] = uid
     await save_state()
     return uid
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# فیلتر محتوا — مسدودسازی تبلیغات و محتوای بزرگسال روی سطح تونل
+# چون مقصد اتصال (دامنه) از هدر VLESS/Trojan/xhttp قبل از باز کردن سوکت TCP در
+# اختیار سرور است، می‌شود قبل از وصل‌شدن به مقصد، آن را با یک بلاک‌لیست چک کرد —
+# دقیقاً همون کاری که AdGuard/NextDNS/Pi-hole سطح DNS انجام می‌دن، اینجا سطح اتصال.
+# ══════════════════════════════════════════════════════════════════════════════
+
+FILTER_SETTINGS = {
+    "block_ads": False,
+    "block_adult": False,
+}
+
+# لیست پایه‌ی دامنه‌های تبلیغاتی/ردیاب شناخته‌شده (کوچک ولی رایج‌ترین‌ها).
+# قابل گسترش توسط ادمین از طریق بات (دستور افزودن دامنه‌ی دلخواه).
+_BUILTIN_AD_DOMAINS = frozenset({
+    "doubleclick.net", "googlesyndication.com", "googleadservices.com",
+    "google-analytics.com", "googletagmanager.com", "googletagservices.com",
+    "adnxs.com", "adsrvr.org", "adservice.google.com", "ads.yahoo.com",
+    "taboola.com", "outbrain.com", "criteo.com", "criteo.net", "pubmatic.com",
+    "rubiconproject.com", "openx.net", "scorecardresearch.com", "quantserve.com",
+    "moatads.com", "amazon-adsystem.com", "media.net", "adform.net",
+    "bidswitch.net", "casalemedia.com", "contextweb.com", "smartadserver.com",
+    "yieldmo.com", "advertising.com", "adtechus.com", "mopub.com",
+    "app-measurement.com", "adjust.com", "appsflyer.com", "unityads.unity3d.com",
+})
+
+# لیست بزرگسال از یک منبع عمومی، معتبر و به‌طور فعال نگهداری‌شده (پروژه‌ی
+# متن‌باز StevenBlack/hosts) در زمان اجرا دانلود می‌شود — نه چیزی که اینجا
+# دستی نوشته شده باشد. چون این لیست می‌تونه خیلی بزرگ (چند ده‌هزار دامنه) باشه،
+# در state.json ذخیره نمی‌شه؛ فقط در حافظه است و هر بار سرور بالا میاد (یا با
+# دستور ادمین) دوباره دانلود می‌شه.
+ADULT_BLOCKLIST_URL = "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts"
+ADULT_BLOCK_DOMAINS: set = set()
+
+# دامنه‌هایی که ادمین دستی اضافه کرده (کوچک، در state.json ذخیره می‌شه)
+CUSTOM_BLOCK_DOMAINS: dict = {"ads": set(), "adult": set()}
+
+
+def _looks_like_ip(hostname: str) -> bool:
+    try:
+        ipaddress.ip_address(hostname)
+        return True
+    except ValueError:
+        return False
+
+
+def _domain_suffix_match(hostname: str, domain_set) -> bool:
+    hostname = hostname.lower().rstrip(".")
+    parts = hostname.split(".")
+    for i in range(len(parts)):
+        if ".".join(parts[i:]) in domain_set:
+            return True
+    return False
+
+
+def is_domain_blocked(hostname: str) -> tuple[bool, str]:
+    """آیا این مقصد باید بلاک بشه؛ (بلاک‌شده؟, دسته). فقط دامنه چک می‌شه، نه IP خام."""
+    if not hostname or _looks_like_ip(hostname):
+        return False, ""
+    if FILTER_SETTINGS.get("block_ads") and _domain_suffix_match(hostname, _BUILTIN_AD_DOMAINS | CUSTOM_BLOCK_DOMAINS["ads"]):
+        return True, "ads"
+    if FILTER_SETTINGS.get("block_adult") and _domain_suffix_match(hostname, ADULT_BLOCK_DOMAINS | CUSTOM_BLOCK_DOMAINS["adult"]):
+        return True, "adult"
+    return False, ""
+
+
+def add_custom_blocked_domain(domain: str, category: str = "ads") -> bool:
+    domain = domain.strip().lower().lstrip("*.")
+    if not domain or "." not in domain or category not in CUSTOM_BLOCK_DOMAINS:
+        return False
+    CUSTOM_BLOCK_DOMAINS[category].add(domain)
+    return True
+
+
+async def refresh_adult_blocklist() -> int:
+    """
+    لیست دامنه‌های بزرگسال را از یک منبع متن‌باز و معتبر دانلود می‌کند.
+    عدد برگشتی: تعداد دامنه‌ی جدید، یا -1 اگر دانلود شکست خورد (لیست قبلی دست‌نخورده می‌ماند).
+    """
+    global ADULT_BLOCK_DOMAINS
+    try:
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            resp = await client.get(ADULT_BLOCKLIST_URL)
+            resp.raise_for_status()
+            text = resp.text
+    except Exception as e:
+        logger.warning(f"refresh_adult_blocklist failed: {e}")
+        return -1
+    domains = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] in ("0.0.0.0", "127.0.0.1"):
+            d = parts[1].strip().lower()
+            if d and d not in ("localhost", "local", "localhost.localdomain"):
+                domains.add(d)
+    if domains:
+        ADULT_BLOCK_DOMAINS = domains
+        logger.info(f"adult blocklist refreshed: {len(domains)} domains")
+    return len(domains)
