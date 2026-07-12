@@ -1932,7 +1932,15 @@ async function loadTopUsage(){
 }
 async function loadErrs(){try{const r=await authF('/stats'),d=await r.json();renderErrs(d.recent_errors||[]);}catch(e){}}
 async function fetchDefaultVless(){
-  try{const r=await authF('/api/links'),d=await r.json();const links=d.links||[];const def=links.find(l=>l.limit_bytes===0&&l.active&&!l.expired)||links.find(l=>l.active&&!l.expired)||links[0];document.getElementById('vless-main').textContent=def?def.vless_link:'هنوز کانفیگی وجود ندارد';}catch(e){}
+  try{
+    const r=await authF('/api/links'),d=await r.json();
+    const links=d.links||[];
+    const def=links.find(l=>l.limit_bytes===0&&l.active&&!l.expired)||links.find(l=>l.active&&!l.expired)||links[0];
+    document.getElementById('vless-main').textContent=def?def.vless_link:'هنوز کانفیگی وجود ندارد';
+  }catch(e){
+    console.error('fetchDefaultVless failed:',e);
+    document.getElementById('vless-main').textContent='❌ خطا در دریافت کانفیگ — کنسول مرورگر (F12) را چک کنید';
+  }
 }
 function cpText(id){navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>toast('کپی شد ✓','ok'))}
 function qrFor(id){showQR(document.getElementById(id).textContent)}
