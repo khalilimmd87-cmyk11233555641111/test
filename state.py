@@ -331,7 +331,16 @@ async def load_state():
             data = json.loads(raw)
             LINKS.update(data.get("links", {}))
             SUBS.update(data.get("subs", {}))
-            if "password_hash" in data:
+            # باگ قبلی: پسورد ذخیره‌شده در state.json همیشه پسورد ست‌شده در env
+            # (ADMIN_PASSWORD) را override می‌کرد — یعنی حتی با ست‌کردن ADMIN_PASSWORD
+            # در Railway، اگر یک فایل state قدیمی (با پسورد قبلی) روی سرور بود، همان
+            # پسورد قدیمی برنده می‌شد و امکان بازیابی دسترسی از طریق env وجود نداشت.
+            # الان: اگر ADMIN_PASSWORD صراحتاً در env ست شده، همیشه همان اولویت دارد
+            # (این یعنی env var مسیر رسمی «بازیابی دسترسی» است). در غیر این صورت،
+            # همان رفتار قبلی (خواندن از فایل) ادامه پیدا می‌کند.
+            if os.environ.get("ADMIN_PASSWORD"):
+                pass  # AUTH از قبل با hash_password(_initial_admin_password()) که env را می‌خواند ست شده
+            elif "password_hash" in data:
                 AUTH["password_hash"] = data["password_hash"]
             if "telegram_settings" in data:
                 TELEGRAM_SETTINGS.update(data["telegram_settings"])
