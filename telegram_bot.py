@@ -8,6 +8,7 @@
 # هدیه می‌گیرد.
 # ══════════════════════════════════════════════════════════════════════════════
 import asyncio
+import html
 import time
 from datetime import datetime
 from urllib.parse import quote as _urlquote
@@ -347,8 +348,11 @@ _MEDALS = ["🥇", "🥈", "🥉"]
 
 
 def _display_name_for(entry: dict, fallback_id: str) -> str:
-    name = entry.get("name") or fallback_id
-    uname = f" (@{entry['username']})" if entry.get("username") else ""
+    # نام و یوزرنیم تلگرام کاملاً توسط خود کاربر قابل‌تنظیمه (هرکسی می‌تونه
+    # اسمشو به هر چیزی از جمله تگ HTML تغییر بده)، پس قبل از قرار دادن داخل
+    # پیامی که با parse_mode=HTML فرستاده می‌شه، حتماً باید escape بشه.
+    name = html.escape(str(entry.get("name") or fallback_id))
+    uname = f" (@{html.escape(str(entry['username']))})" if entry.get("username") else ""
     return f"{name}{uname}"
 
 
@@ -380,8 +384,8 @@ async def _show_referral_admin(chat_id, message_id):
     top = top_referrers(10)
     lines = []
     for i, r in enumerate(top, 1):
-        name = r.get("name") or r["user_id"]
-        uname = f" (@{r['username']})" if r.get("username") else ""
+        name = html.escape(str(r.get("name") or r["user_id"]))
+        uname = f" (@{html.escape(str(r['username']))})" if r.get("username") else ""
         lines.append(f"{i}. {name}{uname} — <code>{r['user_id']}</code> — {r.get('count', 0)} رفرال")
     board = "\n".join(lines) if lines else "هنوز هیچ رفرالی ثبت نشده."
 
@@ -587,10 +591,16 @@ async def _handle_support_message(chat_id, text):
 
     uid = USER_LINKS.get(user_id)
     label = LINKS.get(uid, {}).get("label", "?") if uid else "بدون کانفیگ"
+    # مهم: msg مستقیماً چیزیه که یک کاربر عادی (بدون نیاز به پنل یا دسترسی ساب)
+    # تایپ کرده و اینجا با parse_mode=HTML برای ادمین فرستاده می‌شه. اگر escape
+    # نشه، هرکسی می‌تونه یک لینک فیشینگ به‌شکل متن آبی/قابل‌کلیک مستقیم داخل
+    # چت تلگرام خود ادمین جا بزنه. همینطور label هم از قبل ممکنه دستکاری شده باشد.
+    safe_msg = html.escape(msg[:3500])
+    safe_label = html.escape(str(label))
     for admin_chat in admins:
         await _send(
             admin_chat,
-            f"📩 <b>پیام پشتیبانی جدید</b>\nاز کاربر: <code>{user_id}</code> (کانفیگ: {label})\n\n{msg[:3500]}",
+            f"📩 <b>پیام پشتیبانی جدید</b>\nاز کاربر: <code>{user_id}</code> (کانفیگ: {safe_label})\n\n{safe_msg}",
             [[{"text": "↩️ پاسخ", "callback_data": f"sup:reply:{user_id}"}]],
         )
     await _send(chat_id, "✅ پیامت برای پشتیبانی ارسال شد؛ به‌زودی جواب می‌گیری.")
