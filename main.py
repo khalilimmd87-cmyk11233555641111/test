@@ -13,7 +13,7 @@ import httpx
 import os
 
 from state import (
-    logger, CONFIG,
+    logger, CONFIG, sanitize_text,
     connections, stats, error_logs, activity_logs, hourly_traffic,
     LINKS, LINKS_LOCK, SUBS, SUBS_LOCK,
     PROTOCOLS, DEFAULT_PROTOCOL, log_activity,
@@ -94,6 +94,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """دفاع در عمق: حتی اگر یک‌جا فراموش شد ورودی escape شود، این هدرها جلوی
+    اجرای اسکریپت از دامنه‌های خارجی (مثل حمله‌ی اخیر sftaq.ir) و embed غیرمجاز
+    پنل داخل iframe سایت‌های دیگر را می‌گیرند."""
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "object-src 'none'"
+    )
+    if SECURE_COOKIES:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
+
 
 http_client: httpx.AsyncClient | None = None
 
@@ -363,7 +388,7 @@ async def create_split_child(uuid: str, request: Request):
     body = await request.json()
     amount = float(body.get("amount") or 0)
     unit = body.get("unit") or "GB"
-    label = (body.get("label") or "اشتراکی").strip()[:60]
+    label = sanitize_text(body.get("label") or "اشتراکی", 60)
     exp_delta = parse_expiry_to_timedelta(float(body.get("expires_value") or 0), body.get("expires_unit") or "days")
     child_expires_at = (datetime.now() + exp_delta).isoformat() if exp_delta else None
     if amount <= 0:
@@ -481,8 +506,8 @@ async def toggle_split_child(uuid: str, child_uuid: str, request: Request):
 @app.post("/api/subs")
 async def create_sub(request: Request, _=Depends(require_auth)):
     body = await request.json()
-    name = (body.get("name") or "گروه جدید").strip()[:60]
-    desc = (body.get("desc") or "").strip()[:200]
+    name = sanitize_text(body.get("name") or "گروه جدید", 60)
+    desc = sanitize_text(body.get("desc") or "", 200)
     password = (body.get("password") or "").strip()
     pool_value = float(body.get("pool_value") or 0)
     pool_unit = str(body.get("pool_unit") or "GB")
@@ -559,9 +584,9 @@ async def update_sub(sub_id: str, request: Request, _=Depends(require_auth)):
             raise HTTPException(status_code=404, detail="sub not found")
         s = SUBS[sub_id]
         if "name" in body:
-            s["name"] = str(body["name"])[:60]
+            s["name"] = sanitize_text(body["name"], 60)
         if "desc" in body:
-            s["desc"] = str(body["desc"])[:200]
+            s["desc"] = sanitize_text(body["desc"], 200)
         if "password" in body:
             pw = str(body["password"]).strip()
             s["password_hash"] = hash_password(pw) if pw else None
@@ -722,8 +747,8 @@ async def api_change_password(request: Request, token=Depends(require_auth)):
     if not verify_password(str(body.get("current_password", "")), AUTH["password_hash"]):
         raise HTTPException(status_code=400, detail="رمز فعلی اشتباه است")
     new = str(body.get("new_password", ""))
-    if len(new) < 4:
-        raise HTTPException(status_code=400, detail="رمز جدید باید حداقل ۴ کاراکتر باشد")
+    if len(new) < 10:
+        raise HTTPException(status_code=400, detail="رمز جدید باید حداقل ۱۰ کاراکتر باشد")
     AUTH["password_hash"] = hash_password(new)
     async with SESSIONS_LOCK:
         SESSIONS.clear()
@@ -809,7 +834,7 @@ async def get_connections(_=Depends(require_auth)):
 @app.post("/api/links")
 async def create_link(request: Request, _=Depends(require_auth)):
     body = await request.json()
-    label = (body.get("label") or "لینک جدید").strip()[:60]
+    label = sanitize_text(body.get("label") or "لینک جدید", 60)
     lv = float(body.get("limit_value") or 0)
     lu = body.get("limit_unit") or "GB"
     limit_bytes = 0 if lv <= 0 else parse_size_to_bytes(lv, lu)
@@ -819,7 +844,7 @@ async def create_link(request: Request, _=Depends(require_auth)):
         exp_days = int(body.get("expires_days") or 0)
         exp_delta = parse_expiry_to_timedelta(exp_days, "days")
     expires_at = (datetime.now() + exp_delta).isoformat() if exp_delta else None
-    note = (body.get("note") or "").strip()[:200]
+    note = sanitize_text(body.get("note") or "", 200)
     sub_id = body.get("sub_id") or None
     protocol = body.get("protocol") or DEFAULT_PROTOCOL
     if protocol not in PROTOCOLS:
@@ -905,9 +930,9 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
         if "active" in body:
             link["active"] = bool(body["active"])
         if "label" in body:
-            link["label"] = str(body["label"])[:60]
+            link["label"] = sanitize_text(body["label"], 60)
         if "note" in body:
-            link["note"] = str(body["note"])[:200]
+            link["note"] = sanitize_text(body["note"], 200)
         if "reset_usage" in body and body["reset_usage"]:
             link["used_bytes"] = 0
             link["quota_notified"] = False
@@ -1240,8 +1265,8 @@ async def split_sub_quota(uuid_key: str, request: Request):
     pw = str(body.get("pw", ""))
     amount_value = float(body.get("amount_value") or 0)
     amount_unit = str(body.get("amount_unit") or "GB")
-    child_label = str(body.get("label") or "کانفیگ هدیه").strip()[:60]
-    child_name = str(body.get("name") or "ساب هدیه").strip()[:60]
+    child_label = sanitize_text(body.get("label") or "کانفیگ هدیه", 60)
+    child_name = sanitize_text(body.get("name") or "ساب هدیه", 60)
     async with SUBS_LOCK:
         sub_entry = next(((sid, s) for sid, s in SUBS.items() if s.get("uuid_key") == uuid_key), None)
         if not sub_entry:
