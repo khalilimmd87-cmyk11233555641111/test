@@ -2105,6 +2105,19 @@ async function testTelegram(){
     toast('پیام تست ارسال شد ✓ چک کن تلگرامت','ok');
   }catch(e){toast('خطا در ارسال تست','err')}
 }
+// ✅ فیکس: این تابع توسط دکمه‌ی «پیدا کن» صدا زده می‌شد ولی اصلاً تعریف نشده بود
+// (دکمه‌ی مرده — کلیک روی آن فقط یک ReferenceError در کنسول می‌داد و هیچ اتفاقی
+// نمی‌افتاد). حالا واقعاً از سرور IP فعلی api.telegram.org را می‌گیرد و در فیلد پر می‌کند.
+async function resolveTelegramIp(){
+  try{
+    const r=await authF('/api/settings/telegram/resolve');
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||!d.ok){toast(d.detail||'پیدا کردن IP ناموفق بود','err');return}
+    if(!d.ips||!d.ips.length){toast('هیچ IPای پیدا نشد','err');return}
+    document.getElementById('tg-api-ip').value=d.ips[0];
+    toast('IP پیدا شد: '+d.ips[0]+' — حالا «ذخیره تنظیمات» را بزن','ok');
+  }catch(e){toast('خطا در پیدا کردن IP','err')}
+}
 
 // 🌐 تنظیمات عمومی - جدید
 async function loadPublicSettings() {
