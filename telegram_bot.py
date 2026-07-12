@@ -21,7 +21,7 @@ from state import (
     parse_expiry_to_timedelta, get_host, log_activity, logger,
     DEFAULT_PROTOCOL, uptime,
     JOIN_SETTINGS, USER_LINKS,
-    check_channel_membership, create_join_link,
+    check_channel_membership, check_channel_membership_status, create_join_link,
     save_state,
     REFERRAL_SETTINGS, REFERRALS, record_referral, top_referrers,
     top_by_points, rank_of, adjust_points,
@@ -1172,10 +1172,16 @@ async def channel_watch_loop():
                 if not user_id:
                     continue
                 try:
-                    is_member = await check_channel_membership(user_id, TELEGRAM_SETTINGS.get("bot_token"))
+                    is_member = await check_channel_membership_status(user_id, TELEGRAM_SETTINGS.get("bot_token"))
                 except Exception:
                     continue
                 await asyncio.sleep(CHANNEL_WATCH_STAGGER)
+
+                # اگر وضعیت نامعلوم بود (خطای شبکه/تایم‌اوت/ریت‌لیمیت تلگرام)، هیچ کاری نکن —
+                # قبلاً اینجا چنین حالتی مثل «کاربر کانال را ترک کرده» رفتار می‌شد و باعث
+                # غیرفعال‌شدن اشتباهِ کانفیگ کاربرهای واقعی به‌خاطر یک خطای موقت تلگرام می‌شد.
+                if is_member is None:
+                    continue
 
                 async with LINKS_LOCK:
                     link = LINKS.get(uid)
@@ -1184,12 +1190,12 @@ async def channel_watch_loop():
                     was_active = link.get("active", True)
                     disabled_by_leave = link.get("disabled_by_leave", False)
 
-                    if not is_member and was_active:
+                    if is_member is False and was_active:
                         link["active"] = False
                         link["disabled_by_leave"] = True
                         label = link.get("label", "کانفیگ")
                         action = "disabled"
-                    elif is_member and (not was_active) and disabled_by_leave:
+                    elif is_member is True and (not was_active) and disabled_by_leave:
                         link["active"] = True
                         link["disabled_by_leave"] = False
                         label = link.get("label", "کانفیگ")
