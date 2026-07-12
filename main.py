@@ -107,9 +107,22 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: blob:; "
+        # ✅ فیکس: Chart.js داشبورد از cdnjs لود می‌شود؛ قبلاً script-src فقط
+        # 'self' بود و این کتابخانه بی‌صدا بلاک می‌شد (چارت داشبورد لود نمی‌شد).
+        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+        # ✅ فیکس: فونت Vazirmatn (fonts.googleapis.com) و CSS آیکون‌های Tabler
+        # (cdn.jsdelivr.net) شیت‌های استایل خارجی هستند؛ قبلاً style-src فقط
+        # 'self' بود پس این دو بی‌صدا بلاک می‌شدند → بدون فونت فارسی و بدون
+        # هیچ آیکونی (دقیقاً همان چیزی که صفحه‌ی ساب/لاگین/داشبورد را «یه‌جوری»
+        # و ناقص نشان می‌داد).
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+        # ✅ فیکس: فایل واقعیِ فونت‌ها از fonts.gstatic.com سرو می‌شود و فونت
+        # آیکون Tabler هم از cdn.jsdelivr.net؛ font-src اصلاً تعریف نشده بود و
+        # به default-src 'self' سقوط می‌کرد → فونت‌ها دانلود نمی‌شدند.
+        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; "
+        # ✅ فیکس: عکس QR کد از api.qrserver.com لود می‌شود؛ قبلاً img-src این
+        # دامنه را نداشت → مودال QR همیشه یک عکس شکسته نشان می‌داد.
+        "img-src 'self' data: blob: https://api.qrserver.com; "
         "connect-src 'self'; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
