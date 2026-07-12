@@ -2810,9 +2810,9 @@ init();
 </script>
 </body></html>"""
 
+
 def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     import json as _json
-    from urllib.parse import quote as _uq
     label = link_data.get("label", "بدون نام")
     vless_link = link_data.get("vless_link", "")
     vless_links = link_data.get("vless_links") or [{"protocol": link_data.get("protocol", "vless-ws"), "vless_link": vless_link}]
@@ -2831,7 +2831,7 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     flag_json = _json.dumps(flag)
     _country_names = {"🇺🇸": "آمریکا", "🇳🇱": "هلند", "🇩🇪": "آلمان", "🇬🇧": "بریتانیا", "🇫🇷": "فرانسه", "🇹🇷": "ترکیه", "🇸🇬": "سنگاپور", "🇯🇵": "ژاپن"}
     country_name = _country_names.get(flag, "")
-
+    
     proto_names = {
         "vless-ws": "VLESS / WebSocket",
         "xhttp-packet-up": "XHTTP · packet-up",
@@ -2839,9 +2839,9 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
         "xhttp-stream-one": "XHTTP ULTRA"
     }
     proto_display = proto_names.get(protocol, protocol)
-
+    
     pct = 0 if limit_bytes == 0 else min(100, used_bytes / limit_bytes * 100)
-    bar_color = "var(--danger)" if pct > 90 else ("var(--accent)" if pct > 70 else "var(--ok)")
+    bar_color = "var(--red)" if pct > 90 else ("var(--amber)" if pct > 70 else "var(--green)")
 
     def _fmtb(n):
         n = max(0, n)
@@ -2857,27 +2857,10 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
     header_brand_html = "" if white_label else f"""
     <div class="brand">
       <div class="brand-img"><img src="{LOGO_DATA_URI}" alt="تیم آزادی"></div>
-      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">Gateway · v10.0</div></div>
+      <div><div class="brand-name">تیم آزادی</div><div class="brand-sub">تیم آزادی Gateway · v10.0</div></div>
     </div>"""
-    header_tg_html = "" if white_label else '<a href="https://t.me/TimAzadi" target="_blank" class="tg-badge"><i class="ti ti-brand-telegram"></i><span>@TimAzadi</span></a>'
-    footer_html = "" if white_label else '<div class="footer">ساخته‌شده به یاد تمدن ایران‌زمین · <b>تیم آزادی Gateway</b> · <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a></div>'
-    manifesto_html = "" if white_label else """
-  <div class="manifesto">
-    <i class="ti ti-quote"></i>
-    <span>به یاد پیام کوروش بزرگ در پاسارگاد: «آزادی، حق طبیعیِ هر انسان است»</span>
-  </div>
-  <div class="frieze-thin"><svg viewBox="0 0 600 8" preserveAspectRatio="none"><rect width="600" height="8" fill="url(#guilloche-thin)"/></svg></div>"""
-
-    encoded_sub = _uq(sub_url, safe="")
-    encoded_label = _uq(label, safe="")
-    app_links = {
-        "hiddify": f"hiddify://import/{encoded_sub}",
-        "v2box": f"v2box://install-sub?url={encoded_sub}&name={encoded_label}",
-        "streisand": f"streisand://import/{encoded_sub}",
-        "v2rayng": f"v2rayng://install-sub?url={encoded_sub}&name={encoded_label}",
-        "nekoray": "",
-    }
-    app_links_json = _json.dumps(app_links, ensure_ascii=False)
+    header_tg_html = "" if white_label else '<a href="https://t.me/TimAzadi" target="_blank" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-soft);font-weight:600"><i class="ti ti-brand-telegram" style="font-size:18px"></i> @TimAzadi</a>'
+    footer_html = "" if white_label else '<div class="footer">Powered by <b>تیم آزادی Gateway</b> · <a href="https://t.me/TimAzadi" target="_blank">@TimAzadi</a></div>'
 
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -2885,213 +2868,202 @@ def get_single_link_page_html(uuid: str, link_data: dict) -> str:
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{page_title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 :root{{
-  --bg:#0D0906;
-  --panel:rgba(28,20,13,.72);
-  --panel-solid:#1C140D;
-  --border:rgba(201,162,39,.20);
-  --border-soft:rgba(201,162,39,.08);
-  --accent:#C9A227;
-  --accent-soft:#E8C766;
-  --ink:#F1E7D2;
-  --ink-dim:#A99B79;
-  --ink-faint:#6E6248;
-  --danger:#C1524A; --danger-bg:rgba(193,82,74,.14);
-  --ok:#2FA79D; --ok-bg:rgba(47,167,157,.14);
-  --shadow:0 18px 46px rgba(0,0,0,.5);
-  --mono:'JetBrains Mono',ui-monospace,monospace;
-  --r-lg:22px; --r-md:15px; --r-sm:10px;
+  --bg-root:#0B1220;
+  --bg-surface:#111827;
+  --glass-bg:rgba(17,24,39,0.75);
+  --glass-border:rgba(59,130,246,0.12);
+  --accent:#3B82F6;
+  --accent-soft:#60A5FA;
+  --green:#10B981;--green-bg:rgba(16,185,129,0.12);
+  --red:#EF4444;--red-bg:rgba(239,68,68,0.12);
+  --amber:#F59E0B;--amber-bg:rgba(245,158,11,0.12);
+  --text-primary:#F1F5F9;
+  --text-secondary:#94A3B8;
+  --text-muted:#64748B;
+  --radius:16px;
+  --shadow:0 8px 32px rgba(0,0,0,0.3);
 }}
-html[data-dynasty="sassanid"]{{--accent:#2FA79D;--accent-soft:#7FD9CF;--border:rgba(47,167,157,.20);--border-soft:rgba(47,167,157,.08)}}
-html[data-dynasty="median"]{{--accent:#A8434F;--accent-soft:#D98A93;--border:rgba(168,67,79,.20);--border-soft:rgba(168,67,79,.08)}}
-html[data-dynasty="parthian"]{{--accent:#B5732E;--accent-soft:#E0A868;--border:rgba(181,115,46,.20);--border-soft:rgba(181,115,46,.08)}}
-html[data-dynasty="elamite"]{{--accent:#4A5A9E;--accent-soft:#93A3D9;--border:rgba(74,90,158,.20);--border-soft:rgba(74,90,158,.08)}}
-html[data-theme="light"]{{
-  --bg:#F3EDE0; --panel:rgba(255,255,255,.85); --panel-solid:#FFFDF8;
-  --border:rgba(40,30,15,.13); --border-soft:rgba(40,30,15,.06);
-  --ink:#241C10; --ink-dim:#6B5D42; --ink-faint:#9C8F72;
-  --shadow:0 12px 30px rgba(30,20,10,.10);
-}}
-html[data-theme="light"] .col-mark{{opacity:.05}}
-html[data-theme="light"] .qr-img img{{background:#fff}}
-
-html,body{{min-height:100%;background:var(--bg);font-family:'Vazirmatn',sans-serif;color:var(--ink);font-size:14px}}
-html,body,.card,.badge,.btn,.icon-btn,.cfg-row,.tg-badge,.app-link-btn,.os-card{{transition:background .35s ease,border-color .35s ease,color .35s ease}}
-.bg-layer{{position:fixed;inset:0;z-index:0;pointer-events:none;background:
-  radial-gradient(ellipse 65% 40% at 50% -8%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-  var(--bg)}}
-.col-mark{{position:fixed;left:0;right:0;bottom:0;height:34vh;z-index:0;pointer-events:none;opacity:.07;
-  background-repeat:repeat-x;background-position:bottom center;background-size:220px auto;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 340'%3E%3Cg fill='%23C9A227'%3E%3Crect x='95' y='40' width='30' height='260'/%3E%3Cpath d='M60,40 Q110,-10 160,40 L150,55 Q110,15 70,55 Z'/%3E%3Crect x='70' y='300' width='80' height='14'/%3E%3Crect x='55' y='314' width='110' height='16'/%3E%3C/g%3E%3C/svg%3E")}}
-.wrap{{position:relative;z-index:10;max-width:660px;margin:0 auto;padding:26px 16px 60px}}
-
-@keyframes fadeUp{{from{{opacity:0;transform:translateY(14px)}}to{{opacity:1;transform:translateY(0)}}}}
-.fade-1{{animation:fadeUp .45s ease both .03s}}
-.fade-2{{animation:fadeUp .5s ease both .1s}}
-.fade-3{{animation:fadeUp .5s ease both .17s}}
-.fade-4{{animation:fadeUp .5s ease both .24s}}
-.fade-5{{animation:fadeUp .5s ease both .3s}}
-
-.top{{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}}
-.brand{{display:flex;align-items:center;gap:11px}}
-.brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--border);box-shadow:0 0 18px color-mix(in srgb, var(--accent) 30%, transparent);flex-shrink:0}}
+html,body{{min-height:100%;background:var(--bg-root);font-family:'Vazirmatn',sans-serif;color:var(--text-primary);font-size:14px}}
+.bg-layer{{position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(59,130,246,0.06),transparent 60%),var(--bg-root);z-index:0;pointer-events:none}}
+.grid{{position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);background-size:44px 44px;z-index:0;pointer-events:none}}
+.wrap{{position:relative;z-index:10;max-width:660px;margin:0 auto;padding:28px 16px 60px}}
+.top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}}
+.brand{{display:flex;align-items:center;gap:12px}}
+.brand-img{{width:42px;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 0 20px rgba(59,130,246,0.25);flex-shrink:0}}
 .brand-img img{{width:100%;height:100%;object-fit:cover}}
-.brand-name{{font-size:15px;font-weight:800;letter-spacing:.2px}}
-.brand-sub{{font-size:9.5px;color:var(--ink-faint);font-family:var(--mono)}}
-.top-actions{{display:flex;align-items:center;gap:8px}}
-.icon-btn{{width:36px;height:36px;border-radius:10px;background:var(--border-soft);border:1px solid var(--border);color:var(--accent-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px}}
-.icon-btn:hover{{transform:translateY(-2px)}}
-.theme-toggle i{{transition:transform .45s ease}}
-.theme-toggle:hover i{{transform:rotate(25deg)}}
-.live-clock{{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent-soft);background:rgba(0,0,0,.22);border:1px solid var(--border);border-radius:9px;padding:7px 11px;letter-spacing:.5px}}
-.tg-badge{{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:20px;background:linear-gradient(135deg,var(--border-soft),transparent);border:1px solid var(--border);color:var(--accent-soft);text-decoration:none;font-size:11.5px;font-weight:700}}
-.tg-badge:hover{{transform:translateY(-2px);background:var(--border)}}
-
-.dyn-picker{{position:relative}}
-.dyn-menu{{display:none;position:absolute;top:44px;left:0;background:var(--panel-solid);border:1px solid var(--border);border-radius:15px;padding:8px;flex-direction:column;gap:2px;box-shadow:var(--shadow);z-index:80;min-width:150px}}
-.dyn-menu.open{{display:flex}}
-.dyn-option{{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:10px;cursor:pointer}}
-.dyn-option:hover{{background:var(--border-soft)}}
-.dyn-dot{{width:16px;height:16px;border-radius:50%;flex-shrink:0}}
-.dyn-name{{font-size:11.5px;font-weight:600;color:var(--ink)}}
-.dyn-check{{margin-right:auto;font-size:13px;color:var(--accent);opacity:0}}
-.dyn-option.active .dyn-check{{opacity:1}}
-
-.manifesto{{position:relative;z-index:5;text-align:center;font-size:11.5px;color:var(--accent-soft);line-height:1.9;padding:0 10px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}}
-.manifesto i{{font-size:13px;opacity:.8}}
-.frieze-thin{{max-width:420px;margin:0 auto 20px;opacity:.7}}
-.frieze-thin svg{{width:100%;height:8px;display:block}}
-.frieze{{margin:20px auto;max-width:100%;line-height:0}}
-.frieze svg{{width:100%;height:16px;display:block}}
-
-.card{{position:relative;z-index:1;background:var(--panel);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow)}}
-.hero{{padding:0 24px 22px;margin-bottom:16px;overflow:hidden}}
-.hero-cap{{margin:0 -24px 18px;line-height:0}}
-.hero-cap svg{{width:100%;height:18px;display:block}}
-.hero-title{{font-size:20px;font-weight:800;margin-bottom:8px;text-shadow:0 1px 1px rgba(0,0,0,.5),0 -1px 0 rgba(255,255,255,.05);letter-spacing:.2px}}
-.hero-meta{{font-size:11px;color:var(--ink-faint);margin-bottom:20px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:var(--mono)}}
-.badge{{font-size:10px;padding:4px 11px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:5px;font-family:'Vazirmatn',sans-serif}}
-.badge-ok{{background:var(--ok-bg);color:var(--ok)}}
-.badge-off{{background:var(--danger-bg);color:var(--danger)}}
-.badge-neutral{{background:var(--border-soft);color:var(--accent-soft)}}
-
-.dial-row{{display:flex;align-items:center;gap:22px;margin-bottom:20px}}
-.dial{{position:relative;width:122px;height:122px;flex-shrink:0}}
-.dial-sun{{position:absolute;inset:-14px;opacity:.55}}
-.dial-ring{{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .4s ease}}
-.dial-inner{{width:90px;height:90px;border-radius:50%;background:var(--panel-solid);display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid var(--border-soft)}}
-.dial-pct{{font-size:22px;font-weight:800;font-family:var(--mono)}}
-.dial-lbl{{font-size:9.5px;color:var(--ink-faint);margin-top:1px}}
-.dial-stats{{flex:1;display:flex;flex-direction:column;gap:9px}}
-.dial-stat{{display:flex;align-items:center;justify-content:space-between;font-size:12px}}
-.dial-stat b{{font-family:var(--mono);font-size:13px;font-weight:700}}
-.dial-stat span:first-child{{color:var(--ink-dim)}}
-
-.term{{display:none;background:rgba(0,0,0,.24);border:1px solid var(--border);border-radius:var(--r-sm);padding:13px 8px;margin-bottom:18px}}
-.term-title{{font-size:10.5px;color:var(--ink-faint);display:flex;align-items:center;gap:5px;justify-content:center;margin-bottom:9px;font-family:var(--mono)}}
-.term-grid{{display:flex;align-items:center;justify-content:center;gap:4px;font-family:var(--mono)}}
-.term-cell{{text-align:center;min-width:40px}}
-.term-val{{font-size:18px;font-weight:700;color:var(--accent-soft)}}
-.term-lbl{{font-size:8.5px;color:var(--ink-faint);margin-top:1px}}
-.term-colon{{font-size:16px;color:var(--ink-faint);padding-bottom:11px}}
-
-.cfg-title{{font-size:12px;font-weight:700;color:var(--ink-dim);margin-bottom:12px;display:flex;align-items:center;gap:6px}}
-.cfg-row{{border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px;overflow:hidden;border-inline-start:2px solid var(--accent)}}
-.cfg-row-head{{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;cursor:pointer;background:rgba(0,0,0,.16)}}
-.cfg-row-name{{font-size:12px;font-weight:700;display:flex;align-items:center;gap:7px}}
+.brand-name{{font-size:15px;font-weight:700}}
+.brand-sub{{font-size:10px;color:var(--text-muted)}}
+.top-actions{{display:flex;align-items:center;gap:10px}}
+.icon-btn{{width:38px;height:38px;border-radius:11px;background:rgba(59,130,246,.08);border:1px solid var(--glass-border);color:var(--accent-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}}
+.live-clock{{display:flex;align-items:center;gap:7px;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:700;color:var(--accent-soft);background:rgba(0,0,0,.16);border:1px solid var(--glass-border);border-radius:10px;padding:8px 13px;letter-spacing:.5px}}
+.skin-picker{{position:relative}}
+.skin-menu{{display:none;position:absolute;top:46px;left:0;background:var(--bg-surface);border:1px solid var(--glass-border);border-radius:14px;padding:10px;gap:8px;grid-template-columns:repeat(3,1fr);box-shadow:var(--shadow);z-index:80}}
+.skin-menu.open{{display:grid}}
+.skin-dot{{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s}}
+.skin-dot:hover{{transform:scale(1.15)}}
+.skin-dot.active{{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.2)}}
+html[data-skin="purple"]{{--accent:#8B5CF6;--accent-soft:#A78BFA;--bg-root:#120B22;--bg-surface:#180F2E;--glass-border:rgba(139,92,246,.18)}}
+html[data-skin="matrix"]{{--accent:#22C55E;--accent-soft:#4ADE80;--bg-root:#051208;--bg-surface:#0A1F0E;--glass-border:rgba(34,197,94,.18)}}
+html[data-skin="gold"]{{--accent:#F59E0B;--accent-soft:#FBBF24;--bg-root:#1A1206;--bg-surface:#241A0A;--glass-border:rgba(245,158,11,.18)}}
+html[data-skin="crimson"]{{--accent:#EF4444;--accent-soft:#F87171;--bg-root:#1A0808;--bg-surface:#260D0D;--glass-border:rgba(239,68,68,.18)}}
+html[data-skin="cyber"]{{--accent:#06B6D4;--accent-soft:#22D3EE;--bg-root:#07141A;--bg-surface:#0C1F28;--glass-border:rgba(6,182,212,.2)}}
+.hero{{
+  background:var(--glass-bg);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--glass-border);
+  border-radius:24px;
+  padding:28px;
+  margin-bottom:20px;
+  box-shadow:var(--shadow);
+}}
+.hero-title{{font-size:20px;font-weight:700;margin-bottom:6px}}
+.hero-meta{{font-size:11px;color:var(--text-muted);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}}
+.status-badge{{
+  font-size:10px;padding:4px 12px;
+  border-radius:20px;font-weight:700;
+  display:inline-flex;align-items:center;gap:6px;
+}}
+.bg-green{{background:var(--green-bg);color:#34D399}}
+.bg-red{{background:var(--red-bg);color:#FCA5A5}}
+.bg-blue{{background:rgba(59,130,246,0.12);color:var(--accent-soft)}}
+.usage-section{{margin-bottom:18px}}
+.usage-bar{{height:8px;border-radius:4px;background:rgba(59,130,246,0.1);overflow:hidden;margin-bottom:6px}}
+.usage-fill{{height:100%;border-radius:4px;transition:width 0.4s}}
+.usage-text{{font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between}}
+.ring-wrap{{display:flex;justify-content:center;margin:6px 0 16px}}
+.ring{{width:136px;height:136px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.5s}}
+.ring-inner{{width:106px;height:106px;border-radius:50%;background:var(--bg-surface);display:flex;flex-direction:column;align-items:center;justify-content:center}}
+.ring-pct{{font-size:24px;font-weight:800}}
+.ring-lbl{{font-size:10px;color:var(--text-muted);margin-top:2px}}
+.stat-row{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}}
+.stat-chip{{background:rgba(0,0,0,.16);border:1px solid var(--glass-border);border-radius:14px;padding:12px;text-align:center}}
+.stat-chip-val{{font-size:15px;font-weight:800}}
+.stat-chip-lbl{{font-size:10.5px;color:var(--text-muted);margin-top:3px}}
+.countdown{{display:none;background:rgba(0,0,0,.14);border:1px solid var(--glass-border);border-radius:14px;padding:14px;margin-bottom:18px}}
+.cd-title{{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;margin-bottom:10px;justify-content:center}}
+.cd-grid{{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;text-align:center}}
+.cd-val{{font-size:18px;font-weight:800;font-family:ui-monospace,monospace}}
+.cd-lbl{{font-size:9.5px;color:var(--text-muted);margin-top:2px}}
+.cfg-title{{font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;gap:6px}}
+.cfg-row{{border:1px solid var(--glass-border);border-radius:12px;margin-bottom:8px;overflow:hidden}}
+.cfg-row-head{{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;cursor:pointer;background:rgba(0,0,0,.1)}}
+.cfg-row-name{{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:7px}}
 .cfg-row-actions{{display:flex;align-items:center;gap:4px}}
-.mini-btn{{background:var(--border-soft);color:var(--accent-soft);border:none;border-radius:8px;width:27px;height:27px;display:flex;align-items:center;justify-content:center;cursor:pointer}}
-.mini-btn:hover{{transform:translateY(-2px)}}
-.cfg-chev{{font-size:14px;color:var(--ink-faint);transition:transform .2s;margin-right:2px}}
-.cfg-row-body{{max-height:0;overflow:hidden;padding:0 13px;font-family:var(--mono);font-size:10.5px;color:var(--accent-soft);word-break:break-all;line-height:1.8;background:rgba(0,0,0,.2);transition:max-height .25s ease,padding .25s ease}}
-.cfg-row-body.open{{max-height:400px;padding:12px 13px;border-top:1px solid var(--border)}}
-
-.actions{{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}}
-.btn{{font-family:inherit;font-size:12px;font-weight:600;border-radius:10px;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:none}}
-.btn i{{font-size:14px}}
-.btn-primary{{background:linear-gradient(135deg,var(--accent),color-mix(in srgb, var(--accent) 70%, black));color:#0D0906;font-weight:700;box-shadow:0 4px 16px color-mix(in srgb, var(--accent) 35%, transparent)}}
-.btn-primary:hover{{filter:brightness(1.08);transform:translateY(-2px)}}
-.btn-ghost{{background:var(--border-soft);color:var(--accent-soft);border:1px solid var(--border)}}
-.btn-ghost:hover{{background:var(--border);transform:translateY(-2px)}}
-@media (max-width:480px){{.actions{{flex-direction:column}} .actions .btn{{width:100%;justify-content:center;padding:13px 16px;font-size:13px}}}}
-
-.section{{padding:22px 24px;margin-bottom:16px}}
-.section-title{{font-size:12px;font-weight:700;color:var(--ink-dim);margin-bottom:14px;display:flex;align-items:center;gap:6px}}
-
-.app-link-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:10px;margin-bottom:18px}}
-.app-link-btn{{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;border-radius:14px;background:var(--border-soft);border:1px solid var(--border);color:var(--ink);cursor:pointer}}
-.app-link-btn:hover{{transform:translateY(-3px);background:var(--border)}}
-.app-link-icon{{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 60%, black));display:flex;align-items:center;justify-content:center;color:#0D0906;font-size:16px}}
-.app-link-name{{font-size:10.5px;font-weight:700;color:var(--ink-dim)}}
-
-.guide-step{{display:flex;gap:11px;margin-bottom:12px;font-size:12px;color:var(--ink-dim);line-height:1.8}}
+.mini-btn{{background:rgba(59,130,246,.1);color:var(--accent-soft);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer}}
+.cfg-chev{{font-size:15px;color:var(--text-muted);transition:transform .2s;margin-right:2px}}
+.cfg-row-body{{display:none;padding:12px 13px;font-family:ui-monospace,monospace;font-size:10.5px;color:var(--accent-soft);word-break:break-all;line-height:1.8;background:rgba(0,0,0,.15);border-top:1px solid var(--glass-border)}}
+.cfg-row-body.open{{display:block}}
+.guide-card{{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:20px;padding:22px;margin-bottom:20px}}
+.guide-title{{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:14px}}
+.guide-step{{display:flex;gap:11px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);line-height:1.8}}
 .guide-step:last-child{{margin-bottom:0}}
-.guide-num{{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--border-soft);border:1px solid var(--border);color:var(--accent-soft);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}}
-.guide-step b{{color:var(--ink)}}
-
-.split-card{{background:linear-gradient(135deg,color-mix(in srgb, var(--accent) 10%, transparent),transparent);border:1px solid var(--border)}}
-.split-head{{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px;font-weight:700}}
-.split-head i{{color:var(--accent-soft);font-size:17px}}
-.split-sub-note{{font-size:11.5px;color:var(--ink-faint);line-height:1.8;margin-bottom:14px}}
-.split-form{{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:10px}}
-.split-form input,.split-form select,#split-label{{font-family:inherit;font-size:12.5px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,.2);color:var(--ink);outline:none;width:100%}}
-.split-form input:focus,.split-form select:focus,#split-label:focus{{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent)}}
-.split-err{{color:var(--danger);font-size:11px;margin-bottom:10px;display:none;align-items:center;gap:5px}}
-.split-err.show{{display:flex}}
-.split-result{{background:var(--ok-bg);border:1px solid color-mix(in srgb, var(--ok) 35%, transparent);border-radius:14px;padding:14px 16px;margin-top:14px;display:none}}
-.split-result.show{{display:block}}
-.split-result-title{{font-size:12px;font-weight:700;color:var(--ok);display:flex;align-items:center;gap:6px;margin-bottom:9px}}
-.split-result-url{{font-family:var(--mono);font-size:10px;color:var(--ink-dim);word-break:break-all;background:rgba(0,0,0,.2);border-radius:9px;padding:9px 11px;margin-bottom:9px}}
-.child-item{{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(0,0,0,.18);border-radius:11px;padding:10px 13px;margin-top:9px;font-size:11.5px}}
-.child-item-name{{font-weight:700}}
-.child-item-meta{{color:var(--ink-faint);font-size:10.5px;margin-top:2px}}
-.child-revoke{{background:var(--danger-bg);color:var(--danger);border:none;border-radius:8px;padding:6px 10px;font-size:10.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px}}
-.children-title{{font-size:11px;font-weight:700;color:var(--ink-faint);margin-top:16px;margin-bottom:4px}}
-
-.footer{{text-align:center;padding-top:10px;padding-bottom:10px;font-size:10.5px;color:var(--ink-faint)}}
-.footer a{{color:var(--accent-soft);font-weight:600;text-decoration:none}}
-
-.toast{{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--panel-solid);border:1px solid var(--border);color:var(--ink);border-radius:12px;padding:12px 20px;font-size:13px;opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:999;pointer-events:none;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow)}}
+.guide-num{{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:rgba(59,130,246,.14);color:var(--accent-soft);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}}
+.vless-box{{
+  background:rgba(0,0,0,0.2);
+  border:1px solid var(--glass-border);
+  border-radius:12px;
+  padding:14px;
+  font-family:ui-monospace,monospace;
+  font-size:11px;
+  color:var(--accent-soft);
+  word-break:break-all;
+  line-height:1.9;
+  margin-bottom:16px;
+}}
+.actions{{display:flex;gap:10px;flex-wrap:wrap}}
+.btn{{
+  font-family:inherit;font-size:12px;font-weight:600;
+  border-radius:10px;
+  padding:10px 16px;
+  cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  border:none;
+  transition:all 0.15s;
+}}
+.btn i{{font-size:14px}}
+.btn-primary{{
+  background:linear-gradient(135deg,#2563EB,#1D4ED8);
+  color:#fff;
+  box-shadow:0 4px 16px rgba(37,99,235,0.3);
+}}
+.btn-primary:hover{{filter:brightness(1.1)}}
+.btn-ghost{{
+  background:rgba(59,130,246,0.08);
+  color:var(--accent-soft);
+  border:1px solid rgba(59,130,246,0.15);
+}}
+.btn-ghost:hover{{background:rgba(59,130,246,0.15)}}
+.toast{{
+  position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:var(--bg-surface);
+  border:1px solid var(--glass-border);
+  color:var(--text-primary);
+  border-radius:12px;
+  padding:12px 20px;
+  font-size:13px;
+  opacity:0;
+  transition:all 0.25s;
+  z-index:999;
+  pointer-events:none;
+  display:flex;align-items:center;gap:8px;
+  box-shadow:var(--shadow);
+}}
 .toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
-.toast.ok{{border-color:color-mix(in srgb, var(--ok) 40%, transparent);background:var(--ok-bg);color:var(--ok)}}
-
-.qr-modal{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);z-index:600;align-items:center;justify-content:center}}
+.toast.ok{{border-color:rgba(16,185,129,0.3);background:var(--green-bg);color:#34D399}}
+.qr-modal{{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(6px);
+  z-index:600;
+  align-items:center;justify-content:center;
+}}
 .qr-modal.open{{display:flex}}
-.qr-box{{background:var(--panel-solid);border:1px solid var(--border);border-radius:20px;padding:22px;text-align:center;max-width:320px;width:calc(100% - 32px)}}
-.qr-title{{font-size:12.5px;font-weight:700;margin-bottom:14px;color:var(--ink)}}
-.qr-img{{border-radius:14px;overflow:hidden;margin-bottom:14px}}
+.qr-box{{
+  background:var(--bg-surface);
+  border:1px solid var(--glass-border);
+  border-radius:20px;
+  padding:24px;
+  text-align:center;
+  max-width:340px;
+  width:calc(100% - 32px);
+}}
+.qr-img{{border-radius:14px;overflow:hidden;margin-bottom:16px}}
 .qr-img img{{width:100%;display:block;background:#fff;padding:8px;border-radius:14px}}
-
-.os-card{{border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px;overflow:hidden}}
-.os-head{{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;background:rgba(0,0,0,.16)}}
-.os-icon{{width:30px;height:30px;border-radius:9px;background:var(--border-soft);display:flex;align-items:center;justify-content:center;color:var(--accent-soft);font-size:15px;flex-shrink:0}}
-.os-name{{font-size:12.5px;font-weight:700;flex:1}}
-.os-chev{{font-size:14px;color:var(--ink-faint);transition:transform .2s}}
-.os-body{{max-height:0;overflow:hidden;transition:max-height .3s ease}}
-.os-body.open{{max-height:400px}}
-.os-body-inner{{padding:12px 14px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)}}
-.os-app-item{{display:flex;gap:9px;font-size:11.5px;color:var(--ink-dim);line-height:1.7}}
-.os-app-item b{{color:var(--ink);flex-shrink:0;min-width:76px}}
+.proto-tabs{{display:flex;gap:6px;margin-bottom:10px}}
+.proto-tab{{flex:1;padding:8px 4px;border-radius:10px;background:var(--bg-surface);border:1px solid var(--glass-border);font-size:11px;font-weight:700;cursor:pointer;color:var(--text-muted)}}
+.proto-tab.on{{background:var(--accent);color:#fff;border-color:var(--accent)}}
+.footer{{text-align:center;padding-top:30px;font-size:11px;color:var(--text-muted)}}
+.footer a{{color:var(--accent-soft);font-weight:600}}
+.split-card{{background:linear-gradient(135deg,rgba(157,123,240,.10),rgba(59,130,246,.04));border:1px solid rgba(157,123,240,.22);border-radius:20px;padding:22px;margin-bottom:20px}}
+.split-head{{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px;font-weight:700}}
+.split-head i{{color:#c4b5fd;font-size:17px}}
+.split-sub-note{{font-size:11.5px;color:var(--text-muted);line-height:1.8;margin-bottom:14px}}
+.split-form{{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:10px}}
+.split-form input,.split-form select,#split-label{{font-family:inherit;font-size:12.5px;padding:10px 12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(0,0,0,.18);color:var(--text-primary);outline:none;width:100%}}
+.split-form input:focus,.split-form select:focus,#split-label:focus{{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(157,123,240,.15)}}
+.split-err{{color:#fca5a5;font-size:11px;margin-bottom:10px;display:none;align-items:center;gap:5px}}
+.split-err.show{{display:flex}}
+.split-result{{background:var(--green-bg);border:1px solid rgba(16,185,129,.3);border-radius:14px;padding:14px 16px;margin-top:14px;display:none}}
+.split-result.show{{display:block}}
+.split-result-title{{font-size:12px;font-weight:700;color:#34D399;display:flex;align-items:center;gap:6px;margin-bottom:9px}}
+.split-result-url{{font-family:ui-monospace,monospace;font-size:10px;color:var(--text-secondary);word-break:break-all;background:rgba(0,0,0,.15);border-radius:9px;padding:9px 11px;margin-bottom:9px}}
+.child-item{{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(0,0,0,.14);border-radius:11px;padding:10px 13px;margin-top:9px;font-size:11.5px}}
+.child-item-name{{font-weight:700}}
+.child-item-meta{{color:var(--text-muted);font-size:10.5px;margin-top:2px}}
+.child-revoke{{background:var(--red-bg);color:#fca5a5;border:none;border-radius:8px;padding:6px 10px;font-size:10.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px}}
+.children-title{{font-size:11px;font-weight:700;color:var(--text-muted);margin-top:16px;margin-bottom:4px}}
+@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute">
-  <defs>
-    <pattern id="guilloche-thin" width="34" height="8" patternUnits="userSpaceOnUse">
-      <circle cx="8" cy="4" r="3.4" fill="none" stroke="var(--accent)" stroke-width="1"/>
-      <circle cx="25" cy="4" r="3.4" fill="none" stroke="var(--accent)" stroke-width="1"/>
-    </pattern>
-    <pattern id="merlon" width="24" height="18" patternUnits="userSpaceOnUse">
-      <rect x="0" y="10" width="12" height="8" fill="var(--accent)"/>
-      <rect x="12" y="4" width="12" height="14" fill="var(--accent)"/>
-    </pattern>
-  </defs>
-</svg>
-<div class="bg-layer"></div><div class="col-mark"></div>
+<div class="bg-layer"></div><div class="grid"></div>
 <div class="toast" id="toast"></div>
 <div class="qr-modal" id="qr-modal" onclick="this.classList.remove('open')">
   <div class="qr-box" onclick="event.stopPropagation()">
@@ -3100,71 +3072,60 @@ html,body,.card,.badge,.btn,.icon-btn,.cfg-row,.tg-badge,.app-link-btn,.os-card{
     <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('qr-modal').classList.remove('open')"><i class="ti ti-x"></i> بستن</button>
   </div>
 </div>
-
 <div class="wrap">
   <div class="top">
     {header_brand_html}
     <div class="top-actions">
-      <div class="live-clock"><i class="ti ti-clock"></i><span id="clock-time">--:--:--</span></div>
-      <button class="icon-btn theme-toggle" onclick="toggleTheme()" title="تغییر حالت شب/روز"><i class="ti ti-sun" id="theme-icon"></i></button>
-      <div class="dyn-picker">
-        <button class="icon-btn" onclick="toggleDynMenu()" title="تغییر دودمان"><i class="ti ti-palette"></i></button>
-        <div class="dyn-menu" id="dyn-menu">
-          <div class="dyn-option" data-dyn="achaemenid" onclick="setDynasty('achaemenid')"><span class="dyn-dot" style="background:#C9A227"></span><span class="dyn-name">هخامنشی</span><i class="ti ti-check dyn-check"></i></div>
-          <div class="dyn-option" data-dyn="sassanid" onclick="setDynasty('sassanid')"><span class="dyn-dot" style="background:#2FA79D"></span><span class="dyn-name">ساسانی</span><i class="ti ti-check dyn-check"></i></div>
-          <div class="dyn-option" data-dyn="median" onclick="setDynasty('median')"><span class="dyn-dot" style="background:#A8434F"></span><span class="dyn-name">مادها</span><i class="ti ti-check dyn-check"></i></div>
-          <div class="dyn-option" data-dyn="parthian" onclick="setDynasty('parthian')"><span class="dyn-dot" style="background:#B5732E"></span><span class="dyn-name">پارتی</span><i class="ti ti-check dyn-check"></i></div>
-          <div class="dyn-option" data-dyn="elamite" onclick="setDynasty('elamite')"><span class="dyn-dot" style="background:#4A5A9E"></span><span class="dyn-name">عیلامی</span><i class="ti ti-check dyn-check"></i></div>
+      <div class="live-clock" id="live-clock"><i class="ti ti-clock"></i><span id="clock-time">--:--:--</span></div>
+      <div class="skin-picker">
+        <button class="icon-btn" id="skin-btn" onclick="toggleSkinMenu()" title="تغییر تم"><i class="ti ti-palette"></i></button>
+        <div class="skin-menu" id="skin-menu">
+          <div class="skin-dot" data-skin="neon" style="background:linear-gradient(135deg,#3B82F6,#60A5FA)" onclick="setSkin('neon')" title="نئون آبی"></div>
+          <div class="skin-dot" data-skin="purple" style="background:linear-gradient(135deg,#8B5CF6,#A78BFA)" onclick="setSkin('purple')" title="گالاکسی بنفش"></div>
+          <div class="skin-dot" data-skin="matrix" style="background:linear-gradient(135deg,#16A34A,#4ADE80)" onclick="setSkin('matrix')" title="ماتریکس سبز"></div>
+          <div class="skin-dot" data-skin="gold" style="background:linear-gradient(135deg,#D97706,#FBBF24)" onclick="setSkin('gold')" title="طلایی"></div>
+          <div class="skin-dot" data-skin="crimson" style="background:linear-gradient(135deg,#DC2626,#F87171)" onclick="setSkin('crimson')" title="قرمز آتشین"></div>
+          <div class="skin-dot" data-skin="cyber" style="background:linear-gradient(135deg,#0891B2,#22D3EE)" onclick="setSkin('cyber')" title="سایبرپانک"></div>
         </div>
       </div>
       {header_tg_html}
     </div>
   </div>
-{manifesto_html}
 
-  <div class="card hero fade-1">
-    <div class="hero-cap"><svg viewBox="0 0 600 18" preserveAspectRatio="none"><rect width="600" height="18" fill="url(#merlon)" opacity=".5"/></svg></div>
+  <div class="hero">
     <div class="hero-title">{label}</div>
     <div class="hero-meta">
       <i class="ti ti-calendar"></i> {created_at[:10] if created_at else "—"}
-      <span class="badge badge-neutral"><i class="ti ti-server-2"></i> {"Gateway" if white_label else "تیم آزادی Gateway"}</span>
-      {f'<span class="badge badge-neutral">{flag} {country_name}</span>' if flag else ''}
-      <span class="badge {'badge-ok' if active and not expired else 'badge-off'}">
+      <span class="status-badge bg-blue">
+        <i class="ti ti-server-2"></i> تیم آزادی Gateway
+      </span>
+      {f'<span class="status-badge bg-blue">{flag} {country_name}</span>' if flag else ''}
+      <span class="status-badge {'bg-green' if active and not expired else 'bg-red'}">
         <i class="ti ti-{'circle-check' if active and not expired else 'circle-x'}"></i>
         {'فعال' if active and not expired else 'غیرفعال'}
       </span>
     </div>
 
-    <div class="dial-row">
-      <div class="dial">
-        <svg class="dial-sun" viewBox="0 0 150 150"><g fill="none" stroke="var(--accent)" stroke-width="1.4" opacity=".7">
-          <circle cx="75" cy="75" r="70"/>
-          <path d="M75,4 L75,16 M75,134 L75,146 M4,75 L16,75 M134,75 L146,75 M23,23 L32,32 M118,118 L127,127 M23,127 L32,118 M118,32 L127,23" stroke-linecap="round"/>
-        </g></svg>
-        <div class="dial-ring" style="background:conic-gradient({bar_color} calc({pct}*1%),var(--border-soft) 0)">
-          <div class="dial-inner">
-            <div class="dial-pct">{pct:.0f}%</div>
-            <div class="dial-lbl">مصرف</div>
-          </div>
+    <div class="ring-wrap">
+      <div class="ring" style="background:conic-gradient({bar_color} calc({pct}*1%),rgba(255,255,255,.07) 0)">
+        <div class="ring-inner">
+          <div class="ring-pct">{pct:.0f}%</div>
+          <div class="ring-lbl">مصرف</div>
         </div>
       </div>
-      <div class="dial-stats">
-        <div class="dial-stat"><span>مصرف‌شده</span><b>{used_fmt}</b></div>
-        <div class="dial-stat"><span>باقی‌مانده</span><b>{remain_fmt}</b></div>
-        <div class="dial-stat"><span>سقف حجم</span><b>{limit_fmt}</b></div>
-      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-chip"><div class="stat-chip-val">{used_fmt}</div><div class="stat-chip-lbl">مصرف‌شده</div></div>
+      <div class="stat-chip"><div class="stat-chip-val">{remain_fmt}</div><div class="stat-chip-lbl">باقی‌مانده</div></div>
     </div>
 
-    <div class="term" id="countdown">
-      <div class="term-title"><i class="ti ti-clock-hour-4"></i> تا انقضا</div>
-      <div class="term-grid">
-        <div class="term-cell"><div class="term-val" id="cd-d">--</div><div class="term-lbl">روز</div></div>
-        <div class="term-colon">:</div>
-        <div class="term-cell"><div class="term-val" id="cd-h">--</div><div class="term-lbl">ساعت</div></div>
-        <div class="term-colon">:</div>
-        <div class="term-cell"><div class="term-val" id="cd-m">--</div><div class="term-lbl">دقیقه</div></div>
-        <div class="term-colon">:</div>
-        <div class="term-cell"><div class="term-val" id="cd-s">--</div><div class="term-lbl">ثانیه</div></div>
+    <div class="countdown" id="countdown">
+      <div class="cd-title"><i class="ti ti-clock-hour-4"></i> تا انقضا</div>
+      <div class="cd-grid">
+        <div class="cd-cell"><div class="cd-val" id="cd-d">--</div><div class="cd-lbl">روز</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-h">--</div><div class="cd-lbl">ساعت</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-m">--</div><div class="cd-lbl">دقیقه</div></div>
+        <div class="cd-cell"><div class="cd-val" id="cd-s">--</div><div class="cd-lbl">ثانیه</div></div>
       </div>
     </div>
 
@@ -3177,52 +3138,15 @@ html,body,.card,.badge,.btn,.icon-btn,.cfg-row,.tg-badge,.app-link-btn,.os-card{
     </div>
   </div>
 
-  <div class="card section fade-2">
-    <div class="section-title"><i class="ti ti-apps"></i> باز کردن در برنامه</div>
-    <div class="app-link-grid">
-      <div class="app-link-btn" onclick="openInApp('hiddify')"><div class="app-link-icon"><i class="ti ti-bolt"></i></div><div class="app-link-name">Hiddify</div></div>
-      <div class="app-link-btn" onclick="openInApp('v2box')"><div class="app-link-icon"><i class="ti ti-box"></i></div><div class="app-link-name">V2Box</div></div>
-      <div class="app-link-btn" onclick="openInApp('streisand')"><div class="app-link-icon"><i class="ti ti-wind"></i></div><div class="app-link-name">Streisand</div></div>
-      <div class="app-link-btn" onclick="openInApp('v2rayng')"><div class="app-link-icon"><i class="ti ti-brand-android"></i></div><div class="app-link-name">v2rayNG</div></div>
-      <div class="app-link-btn" onclick="openInApp('nekoray')"><div class="app-link-icon"><i class="ti ti-cat"></i></div><div class="app-link-name">Nekoray</div></div>
-    </div>
-    <div class="guide-step"><div class="guide-num">۱</div><div>اپ دلخواه رو نصب کن و روش بزن.</div></div>
-    <div class="guide-step"><div class="guide-num">۲</div><div>اگه خودکار باز نشد، لینک ساب رو کپی کن و توی اپ به‌صورت <b>Add Subscription</b> وارد کن.</div></div>
-    <div class="guide-step"><div class="guide-num">۳</div><div><b>Connect</b> بزن و اجازه‌ی VPN رو تایید کن.</div></div>
+  <div class="guide-card">
+    <div class="guide-title"><i class="ti ti-info-circle"></i> راهنمای اتصال</div>
+    <div class="guide-step"><div class="guide-num">۱</div><div>یک اپلیکیشن کلاینت مثل <b>v2rayNG</b> (اندروید)، <b>Streisand</b> (iOS) یا <b>Hiddify</b> نصب کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۲</div><div>روی آیکون <b>کپی</b> یا <b>QR</b> هرکدام از کانفیگ‌ها بزنید، یا همه را با هم کپی کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۳</div><div>در اپ، گزینه‌ی <b>Add Subscription</b> را انتخاب و لینک ساب را وارد کنید.</div></div>
+    <div class="guide-step"><div class="guide-num">۴</div><div><b>Connect</b> بزنید و اجازه‌ی VPN را تایید کنید.</div></div>
   </div>
 
-  <div class="card section fade-3">
-    <div class="section-title"><i class="ti ti-info-circle"></i> راهنمای هر سیستم‌عامل</div>
-    <div class="os-card">
-      <div class="os-head" onclick="toggleOS(0)"><div class="os-icon"><i class="ti ti-brand-android"></i></div><div class="os-name">Android</div><i class="ti ti-chevron-down os-chev" id="os-chev-0"></i></div>
-      <div class="os-body" id="os-body-0"><div class="os-body-inner">
-        <div class="os-app-item"><b>v2rayNG</b><span>آیکون + → Import Config From URL → لینک ساب را وارد کنید</span></div>
-        <div class="os-app-item"><b>Hiddify</b><span>New Profile → Add from URL → لینک ساب را جای‌گذاری کنید</span></div>
-      </div></div>
-    </div>
-    <div class="os-card">
-      <div class="os-head" onclick="toggleOS(1)"><div class="os-icon"><i class="ti ti-brand-apple"></i></div><div class="os-name">iOS</div><i class="ti ti-chevron-down os-chev" id="os-chev-1"></i></div>
-      <div class="os-body" id="os-body-1"><div class="os-body-inner">
-        <div class="os-app-item"><b>Streisand</b><span>Add Configuration → From URL → لینک ساب را وارد کنید</span></div>
-        <div class="os-app-item"><b>V2Box</b><span>Subscribe → آیکون + → لینک را وارد و Save بزنید</span></div>
-      </div></div>
-    </div>
-    <div class="os-card">
-      <div class="os-head" onclick="toggleOS(2)"><div class="os-icon"><i class="ti ti-brand-windows"></i></div><div class="os-name">Windows</div><i class="ti ti-chevron-down os-chev" id="os-chev-2"></i></div>
-      <div class="os-body" id="os-body-2"><div class="os-body-inner">
-        <div class="os-app-item"><b>Hiddify</b><span>New Profile → Add from URL → لینک ساب را وارد کنید</span></div>
-        <div class="os-app-item"><b>Nekoray</b><span>Program → Add profile from clipboard → لینک را اضافه کنید</span></div>
-      </div></div>
-    </div>
-    <div class="os-card">
-      <div class="os-head" onclick="toggleOS(3)"><div class="os-icon"><i class="ti ti-brand-ubuntu"></i></div><div class="os-name">Linux</div><i class="ti ti-chevron-down os-chev" id="os-chev-3"></i></div>
-      <div class="os-body" id="os-body-3"><div class="os-body-inner">
-        <div class="os-app-item"><b>Nekoray</b><span>Program → Add profile from clipboard → لینک کپی‌شده را اضافه کنید</span></div>
-      </div></div>
-    </div>
-  </div>
-
-  <div class="card section split-card fade-4">
+  <div class="split-card">
     <div class="split-head"><i class="ti ti-gift"></i><span>جدا کردن حجم و ساخت کانفیگ هدیه</span></div>
     <div class="split-sub-note">می‌تونی بخشی از سهمیه‌ی همین کانفیگ رو جدا کنی و به یک کانفیگ کاملاً مستقل و بدون هیچ برند/لوگویی تبدیل کنی تا به هرکسی بدی. حجم جداشده از سهمیه‌ی خودت کم می‌شه.</div>
     <div class="split-form">
@@ -3235,7 +3159,7 @@ html,body,.card,.badge,.btn,.icon-btn,.cfg-row,.tg-badge,.app-link-btn,.os-card{
     </div>
     <input id="split-label" style="margin-bottom:12px" placeholder="اسم کانفیگ هدیه (اختیاری)">
     <div class="split-err" id="split-err"><i class="ti ti-alert-circle"></i><span id="split-err-txt"></span></div>
-    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="submitSplitLink()"><i class="ti ti-gift"></i> جدا کردن و ساخت کانفیگ هدیه</button>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center;background:rgba(157,123,240,.12);color:#c4b5fd;border-color:rgba(157,123,240,.25)" onclick="submitSplitLink()"><i class="ti ti-gift"></i> جدا کردن و ساخت کانفیگ هدیه</button>
     <div class="split-result" id="split-result">
       <div class="split-result-title"><i class="ti ti-circle-check"></i> کانفیگ هدیه ساخته شد ✓ (بدون هیچ لوگو/نامی)</div>
       <div class="split-result-url" id="split-result-url"></div>
@@ -3254,8 +3178,7 @@ html,body,.card,.badge,.btn,.icon-btn,.cfg-row,.tg-badge,.app-link-btn,.os-card{
 const LINK_UUID='{uuid}';
 const VLESS_BUNDLE = {vless_links_json};
 const EXPIRES_AT = {expires_json};
-const APP_LINKS = {app_links_json};
-const PROTO_TAG={{'vless-ws':'VLESS · WS','xhttp-packet-up':'XHTTP · packet-up','xhttp-stream-up':'XHTTP · stream-up','xhttp-stream-one':'XHTTP ULTRA','trojan-ws':'TROJAN · WS'}};
+const PROTO_TAG={{'vless-ws':'VLESS · WS','xhttp-packet-up':'XHTTP · packet-up','xhttp-stream-up':'XHTTP · stream-up','xhttp-stream-one':'XHTTP ULTRA'}};
 let curProtoIdx = 0;
 function esc(s){{return String(s||'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
 const FLAG = {flag_json};
@@ -3284,24 +3207,6 @@ function copyOne(i){{copyToClipboard(VLESS_BUNDLE[i].vless_link)}}
 function showQRFor(i){{curProtoIdx=i;showQR()}}
 renderCfgList();
 
-function toggleOS(i){{
-  const body = document.getElementById('os-body-'+i);
-  const chev = document.getElementById('os-chev-'+i);
-  const opening = !body.classList.contains('open');
-  body.classList.toggle('open', opening);
-  if(chev) chev.style.transform = opening ? 'rotate(180deg)' : '';
-}}
-function openInApp(key){{
-  const link = APP_LINKS[key];
-  if(!link){{
-    copyToClipboard('{sub_url}');
-    toast('این برنامه لینک مستقیم ندارد؛ لینک ساب کپی شد','ok');
-    return;
-  }}
-  window.location.href = link;
-  toast('در حال باز شدن در برنامه...','ok');
-}}
-
 function tickClock(){{
   const now=new Date();
   const el=document.getElementById('clock-time');
@@ -3309,38 +3214,22 @@ function tickClock(){{
 }}
 tickClock();setInterval(tickClock,1000);
 
-function setDynasty(name){{
-  document.documentElement.setAttribute('data-dynasty',name);
-  try{{localStorage.setItem('rvg_dynasty',name)}}catch(e){{}}
-  document.querySelectorAll('.dyn-option').forEach(d=>d.classList.toggle('active',d.dataset.dyn===name));
-  document.getElementById('dyn-menu').classList.remove('open');
+function setSkin(name){{
+  document.documentElement.setAttribute('data-skin',name);
+  try{{localStorage.setItem('rvg_skin',name)}}catch(e){{}}
+  document.querySelectorAll('.skin-dot').forEach(d=>d.classList.toggle('active',d.dataset.skin===name));
+  document.getElementById('skin-menu').classList.remove('open');
 }}
-function toggleDynMenu(){{document.getElementById('dyn-menu').classList.toggle('open')}}
+function toggleSkinMenu(){{document.getElementById('skin-menu').classList.toggle('open')}}
 document.addEventListener('click',e=>{{
-  if(!e.target.closest('.dyn-picker')) document.getElementById('dyn-menu')?.classList.remove('open');
+  if(!e.target.closest('.skin-picker')) document.getElementById('skin-menu')?.classList.remove('open');
 }});
 (function(){{
-  let saved='achaemenid';
-  try{{saved=localStorage.getItem('rvg_dynasty')||'achaemenid'}}catch(e){{}}
-  document.documentElement.setAttribute('data-dynasty',saved);
-  const opt=document.querySelector('.dyn-option[data-dyn="'+saved+'"]');
-  if(opt) opt.classList.add('active');
-}})();
-
-function setTheme(theme){{
-  document.documentElement.setAttribute('data-theme', theme);
-  try{{localStorage.setItem('rvg_theme', theme)}}catch(e){{}}
-  const icon = document.getElementById('theme-icon');
-  if(icon) icon.className = theme==='light' ? 'ti ti-moon' : 'ti ti-sun';
-}}
-function toggleTheme(){{
-  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
-  setTheme(cur === 'dark' ? 'light' : 'dark');
-}}
-(function(){{
-  let saved='dark';
-  try{{saved=localStorage.getItem('rvg_theme')||'dark'}}catch(e){{}}
-  setTheme(saved);
+  let saved='neon';
+  try{{saved=localStorage.getItem('rvg_skin')||'neon'}}catch(e){{}}
+  document.documentElement.setAttribute('data-skin',saved);
+  const dot=document.querySelector('.skin-dot[data-skin="'+saved+'"]');
+  if(dot) dot.classList.add('active');
 }})();
 
 function tickCountdown(){{
