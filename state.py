@@ -3,6 +3,7 @@ import asyncio
 import ipaddress
 import json
 import os
+import re
 import hashlib
 import hmac
 import secrets
@@ -16,6 +17,24 @@ from zoneinfo import ZoneInfo
 from collections import deque, defaultdict
 from pathlib import Path
 from fastapi import Request, HTTPException
+
+# ── ورودی‌های کاربر/مشتری را همیشه از اینجا رد کن قبل از ذخیره ──────────────
+# دفاع در عمق: حتی اگر یک‌جا در نمایش (frontend) escape فراموش شود، این تابع
+# تضمین می‌کند که هیچ‌وقت تگ HTML/اسکریپت داخل عنوان/نام/توضیحات ذخیره نشود.
+_HTML_TAG_RE = re.compile(r"<[^>]*>")
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def sanitize_text(value: str | None, max_len: int = 60) -> str:
+    """هر ورودی متنی کاربر (label, name, desc, note و مشابه) باید از این عبور کند.
+    تگ‌های HTML/اسکریپت را کامل حذف می‌کند (نه فقط escape) و طول را محدود می‌کند."""
+    if not value:
+        return ""
+    s = str(value).strip()
+    s = _HTML_TAG_RE.sub("", s)
+    s = _CONTROL_CHARS_RE.sub("", s)
+    s = s.replace("<", "").replace(">", "")
+    return s.strip()[:max_len]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("تیم-آزادی-Gateway")
@@ -232,7 +251,24 @@ def verify_password(pw: str, stored: str | None) -> bool:
 def is_legacy_hash(stored: str | None) -> bool:
     return bool(stored) and not stored.startswith("pbkdf2$")
 
-AUTH = {"password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "TimAzadi"))}
+def _initial_admin_password() -> str:
+    env_pw = os.environ.get("ADMIN_PASSWORD")
+    if env_pw:
+        return env_pw
+    # هرگز از یک مقدار پیش‌فرض قابل‌حدس (مثل اسم تیم) استفاده نکن — این دقیقاً
+    # همان چیزی بود که در نسخه‌ی قبلی باعث آسیب‌پذیری شد، خصوصاً چون این ریپازیتوری
+    # می‌تواند Public باشد و مقدار پیش‌فرض برای همه قابل مشاهده است.
+    generated = secrets.token_urlsafe(12)
+    logger.warning(
+        "⚠️  ADMIN_PASSWORD در env تنظیم نشده — یک پسورد تصادفی موقت ساخته شد. "
+        f"پسورد موقت پنل: {generated}  — همین الان با این پسورد وارد شوید و از "
+        "بخش تغییر رمز، رمز دائمی تنظیم کنید، و ADMIN_PASSWORD را در Railway Variables ست کنید "
+        "تا این پسورد موقت با هر ری‌استارت عوض نشود."
+    )
+    return generated
+
+
+AUTH = {"password_hash": hash_password(_initial_admin_password())}
 
 SESSIONS: dict = {}
 SESSIONS_LOCK = asyncio.Lock()
