@@ -1,6 +1,15 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-httpx==0.25.1
-websockets==12.0
-aiofiles>=23.2.1
-httpx[http2]
+# ═══════════════════════════════════════════════════════════════
+# تیم آزادی Gateway — وابستگی‌ها
+# ═══════════════════════════════════════════════════════════════
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# uvloop و httptools — بزرگ‌ترین اهرم سرعت روی لینوکس
+# بدون این‌ها uvicorn بی‌سروصدا به پیاده‌سازی خالص پایتونی برمی‌گرده
+uvloop>=0.21.0; sys_platform != "win32"
+httptools>=0.6.0
+
+httpx[http2]>=0.27.0
+websockets>=12.0
+aiofiles>=24.1.0
