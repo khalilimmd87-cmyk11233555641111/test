@@ -255,17 +255,18 @@ def _initial_admin_password() -> str:
     env_pw = os.environ.get("ADMIN_PASSWORD")
     if env_pw:
         return env_pw
-    # هرگز از یک مقدار پیش‌فرض قابل‌حدس (مثل اسم تیم) استفاده نکن — این دقیقاً
-    # همان چیزی بود که در نسخه‌ی قبلی باعث آسیب‌پذیری شد، خصوصاً چون این ریپازیتوری
-    # می‌تواند Public باشد و مقدار پیش‌فرض برای همه قابل مشاهده است.
-    generated = secrets.token_urlsafe(12)
+    # طبق درخواست، پسورد پیش‌فرض (وقتی ADMIN_PASSWORD در env ست نشده) روی "mohammad" است.
+    # ⚠️ توجه امنیتی: این یک پسورد ثابت و قابل‌حدس است. اگر پنل ادمین روی یک دامنه‌ی
+    # عمومی (مثل Railway) در دسترس باشد، حتماً یکی از این دو کار را انجام بده:
+    #   ۱) از همین الان، از بخش «تغییر رمز» در پنل یک پسورد قوی‌تر بگذار، یا
+    #   ۲) متغیر ADMIN_PASSWORD را در Railway → Variables ست کن (این مقدار همیشه اولویت دارد).
+    fallback = "mohammad"
     logger.warning(
-        "⚠️  ADMIN_PASSWORD در env تنظیم نشده — یک پسورد تصادفی موقت ساخته شد. "
-        f"پسورد موقت پنل: {generated}  — همین الان با این پسورد وارد شوید و از "
-        "بخش تغییر رمز، رمز دائمی تنظیم کنید، و ADMIN_PASSWORD را در Railway Variables ست کنید "
-        "تا این پسورد موقت با هر ری‌استارت عوض نشود."
+        "⚠️  ADMIN_PASSWORD در env تنظیم نشده — پسورد پیش‌فرض 'mohammad' فعال است. "
+        "این پسورد قابل‌حدس است؛ در اسرع وقت از بخش تغییر رمز پنل عوضش کن یا "
+        "ADMIN_PASSWORD را در Railway Variables ست کن."
     )
-    return generated
+    return fallback
 
 
 AUTH = {"password_hash": hash_password(_initial_admin_password())}
@@ -675,13 +676,27 @@ def update_join_settings(data: dict):
                 JOIN_SETTINGS[key] = str(value).strip()
 
 async def check_channel_membership(user_id: str, bot_token: str | None = None) -> bool:
+    """سازگار با قبل: True/False برمی‌گرداند (True یعنی عضو، False یعنی عضو نیست یا وضعیت نامعلوم).
+    برای تمایز بین «قطعاً عضو نیست» و «خطای موقت/نامعلوم» از check_channel_membership_status استفاده کن."""
+    status = await check_channel_membership_status(user_id, bot_token)
+    return status is True
+
+
+async def check_channel_membership_status(user_id: str, bot_token: str | None = None) -> bool | None:
+    """سه‌حالته:
+    True  → قطعاً عضو کانال است.
+    False → قطعاً عضو نیست (تلگرام صراحتاً status=left/kicked و مشابه برگردانده).
+    None  → وضعیت نامعلوم (خطای شبکه/تایم‌اوت/ریت‌لیمیت تلگرام/توکن نامعتبر و ...).
+             هرگز نباید None را معادل «ترک کانال» در نظر گرفت، وگرنه یک قطعی موقت
+             API تلگرام باعث غیرفعال‌شدن اشتباه کانفیگ کاربرهای واقعی می‌شود.
+    """
     if not JOIN_SETTINGS.get("channel_required", True):
         return True
     token = bot_token or TELEGRAM_SETTINGS.get("bot_token", "")
     channel = JOIN_SETTINGS.get("channel_username", "TimAzadi").strip().lstrip("@")
     if not token:
         logger.warning("check_channel_membership: هیچ bot_token ای در دسترس نیست")
-        return False
+        return None
     try:
         import httpx
         async with httpx.AsyncClient() as client:
@@ -693,11 +708,17 @@ async def check_channel_membership(user_id: str, bot_token: str | None = None) -
             data = resp.json()
             if data.get("ok"):
                 status = data.get("result", {}).get("status")
-                return status in ("member", "administrator", "creator")
-            return False
+                if status in ("member", "administrator", "creator"):
+                    return True
+                if status in ("left", "kicked", "restricted"):
+                    return False
+                return None
+            logger.warning(f"check_channel_membership: telegram API error: {data}")
+            return None
     except Exception as e:
         logger.warning(f"check_channel_membership error: {e}")
-        return False
+        return None
+
 
 async def create_join_link(user_id: str, label: str = None) -> str | None:
     if not JOIN_SETTINGS.get("enabled", True):
