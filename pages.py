@@ -1985,7 +1985,13 @@ function makeGradient(ctx,color1,color2){
   return g;
 }
 function initCharts(){
-  const c1=document.getElementById('ch1').getContext('2d');
+  if(typeof Chart==='undefined'){
+    console.error('Chart.js لود نشده (احتمالاً CDN خارجی در دسترس نیست) — نمودارها غیرفعال می‌مانند.');
+    return;
+  }
+  const el1=document.getElementById('ch1'),el3=document.getElementById('ch3');
+  if(!el1||!el3) return;
+  const c1=el1.getContext('2d');
   const grad1=makeGradient(c1,'rgba(59,130,246,.38)','rgba(59,130,246,0)');
   const opts={
     responsive:true,maintainAspectRatio:false,
@@ -2189,13 +2195,18 @@ async function openDailyChart(uuid,label){
 }
 document.addEventListener('DOMContentLoaded',async()=>{
   await checkAuth();
-  initCharts();
+  // مهم: داده‌های واقعی (آمار، کانفیگ پیش‌فرض، لینک‌ها) باید همیشه لود بشن، حتی اگه
+  // چیزی در initCharts (مثلاً لود نشدن Chart.js از CDN خارجی) خطا بده. قبلاً initCharts
+  // اول صدا زده می‌شد و اگه throw می‌کرد، بدون هیچ catch ای، کل تابع اینجا متوقف می‌شد
+  // و fetchStats/fetchDefaultVless/loadLinks/loadSubs هیچ‌وقت اجرا نمی‌شدند — دقیقاً همون
+  // چیزی که باعث می‌شد «در حال دریافت...» برای همیشه بمونه.
   document.getElementById('set-host').textContent=location.host;
   document.getElementById('sub-all-url')&&(document.getElementById('sub-all-url').textContent=location.protocol+'//'+location.host+'/sub-all');
   loadTelegramSettings();
   loadJoinSettings();
   loadPublicSettings();
   fetchStats();fetchDefaultVless();loadLinks();loadSubs();
+  try{ initCharts(); }catch(e){ console.error('initCharts failed (نمودارها نمایش داده نمی‌شوند ولی بقیه‌ی پنل کار می‌کند):',e); }
   setInterval(fetchStats,4000);
   setInterval(()=>{
     if(document.getElementById('pg-links').classList.contains('on'))loadLinks();
