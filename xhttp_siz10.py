@@ -17,6 +17,7 @@ from state import (
     LINKS, LINKS_LOCK, stats, hourly_traffic, connections,
     error_logs, logger, is_link_allowed, save_state,
     is_domain_blocked, log_activity,
+    CONN_LIMITER,  # ✅ سقف سراسری تعداد کانکشن هم‌زمان (مشترک با relay_vless.py)
 )
 from relay_vless import parse_vless_header, check_and_use
 
@@ -24,7 +25,12 @@ router = APIRouter()
 
 # ── ثابت‌ها ────────────────────────────────────────────────────────────────
 XHTTP_BUF = 512 * 1024
-DOWNLINK_QUEUE_MAX = 128
+# ✅ فیکس: قبلاً ۱۲۸ بود → در بدترین حالت (کلاینت کند/قطع، مقصد سریع) صف دانلینک
+# هر سشن به‌تنهایی می‌تونست تا ~۶۴MB نگه داره (۱۲۸ × ۵۱۲KB). با تعداد زیاد سشن
+# هم‌زمان زیر فشار، این خودش کافی بود کل حافظه‌ی کانتینر روی Railway را مصرف کند
+# و OOM بخورد. مقدار پایین‌تر همراه با سقف سراسری کانکشن (CONN_LIMITER) ریسک را
+# به‌طور محسوس کم می‌کند.
+DOWNLINK_QUEUE_MAX = 48
 SESSION_IDLE_TIMEOUT = 30
 CONNECTED_IDLE_TIMEOUT = 180
 REAPER_INTERVAL = 10
@@ -32,10 +38,14 @@ TCP_CONNECT_TIMEOUT = 10.0
 MAX_PACKET_UP_BODY = 4 * 1024 * 1024
 
 # ── تنظیمات موتور تطبیقی ──────────────────────────────────────────────────
-SOCK_BUF_SIZE = 2 * 1024 * 1024
+# ✅ فیکس: قبلاً ۲MB بود؛ کوچیک‌تر کردن بافر کرنل هر کانکشن مصرف حافظه‌ی کل زیر
+# بار بالا را کاهش می‌دهد.
+SOCK_BUF_SIZE = 1 * 1024 * 1024
 
 FLOW_MIN_HW = 256 * 1024
-FLOW_MAX_HW = 16 * 1024 * 1024
+# ✅ فیکس: قبلاً ۱۶MB بود — سقف بالای adaptive high-water به‌ازای هر سشن. با سقف
+# سراسری کانکشن هم اگر ترکیب شود، بازهم بهتره سقف بالای هر سشن معقول‌تر باشد.
+FLOW_MAX_HW = 4 * 1024 * 1024
 FLOW_START_HW = 2 * 1024 * 1024
 FLOW_FAST_DRAIN_MS = 2.0
 FLOW_SLOW_DRAIN_MS = 25.0
@@ -193,6 +203,21 @@ async def _get_or_create_session(
         if sess is not None:
             sess["last_seen"] = time.time()
             return sess
+
+    # ✅ فیکس: سقف سراسری تعداد کانکشن هم‌زمان — قبل از ساختن سشن جدید (که صف
+    # دانلینک و بافرهای adaptive-flow برای آن تخصیص داده می‌شود) چک می‌کنیم.
+    # این سقف بین transport وب‌سوکت کلاسیک (relay_vless.py) و XHTTP مشترک است.
+    if not await CONN_LIMITER.try_acquire():
+        raise HTTPException(status_code=503, detail="server at max concurrent connections")
+
+    async with XHTTP_LOCK:
+        # ✅ بررسی دوباره‌ی وجود سشن زیر قفل — بین چک بالا و اینجا ممکنه یک
+        # درخواست هم‌زمان دیگر (GET/POST همان session_id) همین سشن را ساخته باشد.
+        sess = xhttp_sessions.get(session_id)
+        if sess is not None:
+            sess["last_seen"] = time.time()
+            await CONN_LIMITER.release()
+            return sess
         conn_id = secrets.token_urlsafe(6)
         connections[conn_id] = {
             "uuid": uuid, "ip": ip,
@@ -238,6 +263,7 @@ async def _teardown(session_id: str):
         except Exception:
             pass
     connections.pop(sess.get("conn_id"), None)
+    await CONN_LIMITER.release()
     dq = sess.get("down_q")
     if dq:
         try:
