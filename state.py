@@ -87,6 +87,38 @@ link_daily_traffic: dict = defaultdict(lambda: defaultdict(int))
 LINKS: dict = {}
 LINKS_LOCK = asyncio.Lock()
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ✅ فیکس: سقف سراسری تعداد کانکشن هم‌زمان پروکسی (VLESS/Trojan روی WS + XHTTP)
+# قبلاً هیچ محدودیتی روی تعداد تونل‌های باز هم‌زمان وجود نداشت. هر تونل تا چند
+# مگابایت بافر (سوکت + صف‌های adaptive-flow) مصرف می‌کند؛ زیر فشار واقعی (موج
+# ورود کاربر) تعداد تونل‌ها می‌توانست بی‌حدوحصر بالا برود و کل حافظه‌ی کانتینر را
+# مصرف کند → OOM kill → Railway ری‌استارت می‌کند و اگر فشار ادامه پیدا کند دوباره
+# OOM می‌خورد، تا بعد از restartPolicyMaxRetries سرویس کاملاً بالا نیاید (دقیقاً
+# همان چیزی که به‌عنوان «بن شدن زیر فشار» گزارش شد). این یک سقف نرم و سراسری است
+# که هم relay_vless.py (WS کلاسیک) و هم xhttp_siz10.py از آن استفاده می‌کنند.
+# با متغیر محیطی MAX_CONCURRENT_CONNECTIONS در Railway قابل تنظیم است.
+class _ConnLimiter:
+    def __init__(self, limit: int):
+        self.limit = limit
+        self.count = 0
+        self._lock = asyncio.Lock()
+
+    async def try_acquire(self) -> bool:
+        async with self._lock:
+            if self.count >= self.limit:
+                return False
+            self.count += 1
+            return True
+
+    async def release(self):
+        async with self._lock:
+            if self.count > 0:
+                self.count -= 1
+
+
+MAX_CONCURRENT_CONNECTIONS = int(os.environ.get("MAX_CONCURRENT_CONNECTIONS", "250"))
+CONN_LIMITER = _ConnLimiter(MAX_CONCURRENT_CONNECTIONS)
+
 SUBS: dict = {}
 SUBS_LOCK = asyncio.Lock()
 
